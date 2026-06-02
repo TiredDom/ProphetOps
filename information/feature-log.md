@@ -37,3 +37,26 @@ Notes For Future Work:
 - Vue pages go in resources/js/Pages/{ModuleName}/
 - Vue components go in resources/js/Components/{category}/
 - Use the design tokens in resources/css/app.css for all styling
+
+## 2026-06-01 - Local Setup Guide
+
+Module:
+Documentation / Project Setup
+
+Summary:
+Added a setup guide explaining how to run ProphetOps locally with XAMPP MySQL, Laravel, Vue, and Vite.
+
+Files Added:
+- markdowns/setup guide.md
+
+Files Updated:
+- information/feature-log.md
+
+User-Facing Behavior:
+No app behavior changed. The guide explains how to open the scaffold website at http://127.0.0.1:8000.
+
+How To Verify:
+Open markdowns/setup guide.md and follow the XAMPP, npm, and Laravel startup steps.
+
+Notes For Future Work:
+Keep this setup guide updated if the database name, ports, frontend tooling, or local startup process changes.
