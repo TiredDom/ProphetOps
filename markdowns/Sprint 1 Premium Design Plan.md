@@ -35,6 +35,37 @@ Recommended look:
 - Minimal chart colors
 - Professional spacing
 
+## Premium UI Polish Standards
+
+The interface should not stop at being correct. It should feel like a polished internal decision-support product.
+
+Premium polish means:
+
+- Use proper line icons for navigation, dashboard cards, buttons, empty states, and important module headers.
+- Avoid using plain letter icons for functional navigation items.
+- Keep the intro area compact because ProphetOps is an admin system, not a landing page.
+- Use stronger hierarchy through clear headings, muted helper text, status badges, and consistent spacing.
+- Use solid readable panels for data-heavy areas.
+- Use subtle frosted glass only on approved surfaces such as sidebar, top bar, login, and modals.
+- Keep blue as the primary system color and use teal or green accents for data validation, system readiness, and trustworthy operational states.
+- Use real empty states instead of only showing zero values.
+- Empty states should explain what is missing and offer a next action when appropriate.
+- Do not expose sprint/planning labels in the user-facing dashboard. Use user-friendly states such as System Readiness, Data Intake, Validation Flow, Planned, or Ready.
+
+Recommended dashboard stat card format:
+
+- Icon
+- Value
+- Label
+- Status badge
+- Muted helper text
+
+Example dashboard empty states:
+
+- No records encoded yet
+- Start by adding an operational record
+- Add Record
+
 ## Color Palette
 
 Recommended colors:
@@ -270,6 +301,9 @@ Recommended tab groups:
 - Keep the top bar sticky.
 - Use segmented controls or clean underline tabs for in-page tabs.
 - Show disabled or locked states for Sprint 2 modules.
+- Keep navigation web-first on desktop, but make it usable at tablet and mobile widths.
+- On smaller screens, allow the sidebar to collapse, stack, or move into a compact navigation pattern.
+- Make sure active states, locked states, and group labels remain understandable after resizing.
 
 ### Navigation Naming Rules
 
@@ -497,6 +531,69 @@ Chart design rules:
 - No decorative chart effects
 - Tooltips for values
 
+## Responsive Design Standards
+
+ProphetOps is web-first because it is an internal admin dashboard for local Wi-Fi or intranet use. However, the interface must still resize cleanly for reviewers, laptops, tablets, and narrow browser windows.
+
+Responsive design should support the Premium Clarity Dashboard theme: clean, modern, professional, readable, and data-focused. The layout should adapt without becoming a mobile-style customer app or decorative landing page.
+
+### Responsive Principles
+
+- Start with a desktop admin dashboard layout.
+- Preserve readability before visual effects.
+- Keep data panels, forms, tables, reports, and charts on solid high-contrast surfaces.
+- Use frosted glass only for allowed surfaces such as navigation, top bars, login panels, and modals.
+- Avoid shrinking text until it becomes hard to read.
+- Avoid overlapping text, cards, buttons, tables, or navigation items.
+- Keep important actions reachable after resizing.
+- Keep the first dashboard load lightweight.
+
+### Recommended Breakpoints
+
+Use these as practical design targets:
+
+| Width | Layout Behavior |
+| --- | --- |
+| 1200px and above | Full desktop layout with left sidebar, sticky top bar, multi-column cards, and full dashboard panels. |
+| 900px to 1199px | Tablet or small laptop layout. Sidebar may remain visible or become compact. Cards can reduce from four columns to two columns. |
+| 700px to 899px | Narrow tablet layout. Main content should stack into one column where needed. Tables should scroll horizontally instead of compressing columns too much. |
+| Below 700px | Mobile-width review layout. Sidebar and top bar should stack or collapse. Cards and panels should become single column. Buttons should wrap cleanly. |
+
+### Responsive Dashboard Rules
+
+- Summary cards may use four columns on wide desktop, two columns on tablet, and one column on narrow screens.
+- Dashboard panels should stack vertically when horizontal space is limited.
+- Top bar actions should wrap instead of overflowing.
+- Page titles and descriptions should not overlap buttons or filters.
+- Dashboard sections should keep consistent spacing and avoid nested card-heavy layouts.
+
+### Responsive Table And Form Rules
+
+- Tables should keep readable font sizes.
+- Wide tables should use horizontal scrolling or column prioritization.
+- Do not force every table column into a narrow mobile width.
+- Forms should become single column on narrow screens.
+- Labels, validation messages, and helper text must remain visible.
+- Primary actions should stay close to the form or table they affect.
+
+### Responsive Navigation Rules
+
+- Desktop should use the grouped left sidebar.
+- Smaller screens may use a compact sidebar, stacked navigation, or collapsible navigation.
+- Navigation groups should remain clear even when compressed.
+- Disabled or locked Sprint 2 modules should remain visibly disabled after resizing.
+
+### Responsive Verification
+
+Before Sprint 1 is considered polished, check at least:
+
+- Desktop width around 1366px.
+- Small laptop or tablet width around 1024px.
+- Narrow tablet width around 768px.
+- Mobile-width browser around 390px.
+
+Verification should confirm that text is readable, panels do not overlap, buttons wrap cleanly, and the interface still feels like an internal decision-support dashboard.
+
 ## Accessibility And Usability
 
 The design should support ISO 25010 usability goals.
@@ -557,6 +654,8 @@ Sprint 1 is successful if:
 - The main admin pages are visually consistent.
 - The dashboard shows basic operational summaries.
 - Data-heavy screens are readable and organized.
+- Navigation, dashboard cards, and empty states use proper iconography and polished hierarchy.
+- The layout resizes cleanly for desktop, tablet, and narrow browser widths.
 - The design looks modern and premium.
 - The interface is ready for Sprint 2 forecasting features.
 - The system supports the thesis requirement for a localized admin dashboard.
@@ -956,5 +1055,7 @@ Sprint 1 is done when:
 - Inventory items and movements can be created and viewed.
 - Basic non-predictive reports are visible.
 - The UI follows the Premium Clarity design direction.
+- The UI includes polished iconography, compact admin-first dashboard headers, readable stat cards, and useful empty states.
+- The dashboard and main Sprint 1 pages are responsive enough for desktop, tablet, and narrow browser review.
 - Data is structured consistently for future forecasting.
 - The system is ready for Sprint 2 Meta Prophet and AI trajectory integration.
