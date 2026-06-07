@@ -7,7 +7,7 @@
             <h4>{{ title }}</h4>
             <p>{{ message }}</p>
         </div>
-        <button v-if="actionLabel" class="empty-state-action" type="button">
+        <button v-if="actionLabel" class="empty-state-action" type="button" @click="$emit('action')">
             <AppIcon name="plus" />
             {{ actionLabel }}
         </button>
@@ -40,5 +40,6 @@ export default {
             default: '',
         },
     },
+    emits: ['action'],
 };
 </script>

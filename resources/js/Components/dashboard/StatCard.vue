@@ -8,7 +8,7 @@
         </div>
         <p>{{ label }}</p>
         <strong>{{ value }}</strong>
-        <span>{{ note }}</span>
+        <span class="stat-note">{{ note }}</span>
     </article>
 </template>
 

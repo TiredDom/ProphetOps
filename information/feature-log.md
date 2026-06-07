@@ -1,5 +1,23 @@
 # ProphetOps Feature Log
 
+Current direction note:
+Entries before `2026-06-06 - Sprint 1 DSS Planning Reset` are historical. Some older entries mention legacy pages such as Operational Records, Data Validation, Packages, Settings, or earlier visual directions. The active implementation direction is now `information/sprint-1-direction.md`.
+
+## 2026-06-06 - Sprint 1 DSS Planning Reset
+
+Summary:
+Aligned the project documentation with the new Sprint 1 front-end DSS prototype plan.
+
+What changed:
+- Added `information/sprint-1-direction.md` as the current source of truth.
+- Reframed the required Sprint 1 pages around Login, Owner DSS Dashboard, Bookings, Inventory, Expenses, Analytics, Forecasting Preview, Trajectory Insights, Reports, and Users.
+- Marked Operational Records as legacy direction to be reworked into Bookings / Transactions.
+- Removed Data Validation as a required standalone Sprint 1 page and folded data quality into page behavior and future backend work.
+- Updated route, module, database, auth, UI component, AI handoff, design, and page-by-page planning docs.
+
+Important context:
+No implementation code was changed for this planning reset. The next implementation pass should follow `information/sprint-1-direction.md` and `markdowns/page-by-page implementation guide.md`.
+
 ## 2026-06-01 - Project Scaffolding
 
 Module:
@@ -33,7 +51,7 @@ How To Verify:
 4. Open http://127.0.0.1:8000
 
 Notes For Future Work:
-- Next task is building the actual Sprint 1 pages (Login, Dashboard, Operational Records, etc.)
+- Historical note: the active Sprint 1 page list has changed. Use `information/sprint-1-direction.md` for the current required pages.
 - Vue pages go in resources/js/Pages/{ModuleName}/
 - Vue components go in resources/js/Components/{category}/
 - Use the design tokens in resources/css/app.css for all styling
@@ -274,7 +292,362 @@ User-Facing Behavior:
 No app behavior changed. This is a planning document for future page implementation.
 
 How To Verify:
-Open markdowns/page-by-page implementation guide.md and confirm it covers Dashboard, Operational Records, Data Validation, Package / Destination References, Expenses, Inventory, Reports, Forecasting, Users, and Settings.
+Historical verification note: this guide has since been replaced by the new page-by-page guide for Login, Owner DSS Dashboard, Bookings, Inventory, Expenses, Analytics, Forecasting Preview, Trajectory Insights, Reports, and Users.
 
 Notes For Future Work:
 Use this guide before building the next page so each module stays aligned with the thesis scope, Premium Clarity design, and current sidebar navigation.
+
+## 2026-06-03 - Operational Records Frontend Workspace
+
+Module:
+Operational Records / Data Workspace
+
+Summary:
+Implemented the first Operational Records page as a Premium Clarity frontend workspace. The page now has its own route, active sidebar navigation, summary cards, filter/search controls, empty state, data-quality guidance, forecasting-readiness guidance, and an add/edit drawer for daily records or monthly summaries.
+
+Files Added:
+- resources/js/Pages/OperationalRecords.vue
+- resources/js/data/navigation.js
+- Legacy planning file later removed by the 2026-06-06 Sprint 1 DSS Planning Reset.
+
+Files Updated:
+- routes/web.php
+- resources/js/Pages/Welcome.vue
+- resources/js/Components/layout/Sidebar.vue
+- resources/js/Components/feedback/EmptyState.vue
+- resources/js/Components/icons/AppIcon.vue
+- resources/css/app.css
+- information/feature-log.md
+- information/module-map.md
+- information/api-map.md
+- information/ui-components.md
+
+User-Facing Behavior:
+Users can open `/data/operational-records`, view a polished internal operational records workspace, add records through a drawer, edit records, mark records as Validated, archive records, and filter/search records in the current browser session. The dashboard primary action now links to this page.
+
+How To Verify:
+Run the Laravel and Vite dev servers, then open `http://127.0.0.1:8000/data/operational-records`. Click Add Operational Record, save a Daily Record or Monthly Summary with a source channel and net sales amount, then confirm it appears in the table and can be filtered or archived.
+
+Notes For Future Work:
+This is frontend-only state for the first implementation slice. The next backend slice should add the `operational_records` database table, validation request classes, controller actions, and persistence through Inertia.
+
+AI Handoff:
+- Module: Operational Records
+- What changed: Added the first implemented Operational Records workspace with client-side intake, filtering, validation status actions, and responsive drawer UI.
+- Main files: resources/js/Pages/OperationalRecords.vue, resources/js/data/navigation.js, routes/web.php, resources/css/app.css
+- How to verify: Open `/data/operational-records`, add an operational record, validate or archive it, and check filters.
+- Important context: This is internal operational data intake, not booking management or a customer-facing reservation flow.
+- Next likely task: Add Laravel database persistence for operational records.
+
+## 2026-06-03 - Frontend Account Access Page
+
+Module:
+Authentication / Account Access
+
+Summary:
+Added the frontend-only Login / Account Access page with Premium Clarity styling, email/password fields, password visibility toggle, remember-device option, validation messages, loading state, mock authentication, and temporary frontend route protection for dashboard pages.
+
+Files Added:
+- resources/js/Pages/Login.vue
+- resources/js/services/mockAuth.js
+- information/auth-frontend-backend-guide.md
+
+Files Updated:
+- routes/web.php
+- resources/js/Pages/Welcome.vue
+- resources/js/Pages/OperationalRecords.vue
+- resources/js/Components/icons/AppIcon.vue
+- resources/css/app.css
+- information/feature-log.md
+- information/module-map.md
+- information/api-map.md
+- information/ui-components.md
+
+User-Facing Behavior:
+Opening `/` or `/login` shows the internal ProphetOps account access page. Entering any valid email and a non-empty password simulates login and redirects to `/dashboard`. Direct dashboard access redirects to `/login` until the temporary frontend session exists.
+
+How To Verify:
+Open `http://127.0.0.1:8000/login`, submit an empty form to see validation, enter a valid email and password, use the password visibility toggle, then sign in and confirm the dashboard opens.
+
+Notes For Future Work:
+This is not real authentication. Replace `resources/js/services/mockAuth.js` with Laravel-backed authentication when backend work begins. Use `information/auth-frontend-backend-guide.md` as the connection guide.
+
+AI Handoff:
+- Module: Authentication / Account Access
+- What changed: Added polished frontend login flow with mock auth and route guard placeholders.
+- Main files: resources/js/Pages/Login.vue, resources/js/services/mockAuth.js, routes/web.php, resources/css/app.css
+- How to verify: Open `/login`, submit valid credentials, and confirm redirect to `/dashboard`.
+- Important context: No backend auth was created; this is frontend-only and internal-use only.
+- Next likely task: Add real Laravel session authentication when backend work begins.
+
+## 2026-06-03 - Premium Login Simplification
+
+Module:
+Authentication / Account Access / UI Polish
+
+Summary:
+Refined the login page into a simpler premium internal access card. Removed the explanatory Access Scope and System Mode panels, removed role documentation from the login screen, tightened the copy, and centered the Apple-inspired auth card with a softer layered background.
+
+Files Added:
+- None
+
+Files Updated:
+- resources/js/Pages/Login.vue
+- resources/css/app.css
+- information/feature-log.md
+
+User-Facing Behavior:
+The login page now feels more focused and secure: ProphetOps brand, Local Intranet DSS label, Internal Account Access badge, short authorized-user copy, email/password fields, remember-device option, and Sign In action.
+
+How To Verify:
+Open `http://127.0.0.1:8000/login`. Confirm the right-side explanatory panels are gone and the page presents a single centered premium login card.
+
+Notes For Future Work:
+Keep the login screen minimal. Role explanations and backend implementation notes belong in documentation, not the account access UI.
+
+## 2026-06-03 - Data Validation Page Plan
+
+Module:
+Documentation / Data Validation
+
+Summary:
+Added a detailed planning document for the Data Validation page. The plan defines the page purpose, Sprint 1 scope, validation statuses, forecasting readiness rules, review workflow, filters, table/list columns, data quality rules, empty states, UI states, design notes, responsive behavior, acceptance criteria, and out-of-scope limits.
+
+Files Added:
+- Legacy planning file later removed by the 2026-06-06 Sprint 1 DSS Planning Reset.
+
+Files Updated:
+- information/module-map.md
+- information/feature-log.md
+- information/ui-components.md
+
+User-Facing Behavior:
+No app behavior changed. This is a planning document only.
+
+How To Verify:
+Historical verification note: the standalone Data Validation plan was removed from active Sprint 1 planning during the 2026-06-06 reset.
+
+Notes For Future Work:
+Use this plan before implementing the Data Validation frontend page. Keep it as a human review workspace and do not add forecasting computation or customer-facing workflows.
+
+AI Handoff:
+- Module: Data Validation
+- What changed: Added the detailed Data Validation page plan.
+- Main files at the time: legacy Data Validation plan, information/module-map.md, information/feature-log.md, information/ui-components.md
+- How to verify: Review the plan sections and confirm Data Validation remains Sprint 1 data foundation work.
+- Important context: Data Validation prepares records for reports and future forecasting but does not run Meta Prophet or AI insights.
+- Next likely task: Build the Data Validation frontend page from this plan.
+
+## 2026-06-03 - Data Validation Frontend Workspace
+
+Module:
+Data Validation / Data Workspace
+
+Summary:
+Implemented the Data Validation page as a Premium Clarity frontend review workspace. The page includes status summary cards, a filterable validation queue, desktop review panel, mobile review cards, issue badges, forecasting-readiness guidance, validation/archive actions, toast feedback, and the active sidebar route.
+
+Files Added:
+- resources/js/Pages/DataValidation.vue
+
+Files Updated:
+- routes/web.php
+- resources/js/data/navigation.js
+- resources/js/Pages/Welcome.vue
+- resources/css/app.css
+- information/module-map.md
+- information/api-map.md
+- information/ui-components.md
+- information/feature-log.md
+
+User-Facing Behavior:
+Users can open `/data/validation`, review seeded frontend demo records, filter by status/source/type/date/issue/encoder, inspect detected issues, see whether records are sales-ready or passenger-ready, and change record statuses in the current browser session.
+
+How To Verify:
+Run the Laravel and Vite dev servers, sign in through the mock login flow if needed, then open `http://127.0.0.1:8000/data/validation`. Use Review Needs Review, select a record, validate a complete record, and confirm the toast and status badges update.
+
+Notes For Future Work:
+This is frontend-only demo state. The next backend slice should connect Data Validation to persisted operational records, validation status updates, duplicate flags, validation history, and role-aware permissions.
+
+AI Handoff:
+- Module: Data Validation
+- What changed: Added the first implemented Data Validation workspace with client-side records, review actions, issue indicators, readiness badges, and responsive mobile cards.
+- Main files: resources/js/Pages/DataValidation.vue, resources/css/app.css, routes/web.php, resources/js/data/navigation.js
+- How to verify: Open `/data/validation`, filter the queue, select a record, and mark a complete record as Validated.
+- Important context: This is internal data quality review, not forecasting, booking, payment verification, customer workflow, or external API validation.
+- Next likely task: Connect Operational Records and Data Validation to Laravel persistence.
+
+## 2026-06-03 - Data Validation Staff-Friendly Refactor
+
+Module:
+Data Validation / UI Simplification
+
+Summary:
+Refactored the Data Validation page from a dense analyst-style workspace into a simpler guided review queue for non-technical staff. The page now uses three summary cards, a Review Next Record primary action, minimal visible filters, collapsible advanced filters, a shorter table, mobile review cards, and a plain-language review panel.
+
+Files Added:
+- None
+
+Files Updated:
+- resources/js/Pages/DataValidation.vue
+- resources/css/app.css
+- information/module-map.md
+- information/ui-components.md
+- information/feature-log.md
+
+User-Facing Behavior:
+Users see friendlier labels such as Needs Checking, Ready for Reports, Missing Information, and Forecast Use. Advanced fields are hidden until needed, and the review panel explains what is missing, why it matters, and what the user should do next.
+
+How To Verify:
+Open `http://127.0.0.1:8000/data/validation`, click Review Next Record, confirm the simplified table columns, expand Advanced Filters, and use the review panel actions.
+
+Notes For Future Work:
+Keep this page as a staff-friendly review workspace. Do not reintroduce dense forecasting cards, many columns, or technical readiness wording unless a later sprint explicitly adds analyst-facing tools.
+
+AI Handoff:
+- Module: Data Validation
+- What changed: Simplified the Data Validation UI with progressive disclosure and plain-language review guidance.
+- Main files: resources/js/Pages/DataValidation.vue, resources/css/app.css
+- How to verify: Open `/data/validation`, click Review Next Record, and confirm the queue only shows core review information by default.
+- Important context: Underlying statuses still use Draft, Needs Review, Validated, and Archived for compatibility, while user-facing labels are friendlier.
+- Next likely task: Connect simplified status actions to Laravel persistence when backend work begins.
+
+## 2026-06-03 - Operational Records Staff-Friendly Refactor
+
+Module:
+Operational Records / UI Simplification
+
+Summary:
+Refactored the Operational Records page into a simpler guided intake workspace that matches the simplified Data Validation page. The page now uses four focused summary cards, one clear Add Operational Record primary action, minimal visible filters, collapsible advanced filters, a shorter table, mobile record cards, a detail panel, and a cleaner add/edit drawer.
+
+Files Added:
+- None
+
+Files Updated:
+- resources/js/Pages/OperationalRecords.vue
+- resources/css/app.css
+- information/module-map.md
+- information/ui-components.md
+- information/feature-log.md
+
+User-Facing Behavior:
+Users can add Daily Records or Monthly Summaries, keep passenger count optional, view only key columns by default, open records for full details, and use friendlier statuses such as Needs Checking and Ready for Reports.
+
+How To Verify:
+Open `http://127.0.0.1:8000/data/operational-records`, click Add Operational Record, save a Daily Record or Monthly Summary, confirm it appears in the simplified table, open the record details, and test the advanced filters.
+
+Notes For Future Work:
+This remains frontend-only state. Backend work should preserve the simplified staff-facing language while adding persistence, validation requests, controllers, and role-aware permissions.
+
+AI Handoff:
+- Module: Operational Records
+- What changed: Simplified the intake page with progressive disclosure and staff-friendly record management.
+- Main files: resources/js/Pages/OperationalRecords.vue, resources/css/app.css
+- How to verify: Open `/data/operational-records`, add a record, view details, mark it Ready for Reports, and archive it.
+- Important context: This page is internal operational data intake, not a customer booking, reservation, payment, or portal workflow.
+- Next likely task: Connect Operational Records to Laravel persistence.
+
+## 2026-06-06 - Inventory Frontend Workspace
+
+Module:
+Inventory / Operations
+
+Summary:
+Created the Inventory page as a simple internal stock/resource tracker. The page includes summary cards, Items/Movements/Low Stock tabs, minimal visible filters, advanced filters, item add/edit drawer, stock movement drawer, item detail panel, low stock awareness, and responsive mobile cards.
+
+Files Added:
+- resources/js/Pages/Inventory.vue
+
+Files Updated:
+- routes/web.php
+- resources/js/data/navigation.js
+- resources/css/app.css
+- information/module-map.md
+- information/database-map.md
+- information/ui-components.md
+- information/feature-log.md
+
+User-Facing Behavior:
+Users can open `/operations/inventory`, add inventory items, record Stock In, Stock Out, or Adjustment movements, view movement history, and see Low Stock or Out of Stock statuses based on current and minimum quantities.
+
+How To Verify:
+Open `http://127.0.0.1:8000/operations/inventory`, click Add Inventory Item, save an item, record a stock movement, then check the Items, Movements, and Low Stock tabs.
+
+Notes For Future Work:
+This is frontend-only state. Backend work should add inventory_items and inventory_movements persistence, validation requests, controller actions, and role-aware permissions.
+
+AI Handoff:
+- Module: Inventory
+- What changed: Added the Sprint 1 inventory frontend workspace for internal items and stock changes.
+- Main files: resources/js/Pages/Inventory.vue, resources/css/app.css, routes/web.php, resources/js/data/navigation.js
+- How to verify: Open `/operations/inventory`, add an item, record stock movement, and confirm low stock status updates.
+- Important context: This is simple internal inventory tracking, not warehouse management, procurement software, barcode scanning, e-commerce inventory, or customer-facing stock display.
+- Next likely task: Connect Inventory to Laravel persistence.
+
+## 2026-06-06 - UI Consistency And Spacing Pass
+
+Module:
+Frontend UI System / Shared Layout
+
+Summary:
+Standardized page spacing, shared module layout helpers, toolbar layout, icon centering, button icon sizing, status badge styling, and mobile card behavior across Dashboard, Operational Records, Data Validation, and Inventory.
+
+Files Added:
+- None
+
+Files Updated:
+- resources/css/app.css
+- resources/js/Pages/DataValidation.vue
+- resources/js/Pages/OperationalRecords.vue
+- information/ui-components.md
+- information/feature-log.md
+
+User-Facing Behavior:
+Implemented pages now feel more like one Premium Clarity product: module headers align, Inventory uses the same two-column-to-one-column layout behavior, icons stay centered in their wrappers, badges are calmer and consistent, and mobile cards avoid cramped badge placement.
+
+How To Verify:
+Open `/dashboard`, `/data/operational-records`, `/data/validation`, and `/operations/inventory`. Check desktop spacing, resize below tablet/mobile widths, use the hamburger sidebar, and confirm buttons, icon chips, filters, status badges, and mobile cards remain aligned.
+
+Notes For Future Work:
+Future Sprint 1 pages should reuse the shared shell, `module-intro`, `StatCard`, `ContentPanel`, `simple-validation-layout`, and `simple-validation-toolbar` patterns before adding new page-specific CSS.
+
+AI Handoff:
+- Module: Frontend UI System
+- What changed: Added a consistency pass for shared visual rhythm, centered icons, responsive layouts, and simpler future-use wording.
+- Main files: resources/css/app.css, resources/js/Pages/DataValidation.vue, resources/js/Pages/OperationalRecords.vue, information/ui-components.md
+- How to verify: Resize the implemented pages and check shell spacing, filters, buttons, badges, and mobile card layouts.
+- Important context: This was UI-only; no backend logic or new workflows were introduced.
+- Next likely task: Build the next Sprint 1 page using the shared UI pattern.
+
+## 2026-06-06 - DSS Dashboard Reframing
+
+Module:
+Dashboard / Decision Support Workspace
+
+Summary:
+Refactored the Dashboard/Home page so it presents ProphetOps as a Decision Support System command center. The page now shows the system flow from fragmented data intake to validation, business monitoring, reports, forecasting preparation, and planned trajectory insights.
+
+Files Added:
+- None
+
+Files Updated:
+- resources/js/Pages/Welcome.vue
+- resources/css/app.css
+- information/decisions.md
+- information/feature-log.md
+
+User-Facing Behavior:
+The first screen now communicates the thesis selling point more clearly: ProphetOps turns scattered internal records into report-ready data and future decision-support inputs. Forecasting and Trajectory Insights are visible as planned/locked capabilities, not completed features.
+
+How To Verify:
+Open `/dashboard`. Confirm the main panel says "ProphetOps Decision Support Workspace", shows the DSS pipeline, keeps Add Operational Record and Review Data as primary actions, and still displays Total Sales, Operational Records, Expenses, and Low Stock metrics.
+
+Notes For Future Work:
+Keep the dashboard practical and internal-facing. Add real report, forecasting, and trajectory data only when those modules exist.
+
+AI Handoff:
+- Module: Dashboard
+- What changed: Reframed the homepage around the DSS thesis flow and future-ready decision support without adding backend logic.
+- Main files: resources/js/Pages/Welcome.vue, resources/css/app.css
+- How to verify: Open `/dashboard` and review the DSS pipeline, readiness panel, metrics, and lower decision-support sections.
+- Important context: Forecasting and Trajectory Insights remain planned/locked; no fake forecast output was added.
+- Next likely task: Build the Reports or Expenses page using the same Premium Clarity pattern.
