@@ -1,1061 +1,713 @@
 # ProphetOps Sprint 1 Premium Design Plan
 
+This is the active Sprint 1 plan for ProphetOps.
+
+## Project Context
+
+ProphetOps is an internal Decision Support System for Renan-Tina Travels and Tours, a B2B travel agency.
+
+The agency currently uses fragmented tools such as Messenger, Google Sheets, Gmail, and notebooks. ProphetOps should centralize bookings, inventory, operational costs, sales analytics, reports, and future forecasting.
+
+This is not a public booking website. It is an internal business decision-support dashboard for owners, admins, and travel operations staff.
+
+## Sprint 1 Goal
+
+Build the front-end shell and main pages using mock/sample data.
+
+Forecasting and AI insights can be placeholders, but the app must already feel like a DSS.
+
+The app should communicate immediately:
+
+- what is happening in the business
+- why it matters
+- what may happen next
+- what action the owner should review
+
+Use the existing project stack and conventions. This project uses Laravel, Inertia, Vue, Vite, and custom CSS.
+
 ## Design Direction
 
-ProphetOps will use a Premium Clarity Dashboard design. This means the interface should feel modern, polished, and professional while still being practical for daily administrative work.
+Use a minimalist, modern, premium interface inspired by Stripe Dashboard and Attio CRM.
 
-The system should be inspired by Apple Human Interface Guidelines, especially clarity, visual hierarchy, consistency, and ease of use. The design may use subtle Cupertino-style frosted glass effects, but only in areas where readability will not be affected.
+Use Stripe as inspiration for:
 
-## Design Statement
+- financial clarity
+- revenue and expense presentation
+- trustworthy dashboard layout
+- clean charts and reports
+- serious business tone
 
-ProphetOps will use a modern Apple HIG-inspired dashboard interface focused on readability, hierarchy, and operational efficiency. The system will apply subtle frosted glass effects to navigation, login, and modal surfaces, while preserving solid high-contrast layouts for tables, forms, reports, and charts. This approach supports usability, performance efficiency, and functional suitability under ISO 25010 while maintaining a premium and professional visual identity.
+Use Attio as inspiration for:
 
-## Main Design Goals
+- modern record management
+- searchable tables
+- flexible CRM-like data views
+- clean object/detail layouts
+- polished but simple interactions
 
-- Make the system easy to understand for administrators, owners, and operational staff.
-- Make daily data entry fast and clear.
-- Make business summaries readable at a glance.
-- Prepare the interface for forecasting and trajectory insights in later sprints.
-- Keep the design premium without making it decorative or distracting.
-- Support local intranet use with good performance.
+## Visual Standards
 
-## Visual Style
+Use:
 
-The visual style should be clean, calm, and business-focused.
+- light-first interface
+- soft gray app background
+- white panels
+- thin borders
+- soft shadows only when useful
+- clean icons where appropriate
+- clear visual hierarchy
 
-Recommended look:
+Avoid:
 
-- Light dashboard background
-- Solid white panels for important data
-- Subtle frosted glass for navigation and modals
-- Soft shadows
-- Thin borders
-- Compact but readable tables
-- Clear action buttons
-- Minimal chart colors
-- Professional spacing
+- loud gradients
+- decorative clutter
+- marketing hero sections
+- public booking language
+- walls of equal-weight cards
+- spreadsheet dumps
 
-## Premium UI Polish Standards
+Color tokens:
 
-The interface should not stop at being correct. It should feel like a polished internal decision-support product.
-
-Premium polish means:
-
-- Use proper line icons for navigation, dashboard cards, buttons, empty states, and important module headers.
-- Avoid using plain letter icons for functional navigation items.
-- Keep the intro area compact because ProphetOps is an admin system, not a landing page.
-- Use stronger hierarchy through clear headings, muted helper text, status badges, and consistent spacing.
-- Use solid readable panels for data-heavy areas.
-- Use subtle frosted glass only on approved surfaces such as sidebar, top bar, login, and modals.
-- Keep blue as the primary system color and use teal or green accents for data validation, system readiness, and trustworthy operational states.
-- Use real empty states instead of only showing zero values.
-- Empty states should explain what is missing and offer a next action when appropriate.
-- Do not expose sprint/planning labels in the user-facing dashboard. Use user-friendly states such as System Readiness, Data Intake, Validation Flow, Planned, or Ready.
-
-Recommended dashboard stat card format:
-
-- Icon
-- Value
-- Label
-- Status badge
-- Muted helper text
-
-Example dashboard empty states:
-
-- No records encoded yet
-- Start by adding an operational record
-- Add Record
-
-## Color Palette
-
-Recommended colors:
-
-- Background: #F5F7FA
-- Main Surface: #FFFFFF
-- Glass Surface: rgba(255, 255, 255, 0.72)
-- Primary Accent: #2563EB
-- Secondary Accent: #0F766E
+- Background: #F7F8FA
+- Surface: #FFFFFF
+- Primary text: #111827
+- Secondary text: #6B7280
+- Border: #E5E7EB
+- Primary accent: #635BFF or #4F46E5
 - Success: #16A34A
 - Warning: #D97706
 - Danger: #DC2626
-- Primary Text: #111827
-- Secondary Text: #6B7280
-- Border: #E5E7EB
+- Info: #2563EB
 
-The color palette should avoid looking too playful. ProphetOps should feel like a serious business tool.
+Spacing:
 
-## Typography
+- Use an 8px spacing system.
+- Page padding: 24px desktop, 16px mobile
+- Card padding: 20px to 24px
+- Grid gap: 16px to 20px
+- Section gap: 24px to 32px
+- Button height: 40px to 44px
+- Input height: 40px to 44px
+- Border radius: 8px for controls
+- Border radius: 10px to 12px for panels
 
-Use a clean sans-serif font.
+Typography:
 
-Recommended font stack:
-
-```text
-Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif
-```
-
-Recommended type sizes:
-
-- Page title: 24px to 28px
-- Section heading: 18px to 20px
-- Card value: 24px to 32px
-- Table text: 14px
-- Form labels: 13px to 14px
+- Use Inter, SF Pro, or similar.
+- Page title: 28px to 32px
+- Section title: 18px to 20px
+- Card title: 14px to 16px
+- Body text: 14px
 - Helper text: 12px to 13px
+- No negative letter spacing
 
-Typography should be clear and readable. Avoid oversized headings inside dashboard panels.
+Animations:
 
-## Glassmorphism Usage
+- Hover/focus transitions: 120ms to 160ms
+- Sidebar/nav active transition: 180ms to 220ms
+- Optional page content fade: 120ms max
+- Card hover: subtle border or shadow only
+- No flashy animations
 
-Use frosted glass effects only in selected areas.
+## Authentication Scope
 
-Allowed areas:
+Implement pseudo login only.
 
-- Login panel
-- Sidebar background
-- Top navigation bar
-- Modal containers
-- Floating filter bars
-- Small dashboard header areas
+Do not build:
 
-Avoid frosted glass in:
+- real authentication
+- password hashing
+- backend sessions
+- JWT
+- database-backed users
 
-- Operational record tables
-- Inventory tables
-- Expense records
-- Financial reports
-- Forecast charts
-- Form input areas
-- Printable reports
+Demo accounts:
 
-Important data should always be displayed on solid, high-contrast surfaces.
+- owner@prophetops.local / owner123
+- admin@prophetops.local / admin123
+- staff@prophetops.local / staff123
 
-## Layout Structure
+After login:
 
-Use a classic admin dashboard layout.
+- store a mock session in localStorage or frontend state
+- add frontend-only route guarding
+- logout clears the mock session
+- clearly treat this as a Sprint 1 prototype limitation
 
-Main layout:
+Role behavior:
 
-- Left sidebar navigation
-- Top bar with page title, date, and user menu
-- Main content area
-- Responsive layout for smaller screens
+- Owner / Management: can access all pages
+- Admin: can access Dashboard, Bookings, Inventory, Expenses, Analytics, and Reports
+- Staff: can access Bookings and Inventory only
 
-Recommended sidebar items:
+Navigation should adapt based on role. Restricted pages should not break the UI.
+
+## Required Pages
+
+1. Login
+2. Owner DSS Dashboard
+3. Bookings / Transactions
+4. Inventory
+5. Expenses / Operational Costs
+6. Sales Analytics
+7. Forecasting Preview
+8. Trajectory Insights
+9. Reports
+10. Users / Access Management
+
+## Primary Navigation
+
+Use a left sidebar on desktop and a collapsible/mobile navigation on small screens.
+
+Navigation items:
 
 - Dashboard
-- Operational Records
-- Packages
-- Expenses
+- Bookings
 - Inventory
-- Reports
-- Forecasting
-- Users
-- Settings
-
-For Sprint 1, Forecasting can be shown as a placeholder because the actual forecasting engine belongs to Sprint 2.
-
-## Navigation Blueprint
-
-ProphetOps should use a grouped left sidebar, a clean sticky top bar, and in-page tabs only for closely related module views. The navigation must communicate that ProphetOps is a Decision Support System for operational data, analytics, forecasting, and internal management. It should not feel like a booking website or customer-facing reservation platform.
-
-### Full Sidebar Structure
-
-#### Overview
-
-- Dashboard
-
-#### Data Workspace
-
-- Operational Records
-- Data Validation
-- Source Channels
-
-#### Business Records
-
-- Package / Destination References
 - Expenses
-- Marketing Records
-
-#### Operations
-
-- Inventory
-- Inventory Movements
-- Low Stock Alerts
-
-#### Reports
-
-- Reports
-
-#### Analytics
-
+- Analytics
 - Forecasting
 - Trajectory Insights
-- Forecast History
-
-#### Administration
-
-- Users
-- Roles / Permissions
-- System Settings
-- Activity Log
-
-### Sprint 1 Minimum Sidebar
-
-#### Overview
-
-- Dashboard
-
-#### Data Workspace
-
-- Operational Records
-- Data Validation
-
-#### Business Records
-
-- Package / Destination References
-- Expenses
-
-#### Operations
-
-- Inventory
-
-#### Reports
-
 - Reports
-
-#### Analytics
-
-- Forecasting placeholder only
-
-#### Administration
-
 - Users
-- Settings
 
-### Suggested Route Paths
+Navbar active state:
 
-| Module | Route |
-| --- | --- |
-| Dashboard | /dashboard |
-| Operational Records | /data/operational-records |
-| Data Validation | /data/validation |
-| Source Channels | /data/source-channels |
-| Package / Destination References | /business/package-destinations |
-| Expenses | /business/expenses |
-| Marketing Records | /business/marketing-records |
-| Inventory | /operations/inventory |
-| Inventory Movements | /operations/inventory-movements |
-| Low Stock Alerts | /operations/low-stock |
-| Reports | /reports |
-| Forecasting | /analytics/forecasting |
-| Trajectory Insights | /analytics/trajectory-insights |
-| Forecast History | /analytics/forecast-history |
-| Users | /admin/users |
-| Roles / Permissions | /admin/roles |
-| System Settings | /settings |
-| Activity Log | /admin/activity-log |
+- Inactive: transparent background, muted text
+- Hover: soft gray background
+- Active: light primary-tinted background, primary text, optional left indicator
+- Transition: 180ms to 220ms ease-out
 
-### Top Bar Blueprint
+## Page 1: Login
 
-The top bar should remain clean and operational. It should support quick filtering and awareness without competing with the main workspace.
+Purpose:
+Secure internal access prototype.
 
-Recommended top bar elements:
+Include:
 
-- Page title
-- Short page description
-- Global date range picker
-- Search
-- Quick Add button
-- Alerts indicator
-- User profile menu
+- ProphetOps name/logo
+- Subtitle: "Decision Support System for Travel Operations"
+- Email/username field
+- Password field
+- Login button
+- Demo account hint
+- Small note: "Authorized personnel only"
 
-### In-Page Tabs
+Do not include:
 
-Use in-page tabs only when a module has closely related subviews. Tabs should use segmented controls or clean underline styling.
+- public registration
+- customer booking links
+- marketing landing page sections
 
-Recommended tab groups:
+## Page 2: Owner DSS Dashboard
 
-- Dashboard: Overview, Sales, Expenses, Inventory, Data Quality
-- Operational Records: All Records, Needs Review, Validated, Source Channels, Archived
-- Package / Destination References: Active, Inactive, Categories
-- Expenses: All Expenses, Operations, Marketing, Seasonal, Overhead, Monthly Summary
-- Inventory: Items, Movements, Low Stock, Adjustments
-- Reports: Sales Summary, Expense Summary, Inventory Summary, Data Quality Summary, Export History
-- Forecasting later: Revenue Forecast, Passenger Demand, Cost Forecast, Marketing Impact, Model Inputs
-- Trajectory Insights later: Trend Direction, Growth/Decline Signals, Risk Indicators, Recommended Focus Areas
+This is the most important page. Do not make it a generic admin homepage.
 
-### Role-Based Navigation Visibility
+Page title:
+"Decision Support Overview"
 
-- Administrator sees all modules.
-- Owner / Management sees dashboard, operational records, validation, references, expenses, marketing records, inventory, reports, forecasting, trajectory insights, and optional activity log.
-- Operational Staff sees dashboard, operational records, validation, inventory, and optional source channels, references, expenses, and reports depending on permission.
+Include:
 
-### Navigation Design Standards
+- Date range filter: Today, This Month, This Quarter
+- Last updated timestamp
+- Local Intranet status
+- Business Gist / DSS Insight Summary card
+- KPI cards
+- Priority decision cards
+- Sales trend chart
+- Revenue vs expenses chart
+- Top performing packages
+- Forecast preview using mock data
+- Recent transactions
+- Recent inventory changes
 
-- Use grouped sidebar section labels.
-- Use icons beside main navigation items.
-- Use a strong active state for the current page.
-- Keep the desktop sidebar between 240px and 280px wide.
-- Allow the sidebar to collapse with tooltips.
-- Keep the top bar sticky.
-- Use segmented controls or clean underline tabs for in-page tabs.
-- Show disabled or locked states for Sprint 2 modules.
-- Keep navigation web-first on desktop, but make it usable at tablet and mobile widths.
-- On smaller screens, allow the sidebar to collapse, stack, or move into a compact navigation pattern.
-- Make sure active states, locked states, and group labels remain understandable after resizing.
+Business Gist example:
 
-### Navigation Naming Rules
+"Sales are currently above last month's pace, but operating costs are increasing. Recommended action: Review high-cost destinations before approving new promos."
 
-Preferred labels:
+KPI cards:
 
-- Operational Records
-- Data Validation
-- Source Channels
-- Package / Destination References
-- Expenses
-- Inventory
-- Reports
-- Forecasting
-- Trajectory Insights
+- Total Revenue
+- Total Bookings
+- Passenger Count
+- Operating Costs
+- Estimated Profit
+- Low Inventory Packages
 
-Avoid labels:
+Decision cards:
 
-- Booking Website
-- Online Reservations
-- Customer Portal
-- Payment Gateway
-- Booking Engine
+Each decision card must show:
 
-## Sprint 1 Screens
+- Insight type: Risk / Opportunity / Warning / Action
+- Short finding
+- Why it matters
+- One clear action button
 
-### 1. Login Screen
+Example:
 
-Purpose: Allow authorized users to access the system.
+- Title: Low Inventory Risk
+- Finding: Boracay Package has only 4 slots left.
+- Meaning: This may affect expected demand next week.
+- Button: Review Inventory
 
-Design notes:
+Dashboard density limits:
 
-- Centered login panel
-- Subtle frosted glass effect
-- ProphetOps name clearly visible
-- Simple username/email and password fields
-- Primary login button
-- Error message area
+- Show only 1 main Business Gist card at the top.
+- Show maximum 6 KPI cards.
+- Show maximum 3 priority decision cards on the first screen.
+- Recent transactions should show only 5 rows.
+- Recent inventory changes should show only 5 rows.
+- Additional insights should appear lower on the page or inside Trajectory Insights.
 
-### 2. Dashboard
+## Page 3: Bookings / Transactions
 
-Purpose: Give management a quick overview of business activity.
+Purpose:
+Centralize booking records from Messenger, Sheets, Gmail, and notebooks.
 
-Suggested dashboard cards:
+Create a clean Attio-like records table.
 
-- Total Sales
-- Total Operational Records
-- Total Expenses
-- Net Revenue
-- Available Packages
-- Low Inventory Alerts
+Fields:
 
-Suggested dashboard sections:
-
-- Recent Operational Records
-- Monthly Sales Snapshot
-- Expense Overview
-- Inventory Status
-
-### 3. Operational Data Intake Page
-
-Purpose: Encode historical and daily internal operational records from Messenger, Google Sheets, Gmail, paper records, notebooks, and manual encoding into one structured dataset.
-
-Suggested fields:
-
-- Record date
-- Client or source name if available
-- Package or destination reference
+- Booking ID
+- Booking date
+- Client / agency partner
+- Destination / package
 - Passenger count
-- Gross amount
-- Discount amount
-- Net amount
+- Gross revenue
 - Payment status
-- Payment method
-- Source channel
+- Booking status
+- Staff assigned
 - Notes
-- Encoded by
 
-Main actions:
+Include:
 
-- Add operational record
-- View operational record
-- Edit operational record
-- Delete or archive operational record
-- Search and filter
+- Search
+- Filters by date, package, payment status, booking status
+- Add Booking button
+- View action
+- Edit action
 
-### 4. Packages Page
+DSS purpose:
+This page creates the historical data needed for sales monitoring and forecasting.
 
-Purpose: Manage travel packages or destinations.
+## Page 4: Inventory
 
-Suggested fields:
+Purpose:
+Monitor package availability, slots, or operational stock.
+
+Fields:
 
 - Package name
 - Destination
-- Price
-- Available slots or stock
-- Status
-- Description
+- Available slots
+- Sold count
+- Reserved count
+- Status: Normal, Low, Critical
+- Last updated
 
-Main actions:
+Include:
 
 - Add package
-- Edit package
-- Disable package
-- View related operational records
+- Adjust stock
+- View related bookings
+- Filter low-stock items
+- Warning cards for Low/Critical inventory
 
-### 5. Expenses Page
+DSS behavior:
+If stock is low, show:
 
-Purpose: Track operational, marketing, seasonal, and overhead costs.
+"Low availability may affect future demand. Review package capacity."
 
-Suggested fields:
+## Page 5: Expenses / Operational Costs
+
+Purpose:
+Record costs needed for financial analysis.
+
+Fields:
 
 - Expense date
-- Category
-- Description
+- Category: tour operations, marketing, seasonal cost, overhead
 - Amount
-- Payment method
+- Related destination/package
+- Payment status
 - Notes
 
-Main actions:
+Include:
 
 - Add expense
 - Edit expense
-- Filter by category
-- Filter by date
+- Filter by category/date
+- Summary cards
+- Insight card when costs increase
 
-### 6. Inventory Page
+DSS behavior example:
 
-Purpose: Track stock, slots, or business resources.
+"Marketing cost increased this period. Compare with booking conversion."
 
-Suggested fields:
+## Page 6: Sales Analytics
 
-- Item name
-- Category
-- Current quantity
-- Minimum quantity
+Purpose:
+Provide basic business analysis before full AI forecasting.
+
+Include:
+
+- Monthly sales chart
+- Booking volume chart
+- Revenue by destination
+- Top packages table
+- Revenue vs expenses comparison
+- Summary cards
+
+Summary cards:
+
+- Top Revenue Route
+- Highest Passenger Volume
+- Most Active Month
+- Costliest Category
+
+## Page 7: Forecasting Preview
+
+Purpose:
+Prepare the interface for Meta Prophet integration.
+
+Sprint 1 uses mock data only.
+
+Include:
+
+- 30-day booking projection
+- 30-day revenue projection
+- Demand trend chart
+- Seasonality notes
+- Data requirements
+- Forecast status card
+
+Required label:
+
+"Sample Forecast Preview - Forecast engine integration pending"
+
+Do not imply that Meta Prophet is already running.
+
+## Page 8: Trajectory Insights
+
+Purpose:
+Show AI/DSS business interpretation.
+
+Sprint 1 can use simulated/mock insight cards.
+
+Categories:
+
+- Sales trend
+- Cost risk
+- Inventory risk
+- Marketing opportunity
+- Demand increase
+
+Each insight must include:
+
+- Finding
+- Reason
+- Suggested action
+
+Insight format:
+
+- Insight Type: Risk / Opportunity / Trend
+- Finding: Bookings increased for Package A.
+- Reason: Passenger count is higher than the previous period.
+- Suggested Action: Prepare inventory and review pricing.
+
+Required labels:
+
+- "Simulated DSS Insight"
+- "AI trajectory module placeholder"
+
+## Page 9: Reports
+
+Purpose:
+Internal documentation for owners and stakeholders.
+
+Report cards:
+
+- Sales Summary
+- Inventory Summary
+- Expense Summary
+- Forecast Summary
+- DSS Evaluation Summary
+
+Actions:
+
+- View report
+- Export PDF placeholder
+- Export Excel placeholder
+
+Export buttons may be disabled or placeholder for Sprint 1.
+
+## Page 10: Users / Access Management
+
+Purpose:
+Support limited internal access.
+
+Show user table:
+
+- Name
+- Role
+- Email/username
 - Status
+- Last login
 
-Main actions:
+Roles:
 
-- Add inventory item
-- Add stock movement
-- Deduct stock
-- View movement history
-- Show low stock warning
+- Owner / Management: full access
+- Admin: bookings, inventory, expenses, analytics, reports
+- Staff: bookings and inventory only
 
-### 7. Reports Page
+## Mock Data Requirements
 
-Purpose: Present basic internal summaries for management.
+Mock data must support the DSS model from the study.
 
-Sprint 1 reports:
+Include:
 
-- Sales summary
-- Expense summary
-- Inventory movement summary
-- Operational record count summary
+- ds: booking date
+- y: passenger count or demand value
+- gross revenue
+- operational cost
+- marketing cost
+- destination/package
+- inventory level
+- booking status
+- payment status
 
-Forecasting reports should be reserved for Sprint 2.
+Mock data should feel realistic for a B2B travel and tours agency.
 
-## Component Plan
+## DSS Logic Rule
 
-Reusable Vue components should be planned for:
+Every insight card must connect data to decision-making.
 
-- App layout
-- Sidebar
-- Top navigation
-- Page header
-- Stat card
-- Data table
-- Search bar
-- Filter dropdown
-- Form input
-- Select field
-- Date picker
-- Modal
-- Confirmation dialog
-- Status badge
-- Empty state
-- Loading state
+Use:
 
-This will make later sprints faster because the same components can be reused for forecasting and analytics screens.
+Observed data -> Business meaning -> Suggested action
 
-## Button Style
+Example:
 
-Button hierarchy:
+- Observed: Marketing cost increased by 18%.
+- Meaning: Spending is rising faster than bookings.
+- Action: Review campaign performance.
 
-- Primary button: main action such as Add Operational Record
-- Secondary button: cancel or supporting action
-- Danger button: delete or remove
-- Icon button: view, edit, delete, filter, export
+## Academic / Prototype Labels
 
-Buttons should be simple, readable, and consistent.
+All forecasting and AI insight sections must be clearly labeled as simulated or sample for Sprint 1.
 
-## Table Style
+Use labels such as:
 
-Tables are important in ProphetOps, so they should be designed carefully.
+- Sample Forecast Preview
+- Forecast engine integration pending
+- Simulated DSS Insight
+- AI trajectory module placeholder
 
-Recommended table behavior:
+Do not imply that Meta Prophet or AI analysis is already running.
 
-- Clear column labels
-- Search function
-- Filter function
-- Status badges
-- Row actions
-- Empty state message
-- Loading state
-- Pagination if records become large
+## Modal, Drawer, And Page Standards
 
-Tables should use solid white backgrounds, not glass backgrounds.
+Use a modal for:
 
-## Chart Style
+- confirming destructive actions
+- logout confirmation if needed
+- delete confirmation
+- small quick actions with 1 to 3 fields
+- simple status changes
+- short report export options
 
-Sprint 1 may include basic charts only.
+Modal rules:
 
-Recommended charts:
+- Keep modals focused on one decision.
+- Do not put large forms, charts, or tables inside modals.
+- Always include clear Cancel and Confirm actions.
+- Destructive actions must use danger styling and clear wording.
 
-- Monthly sales line chart
-- Expenses by category bar chart
-- Inventory status indicator
+Use a right-side drawer / slide-over panel for:
 
-Chart design rules:
+- viewing booking details from a table
+- editing booking records
+- adding bookings with several fields
+- viewing package/inventory details
+- adjusting stock
+- viewing expense details
+- editing expense records
+- showing record activity/history
 
-- Minimal grid lines
-- Clear labels
-- Limited colors
-- No decorative chart effects
-- Tooltips for values
+Drawer rules:
 
-## Responsive Design Standards
+- Drawer should preserve page context.
+- Desktop drawer width should be around 420px to 560px.
+- On mobile, drawer can become a full-screen panel.
+- Use a sticky footer for Save/Cancel actions.
+- Use sections inside drawers if the form has many fields.
+- Do not make users lose their place in a table after closing a drawer.
 
-ProphetOps is web-first because it is an internal admin dashboard for local Wi-Fi or intranet use. However, the interface must still resize cleanly for reviewers, laptops, tablets, and narrow browser windows.
+Use a full page for:
 
-Responsive design should support the Premium Clarity Dashboard theme: clean, modern, professional, readable, and data-focused. The layout should adapt without becoming a mobile-style customer app or decorative landing page.
+- dashboard
+- analytics
+- forecasting
+- reports
+- complex multi-section views
+- pages with charts and large tables
 
-### Responsive Principles
+Use popovers/dropdowns for:
 
-- Start with a desktop admin dashboard layout.
-- Preserve readability before visual effects.
-- Keep data panels, forms, tables, reports, and charts on solid high-contrast surfaces.
-- Use frosted glass only for allowed surfaces such as navigation, top bars, login panels, and modals.
-- Avoid shrinking text until it becomes hard to read.
-- Avoid overlapping text, cards, buttons, tables, or navigation items.
-- Keep important actions reachable after resizing.
-- Keep the first dashboard load lightweight.
+- filters
+- date range selection
+- status selection
+- sort options
+- small contextual menus
 
-### Recommended Breakpoints
+Use inline editing only for:
 
-Use these as practical design targets:
+- small status changes
+- simple table fields where accidental edits are unlikely
 
-| Width | Layout Behavior |
-| --- | --- |
-| 1200px and above | Full desktop layout with left sidebar, sticky top bar, multi-column cards, and full dashboard panels. |
-| 900px to 1199px | Tablet or small laptop layout. Sidebar may remain visible or become compact. Cards can reduce from four columns to two columns. |
-| 700px to 899px | Narrow tablet layout. Main content should stack into one column where needed. Tables should scroll horizontally instead of compressing columns too much. |
-| Below 700px | Mobile-width review layout. Sidebar and top bar should stack or collapse. Cards and panels should become single column. Buttons should wrap cleanly. |
-
-### Responsive Dashboard Rules
+Default rule:
 
-- Summary cards may use four columns on wide desktop, two columns on tablet, and one column on narrow screens.
-- Dashboard panels should stack vertically when horizontal space is limited.
-- Top bar actions should wrap instead of overflowing.
-- Page titles and descriptions should not overlap buttons or filters.
-- Dashboard sections should keep consistent spacing and avoid nested card-heavy layouts.
+- If the user needs context from the current table, use a drawer.
+- If the user needs to confirm a risky action, use a modal.
+- If the user needs to analyze information deeply, use a full page.
 
-### Responsive Table And Form Rules
+## Anti-Cramped UI Rules
 
-- Tables should keep readable font sizes.
-- Wide tables should use horizontal scrolling or column prioritization.
-- Do not force every table column into a narrow mobile width.
-- Forms should become single column on narrow screens.
-- Labels, validation messages, and helper text must remain visible.
-- Primary actions should stay close to the form or table they affect.
+The interface must prioritize clarity for non-technical users.
 
-### Responsive Navigation Rules
+Use progressive disclosure:
 
-- Desktop should use the grouped left sidebar.
-- Smaller screens may use a compact sidebar, stacked navigation, or collapsible navigation.
-- Navigation groups should remain clear even when compressed.
-- Disabled or locked Sprint 2 modules should remain visibly disabled after resizing.
+- Show summaries first.
+- Put details inside View Details, tabs, drawers, modals, or dedicated pages.
+- Avoid long dense sections on the dashboard.
 
-### Responsive Verification
+Page structure:
 
-Before Sprint 1 is considered polished, check at least:
+1. Clear page title
+2. Short subtitle explaining the page purpose
+3. One primary action button
+4. Main content
+5. Secondary details below or behind filters/tabs
 
-- Desktop width around 1366px.
-- Small laptop or tablet width around 1024px.
-- Narrow tablet width around 768px.
-- Mobile-width browser around 390px.
+Do not place too many equal-weight cards beside each other.
 
-Verification should confirm that text is readable, panels do not overlap, buttons wrap cleanly, and the interface still feels like an internal decision-support dashboard.
+Create visual hierarchy:
 
-## Accessibility And Usability
+- Primary: DSS gist, urgent risk, main KPI
+- Secondary: supporting charts and tables
+- Tertiary: metadata, notes, timestamps
 
-The design should support ISO 25010 usability goals.
+Tables:
 
-Important rules:
+- Keep columns practical and readable.
+- Use horizontal scrolling only if necessary.
+- Hide less important details in row details, drawers, or View actions.
+- Do not show every field at once on small screens.
+- Dashboard tables must be summaries only, not full data dumps.
 
-- Text must have strong contrast.
-- Forms must have clear labels.
-- Error messages must be visible and understandable.
-- Buttons must clearly show their purpose.
-- Tables must be easy to scan.
-- Important actions must ask for confirmation.
-- The system should remain usable even if blur effects are disabled.
+Cards:
 
-## Performance Considerations
+- One card should communicate one idea only.
+- Warning cards must have one clear action button.
+- Avoid multiple competing buttons inside the same card.
+- Use generous whitespace.
 
-Because the system is intended for local intranet use, the UI should remain lightweight.
+Non-technical user rule:
 
-Performance rules:
+If a business owner cannot understand the screen in 5 seconds, simplify it.
 
-- Avoid excessive blur effects.
-- Avoid heavy animations.
-- Keep tables efficient.
-- Load only needed data per page.
-- Use simple charts in Sprint 1.
-- Keep the first dashboard load fast.
+## Loading And Empty States
 
-## Sprint 1 Scope
+Add reusable skeleton loading states for:
 
-Included in Sprint 1:
-
-- UI style guide
-- Login layout
-- Admin dashboard layout
-- Sidebar and top navigation
-- Operational data intake page design
-- Packages page design
-- Expenses page design
-- Inventory page design
-- Basic reports page design
-- Database-ready data structure planning
-- Reusable component planning
-
-Not included in Sprint 1:
-
-- Meta Prophet forecasting engine
-- AI-driven trajectory insights
-- Advanced predictive analytics
-- External booking website
-- Customer-facing portal
-- External API integrations
-
-## Sprint 1 Success Criteria
-
-Sprint 1 is successful if:
-
-- Users can understand the layout without training.
-- The main admin pages are visually consistent.
-- The dashboard shows basic operational summaries.
-- Data-heavy screens are readable and organized.
-- Navigation, dashboard cards, and empty states use proper iconography and polished hierarchy.
-- The layout resizes cleanly for desktop, tablet, and narrow browser widths.
-- The design looks modern and premium.
-- The interface is ready for Sprint 2 forecasting features.
-- The system supports the thesis requirement for a localized admin dashboard.
-
-## Recommended Final Direction
-
-Use a premium operational dashboard style, not a decorative glassmorphism style. The interface should feel Apple-inspired, clean, and polished, but the core design priority should be clarity for business data.
-
-Best summary:
-
-```text
-Premium clarity first. Glassmorphism second. Data readability always first.
-```
-
-## Expanded Sprint 1 Implementation Description
-
-Sprint 1 is the foundation sprint for the localized ProphetOps admin dashboard. Its purpose is to prove that Renan-Tina Travels and Tours can move away from scattered records in Facebook Messenger, Google Sheets, Gmail, and physical notebooks into one structured internal system.
-
-This sprint should focus on the operational data foundation: authentication, dashboard layout, operational data intake, package and destination reference data, expenses, inventory, and basic non-predictive reports. Meta Prophet forecasting and AI-driven trajectory insights should remain reserved for Sprint 2, once clean historical data is available.
-
-## Main Sprint 1 Objective
-
-Create a working local admin dashboard where authorized users can manage operational records, package and destination reference data, expenses, and inventory in one centralized system.
-
-The Laravel and Vue application should also establish a database structure that is ready for future forecasting, especially by storing dates, monetary values, passenger counts, categories, campaign data, and inventory movements consistently.
-
-## User Roles
-
-### Administrator
-
-The Administrator has full access to the system. This role can manage users, operational records, reports, packages, expenses, inventory, settings, and system configuration.
-
-### Owner / Management
-
-The Owner or Management role is focused on monitoring business performance. This role can review dashboards, check reports, inspect operational records and expenses, and monitor inventory status.
-
-### Operational Staff
-
-The Operational Staff role is focused on daily encoding and operations. This role can add operational records, update payment statuses, record inventory movements, and optionally record permitted expenses depending on agency policy.
-
-## Suggested Permissions
-
-| Area | Administrator | Owner / Management | Operational Staff |
-| --- | --- | --- | --- |
-| Dashboard | Full access | View access | View access |
-| Reports | Full access | View access | Limited view access |
-| Operational Records | Add, view, edit, delete/archive | View and review, limited editing depending on policy | Add and edit daily records |
-| Packages | Add, view, edit, disable | View and review | View/select as reference data |
-| Expenses | Add, view, edit, delete/archive | View and review, limited editing depending on policy | Optional add/edit permission |
-| Inventory | Add, view, edit, record movements | View and review | Update stock movements |
-| Users | Full access | No access or limited access | No access |
-| Settings | Full access | No access or limited access | No access |
-
-## Detailed Database Planning
-
-### users
-
-- id
-- name
-- email
-- password
-- role
-- status
-- last_login_at
-- created_at
-- updated_at
-
-### travel_packages
-
-- id
-- package_name
-- destination
-- description
-- base_price
-- available_slots
-- status
-- created_at
-- updated_at
-
-### operational_records
-
-- id
-- record_date
-- client_source_name
-- package_id
-- passenger_count
-- gross_amount
-- discount_amount
-- net_amount
-- payment_status
-- payment_method
-- source_channel
-- notes
-- encoded_by
-- created_at
-- updated_at
-
-### expenses
-
-- id
-- expense_date
-- category
-- description
-- amount
-- payment_method
-- recorded_by
-- notes
-- created_at
-- updated_at
-
-### inventory_items
-
-- id
-- item_name
-- category
-- current_quantity
-- minimum_quantity
-- unit
-- status
-- created_at
-- updated_at
-
-### inventory_movements
-
-- id
-- inventory_item_id
-- movement_type
-- quantity
-- reason
-- related_operational_record_id
-- recorded_by
-- movement_date
-- created_at
-- updated_at
-
-### marketing_campaigns Optional
-
-- id
-- campaign_name
-- platform
-- start_date
-- end_date
-- budget
-- actual_spend
-- conversions
-- notes
-- created_at
-- updated_at
-
-### Forecasting Readiness Note
-
-The fields record_date, passenger_count, net_amount, expense_date, amount, source_channel, campaign spend, and conversions should be stored cleanly and consistently. These can become inputs for Sprint 2 Meta Prophet forecasting and AI-driven trajectory analytics.
-
-## Page Descriptions And Acceptance Criteria
-
-### Login
-
-Purpose: Allow authorized users to access the internal system.
-
-Acceptance criteria:
-
-- A valid user can log in and is redirected to the dashboard.
-- Invalid credentials show a clear error message.
-- Inactive users are blocked from accessing the system.
-- The login screen follows the Premium Clarity design direction with subtle glass treatment.
-
-### Dashboard
-
-Purpose: Show a quick operational summary for management and staff.
-
-Acceptance criteria:
-
-- The dashboard shows total sales, total operational records, total expenses, net revenue, active packages, and low inventory alerts.
-- Recent operational records are visible.
-- Basic sales and expense snapshots are displayed.
-- The dashboard uses readable cards, solid surfaces, and minimal decorative effects.
-
-### Operational Data Intake
-
-Purpose: Centralize historical and daily internal operational records from fragmented sources into a clean, forecasting-ready structure.
-
-Acceptance criteria:
-
-- Users can add, view, search, filter, and edit operational records.
-- Required fields are validated.
-- Operational records can be connected to package or destination reference data.
-- Payment status and payment method can be tracked.
-- Source channel can identify whether the record came from Messenger, Google Sheets, Gmail, paper records, notebooks, or manual encoding.
-- Operational record data is stored in a format suitable for future forecasting.
-
-### Packages
-
-Purpose: Manage travel packages and destinations.
-
-Acceptance criteria:
-
-- Users with permission can create and edit packages.
-- Packages can be marked active or inactive.
-- Active packages can be selected as reference data in operational record forms.
-- Package data includes destination, price, availability, and status.
-
-### Expenses
-
-Purpose: Track operational, marketing, seasonal, and overhead costs.
-
-Acceptance criteria:
-
-- Users with permission can record categorized expenses.
-- Expenses can be filtered by date and category.
-- Monthly expense totals can be summarized.
-- Expense records are stored with clean dates, categories, and amounts for future analytics.
-
-### Inventory
-
-Purpose: Track stock, slots, and operational resources.
-
-Acceptance criteria:
-
-- Users can add inventory items.
-- Users can record stock in, stock out, and adjustment movements.
-- Current quantity updates after each movement.
-- Low stock items are highlighted based on minimum quantity.
-- Movement history is available for review.
-
-### Reports
-
-Purpose: Present basic internal summaries for Sprint 1.
-
-Acceptance criteria:
-
-- Reports show non-predictive summaries only.
-- Sales, expenses, inventory movement, and operational record count summaries are available.
-- Forecasting reports are clearly reserved for Sprint 2.
-
-## Sprint 1 Backlog Epics
-
-### Project Foundation
-
-- Set up Laravel project structure.
-- Set up Vue frontend structure.
-- Configure local database.
-- Prepare local intranet deployment assumptions.
-- Create initial migrations and seed data.
-
-### Authentication And Access Control
-
-- Create login flow.
-- Add roles and user status.
-- Protect admin pages.
-- Apply role-based permissions.
-
-### Dashboard UI
-
-- Create main layout.
-- Add sidebar and top navigation.
-- Add summary cards.
-- Add recent operational records section.
-- Add basic sales and expense snapshots.
-
-### Operational Data Intake
-
-- Create operational records database table.
-- Build operational record form.
-- Build operational record list table.
-- Add search and filter behavior.
-- Connect operational records to package and destination reference data.
-
-### Package Management
-
-- Create package database table.
-- Build package form.
-- Build package list table.
-- Add active/inactive package status.
-
-### Expense Management
-
-- Create expense database table.
-- Build expense form.
-- Build expense list table.
-- Add date and category filtering.
-- Add monthly totals.
-
-### Inventory Management
-
-- Create inventory item and inventory movement tables.
-- Build inventory item form.
-- Build stock movement form.
-- Update current quantity after movements.
-- Add low stock highlighting.
-
-### Basic Reports
-
-- Create sales summary.
-- Create expense summary.
-- Create inventory movement summary.
-- Create operational record count summary.
-- Keep all reports non-predictive for Sprint 1.
-
-## Suggested Timeline
-
-| Day | Focus | Main Output |
-| --- | --- | --- |
-| Day 1 | Planning, roles, database fields, setup | Confirmed scope, schema plan, local project setup |
-| Day 2 | Authentication and layout | Login, role access, dashboard shell, navigation |
-| Day 3 | Operational records and packages | Operational record CRUD, package CRUD, package selection |
-| Day 4 | Expenses and inventory | Expense CRUD, inventory items, stock movements |
-| Day 5 | Dashboard, reports, polish, demo | Summary cards, basic reports, UI cleanup, sprint demo |
-
-## Team Distribution
-
-### Backend
-
-- Laravel setup
-- Migrations
-- Models
-- Authentication
-- API routes or controllers
-- Validation
-- Role and permission checks
-
-### Frontend
-
-- Vue layout
-- Dashboard cards
-- Forms
+- Dashboard KPI cards
+- Insight cards
+- Charts
 - Tables
-- Modals
-- Responsive behavior
-- Page interactions
+- Forecast preview
 
-### UI / UX
+Do not skeleton-load the entire app shell/sidebar every time.
 
-- Design guide
-- Page layouts
-- Component styling
-- Form clarity
-- Table readability
-- Usability checks
+Every data-heavy page should have a polished empty state.
 
-### QA / Documentation
+Empty state should include:
 
-- Test cases
-- Acceptance criteria checklist
-- Screenshots
-- Sprint review notes
-- Thesis alignment documentation
+- short explanation
+- one recommended action
+- optional icon
 
-## Demo Script
+Example:
 
-1. User opens the local ProphetOps system.
-2. User logs in with valid credentials.
-3. User views the dashboard summary.
-4. User adds a travel package.
-5. User records an operational data entry connected to the package or destination reference.
-6. User records an expense.
-7. User updates inventory through a stock movement.
-8. User views basic reports.
-9. User logs out.
+"No bookings recorded yet. Add your first booking to start building the forecasting dataset."
 
-## Sprint 1 Risks
+Button:
 
-### Too Much Focus On Visual Effects
+"Add Booking"
 
-Risk: The team may spend too much time on glassmorphism or decorative styling.
+## Accessibility And UX
 
-Mitigation: Limit glass effects to navigation, login, modals, and small floating surfaces. Keep tables, reports, forms, and charts solid and readable.
+- Buttons and controls should be around 40px minimum height.
+- Use visible focus states.
+- Do not rely on color alone; use labels like Stable, Low, Critical.
+- Keep actions close to the insight/problem they solve.
+- Use clear business language.
+- Avoid technical jargon unless necessary.
+- Keep help/support placement consistent.
+- Prevent broken or blank pages.
 
-### Database Not Forecasting-Ready
+## ISO 25010 Alignment
 
-Risk: Records may be stored without consistent dates, amounts, categories, or passenger counts.
+Functional suitability:
+Pages match DSS requirements from the study.
 
-Mitigation: Standardize key fields early, especially record_date, passenger_count, net_amount, expense_date, amount, source_channel, campaign spend, and conversions.
+Performance efficiency:
+Lightweight UI and no unnecessary heavy effects.
 
-### Sprint Scope Becomes Too Large
+Usability:
+Clear navigation, readable cards, obvious actions.
 
-Risk: The team may try to include forecasting, AI, external APIs, or a customer-facing portal too early.
+Reliability:
+Stable mock states and no broken empty pages.
 
-Mitigation: Keep Prophet, AI trajectory insights, external integrations, customer-facing portals, and booking-system functionality out of Sprint 1.
+## Recommended Reusable Components
 
-### Staff Usability Problems
+- AppShell
+- Sidebar
+- TopBar
+- PageHeader
+- MetricCard
+- InsightCard
+- DecisionCard
+- StatusBadge
+- DataTable
+- FilterBar
+- SearchInput
+- ChartCard
+- EmptyState
+- SkeletonCard
+- DrawerPanel
+- ConfirmModal
+- FormSection
+- RoleGuard
 
-Risk: Staff may find forms confusing if labels, validation, and workflows are unclear.
+## Acceptance Criteria
 
-Mitigation: Use clear labels, simple forms, helpful validation, compact tables, and predictable navigation.
-
-## Definition Of Done
-
-Sprint 1 is done when:
-
-- The application runs locally.
-- Login works for authorized users.
-- Inactive users are blocked.
-- The dashboard layout is complete.
-- Operational records can be created and viewed.
-- Packages can be created and viewed.
-- Expenses can be created and viewed.
-- Inventory items and movements can be created and viewed.
-- Basic non-predictive reports are visible.
-- The UI follows the Premium Clarity design direction.
-- The UI includes polished iconography, compact admin-first dashboard headers, readable stat cards, and useful empty states.
-- The dashboard and main Sprint 1 pages are responsive enough for desktop, tablet, and narrow browser review.
-- Data is structured consistently for future forecasting.
-- The system is ready for Sprint 2 Meta Prophet and AI trajectory integration.
+- Owner login leads to the DSS Dashboard, not a generic homepage.
+- Pseudo login works with demo accounts.
+- Mock session persists until logout.
+- Role-based navigation works.
+- All Sprint 1 pages exist and are navigable.
+- Dashboard shows business insights immediately.
+- UI feels like Stripe + Attio: clean, premium, modern, trustworthy.
+- Mock data is realistic for a B2B travel agency.
+- Pages are responsive.
+- Navigation active states animate smoothly.
+- Skeleton states exist for data-heavy sections.
+- Empty states exist.
+- Forecasting and AI pages clearly indicate they are Sprint 1 previews.
+- The UI does not feel crowded on desktop or mobile.
+- Dashboard is glanceable within 5 seconds.
+- First screen shows only the most important DSS information.
+- Details are available, but not forced onto the user immediately.
+- Each page has one obvious primary action.
+- No page should look like a wall of cards or a spreadsheet dump.

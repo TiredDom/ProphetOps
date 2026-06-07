@@ -12,61 +12,71 @@
             <TopBar
                 eyebrow="Admin Workspace"
                 title="Welcome back, Administrator"
-                description="Centralized operational data foundation for Renan-Tina Travels and Tours."
+                description="Decision support workspace for operational records, reports, and future forecasting readiness."
                 :current-date="currentDate"
                 :sidebar-open="sidebarOpen"
                 @toggle-sidebar="toggleSidebar"
             />
 
-            <section class="welcome-hero">
-                <div class="hero-content">
-                    <div class="hero-main">
+            <section class="welcome-hero dss-hero">
+                <div class="hero-content dss-overview">
+                    <div class="hero-main dss-hero-main">
                         <div class="hero-kicker">
                             <div class="hero-status">
                                 <span class="status-dot"></span>
-                                System Ready
+                                Decision Support System
                             </div>
                         </div>
-                        <h2>Operational Data Workspace</h2>
+                        <h2>ProphetOps Decision Support Workspace</h2>
                         <p>
-                            Centralize internal records, validate data quality, and prepare clean inputs for reports and
-                            future forecasting.
+                            Transform scattered operational records into reports, forecasting inputs, and
+                            decision-ready insights.
                         </p>
                         <div class="hero-actions">
-                            <button class="primary-button" type="button">
+                            <Link class="primary-button" href="/data/operational-records">
                                 <AppIcon name="plus" />
-                                Add Record
-                            </button>
-                            <button class="secondary-button" type="button">
+                                Add Operational Record
+                            </Link>
+                            <Link class="secondary-button" href="/data/validation">
                                 <AppIcon name="shieldCheck" />
                                 Review Data
-                            </button>
+                            </Link>
                         </div>
                     </div>
 
-                    <div class="hero-priority" aria-label="Next dashboard priority">
-                        <span class="priority-label">Next Priority</span>
+                    <div class="hero-priority dss-next-action" aria-label="Next dashboard priority">
+                        <span class="priority-label">Next Best Action</span>
                         <strong>Add the first operational record</strong>
-                        <p>Start with one clean entry so validation, summaries, and future forecasts have a reliable base.</p>
+                        <p>Start with one clean entry so reports and future forecasts have a reliable base.</p>
+                    </div>
+
+                    <div class="dss-pipeline" aria-label="Decision support system flow">
+                        <article
+                            v-for="step in dssPipeline"
+                            :key="step.label"
+                            class="pipeline-card"
+                            :class="{ planned: step.planned }"
+                        >
+                            <span class="pipeline-icon" aria-hidden="true">
+                                <AppIcon :name="step.icon" />
+                            </span>
+                            <div>
+                                <strong>{{ step.label }}</strong>
+                                <p>{{ step.description }}</p>
+                            </div>
+                            <span class="record-badge" :class="step.badgeClass">{{ step.status }}</span>
+                        </article>
                     </div>
                 </div>
 
-                <div class="hero-summary" aria-label="Data foundation summary">
+                <div class="hero-summary" aria-label="Data foundation status">
                     <div class="summary-header">
-                        <span>System Readiness</span>
-                        <strong>Internal DSS</strong>
+                        <span>DSS Readiness</span>
+                        <strong>Foundation View</strong>
                     </div>
-                    <div class="summary-row">
-                        <span>Data Intake</span>
-                        <strong>Ready</strong>
-                    </div>
-                    <div class="summary-row">
-                        <span>Validation Flow</span>
-                        <strong>Structured</strong>
-                    </div>
-                    <div class="summary-row">
-                        <span>Forecasting</span>
-                        <strong>Planned</strong>
+                    <div v-for="item in systemReadiness" :key="item.label" class="summary-row">
+                        <span>{{ item.label }}</span>
+                        <strong>{{ item.status }}</strong>
                     </div>
                 </div>
             </section>
@@ -86,32 +96,26 @@
 
             <section class="workspace-grid">
                 <ContentPanel
-                    icon="database"
-                    eyebrow="Data Workspace"
-                    title="Operational Records Intake"
-                    badge="Data Intake"
-                    panel-class="records-panel"
+                    icon="sparkles"
+                    eyebrow="Management Decision Support"
+                    title="Decision Support Preview"
+                    badge="Planned Insight"
+                    panel-class="records-panel decision-panel"
                 >
-                    <div class="intake-list">
-                        <button v-for="source in sourceChannels" :key="source.label" class="intake-item" type="button">
-                            <div class="source-icon">
-                                <AppIcon :name="source.icon" />
-                            </div>
+                    <p class="panel-note no-indent">
+                        The dashboard turns clean internal data into practical signals for management review.
+                    </p>
+                    <div class="decision-list">
+                        <div v-for="item in decisionPreview" :key="item.label" class="decision-item">
+                            <span class="decision-icon" :class="item.tone" aria-hidden="true">
+                                <AppIcon :name="item.icon" />
+                            </span>
                             <div>
-                                <strong>{{ source.label }}</strong>
-                                <p>{{ source.description }}</p>
-                                <span class="source-status">{{ source.status }}</span>
+                                <strong>{{ item.label }}</strong>
+                                <p>{{ item.description }}</p>
                             </div>
-                            <AppIcon class-name="source-arrow" name="arrowRight" />
-                        </button>
+                        </div>
                     </div>
-
-                    <EmptyState
-                        icon="database"
-                        title="No records encoded yet"
-                    message="Start by adding an operational record from Messenger, Sheets, Gmail, or paper notes."
-                        action-label="Add Record"
-                    />
                 </ContentPanel>
 
                 <ContentPanel
@@ -121,7 +125,7 @@
                     panel-class="quality-panel"
                 >
                     <p class="panel-note">
-                        Records move through these statuses after intake. Validated records become reliable inputs for reports and future forecasting.
+                        Records move through these statuses after intake. Clean records become reliable inputs for reports and later forecasting.
                     </p>
                     <div class="quality-stack">
                         <div v-for="status in qualityStatuses" :key="status.label" class="quality-row">
@@ -136,8 +140,8 @@
 
                 <ContentPanel
                     icon="check"
-                    eyebrow="Setup Progress"
-                    title="Data Foundation Checklist"
+                    eyebrow="Current Focus"
+                    title="Data Foundation Progress"
                     panel-class="checklist-panel"
                 >
                     <div class="checklist">
@@ -158,12 +162,12 @@
                     </div>
                 </ContentPanel>
 
-                <ContentPanel icon="fileBarChart" eyebrow="Reports" title="Basic Summaries" panel-class="report-panel">
+                <ContentPanel icon="fileBarChart" eyebrow="Reports" title="Report And Forecast Readiness" panel-class="report-panel">
                     <div class="report-list">
-                        <span>Sales Summary</span>
-                        <span>Expense Summary</span>
-                        <span>Inventory Summary</span>
-                        <span>Data Quality Summary</span>
+                        <span v-for="item in reportReadiness" :key="item.label">
+                            {{ item.label }}
+                            <strong>{{ item.status }}</strong>
+                        </span>
                     </div>
                 </ContentPanel>
             </section>
@@ -172,19 +176,21 @@
 </template>
 
 <script>
+import { Link } from '@inertiajs/vue3';
 import ContentPanel from '../Components/dashboard/ContentPanel.vue';
 import StatCard from '../Components/dashboard/StatCard.vue';
-import EmptyState from '../Components/feedback/EmptyState.vue';
 import AppIcon from '../Components/icons/AppIcon.vue';
 import Sidebar from '../Components/layout/Sidebar.vue';
 import TopBar from '../Components/layout/TopBar.vue';
+import { createNavigationGroups } from '../data/navigation';
+import { requireMockAuth } from '../services/mockAuth';
 
 export default {
     name: 'Welcome',
     components: {
         AppIcon,
         ContentPanel,
-        EmptyState,
+        Link,
         Sidebar,
         StatCard,
         TopBar,
@@ -197,50 +203,12 @@ export default {
                 day: 'numeric',
                 year: 'numeric',
             }).format(new Date()),
-            navigationGroups: [
-                {
-                    label: 'Overview',
-                    items: [{ label: 'Dashboard', icon: 'dashboard', active: true }],
-                },
-                {
-                    label: 'Data Workspace',
-                    items: [
-                        { label: 'Operational Records', icon: 'database' },
-                        { label: 'Data Validation', icon: 'shieldCheck' },
-                    ],
-                },
-                {
-                    label: 'Business Records',
-                    items: [
-                        { label: 'Package / Destination References', icon: 'mapPinned' },
-                        { label: 'Expenses', icon: 'wallet' },
-                    ],
-                },
-                {
-                    label: 'Operations',
-                    items: [{ label: 'Inventory', icon: 'boxes' }],
-                },
-                {
-                    label: 'Reports',
-                    items: [{ label: 'Reports', icon: 'fileBarChart' }],
-                },
-                {
-                    label: 'Analytics',
-                    items: [{ label: 'Forecasting', icon: 'sparkles', locked: true }],
-                },
-                {
-                    label: 'Administration',
-                    items: [
-                        { label: 'Users', icon: 'users' },
-                        { label: 'Settings', icon: 'settings' },
-                    ],
-                },
-            ],
+            navigationGroups: createNavigationGroups('Dashboard'),
             stats: [
                 {
                     icon: 'wallet',
                     label: 'Total Sales',
-                    value: '₱0.00',
+                    value: 'PHP 0.00',
                     note: 'No validated records yet',
                     status: 'Empty',
                     tone: 'primary',
@@ -256,7 +224,7 @@ export default {
                 {
                     icon: 'fileBarChart',
                     label: 'Expenses',
-                    value: '₱0.00',
+                    value: 'PHP 0.00',
                     note: 'No cost records encoded yet',
                     status: 'Empty',
                     tone: 'warning',
@@ -270,37 +238,89 @@ export default {
                     tone: 'success',
                 },
             ],
-            sourceChannels: [
+            dssPipeline: [
                 {
-                    icon: 'message',
-                    label: 'Messenger',
-                    description: 'Daily inquiries and historical notes',
-                    status: 'Ready for manual intake',
+                    icon: 'database',
+                    label: 'Data Intake',
+                    description: 'Messenger, Sheets, Gmail, notebooks, and paper records',
+                    status: 'Ready',
+                    badgeClass: 'status-validated',
                 },
                 {
-                    icon: 'sheet',
-                    label: 'Google Sheets',
-                    description: 'Existing sales and expense records',
-                    status: 'No records imported yet',
+                    icon: 'shieldCheck',
+                    label: 'Data Validation',
+                    description: 'Check missing or unclear information',
+                    status: 'Structured',
+                    badgeClass: 'status-validated',
                 },
                 {
-                    icon: 'mail',
-                    label: 'Gmail',
-                    description: 'Email-based confirmations and references',
-                    status: 'Ready for manual intake',
+                    icon: 'wallet',
+                    label: 'Business Monitoring',
+                    description: 'Sales, expenses, and inventory summaries',
+                    status: 'Basic',
+                    badgeClass: 'status-basic',
                 },
                 {
-                    icon: 'notebook',
-                    label: 'Notebooks',
-                    description: 'Paper-based operational entries',
-                    status: 'No records encoded yet',
+                    icon: 'fileBarChart',
+                    label: 'Forecasting Preparation',
+                    description: 'Clean records for Meta Prophet',
+                    status: 'Planned',
+                    badgeClass: 'status-planned',
+                    planned: true,
                 },
+                {
+                    icon: 'sparkles',
+                    label: 'Trajectory Insights',
+                    description: 'Future decision support from forecast trends',
+                    status: 'Locked',
+                    badgeClass: 'status-locked',
+                    planned: true,
+                },
+            ],
+            systemReadiness: [
+                { label: 'Data Intake', status: 'Ready' },
+                { label: 'Validation Flow', status: 'Structured' },
+                { label: 'Reports', status: 'Basic' },
+                { label: 'Forecasting', status: 'Planned' },
+                { label: 'Trajectory Insights', status: 'Planned' },
             ],
             qualityStatuses: [
                 { label: 'Draft', value: '0', description: 'New or incomplete entries' },
-                { label: 'Needs Review', value: '0', description: 'Records waiting for checking' },
-                { label: 'Validated', value: '0', description: 'Clean records for reports' },
+                { label: 'Needs Checking', value: '0', description: 'Records waiting for review' },
+                { label: 'Ready for Reports', value: '0', description: 'Clean records for summaries' },
                 { label: 'Archived', value: '0', description: 'Historical records kept for reference' },
+            ],
+            decisionPreview: [
+                {
+                    icon: 'fileBarChart',
+                    label: 'Sales trend visibility',
+                    description: 'See whether internal sales records are ready for review.',
+                    tone: 'data',
+                },
+                {
+                    icon: 'wallet',
+                    label: 'Expense monitoring',
+                    description: 'Keep operating costs visible beside sales summaries.',
+                    tone: 'warning',
+                },
+                {
+                    icon: 'boxes',
+                    label: 'Inventory awareness',
+                    description: 'Spot low stock and resource gaps before daily work is affected.',
+                    tone: 'success',
+                },
+                {
+                    icon: 'shieldCheck',
+                    label: 'Forecasting readiness',
+                    description: 'Know which records are clean enough for later forecasting.',
+                    tone: 'data',
+                },
+                {
+                    icon: 'sparkles',
+                    label: 'Management decision support',
+                    description: 'Prepare future insight views without showing fake forecasts.',
+                    tone: 'primary',
+                },
             ],
             setupSteps: [
                 {
@@ -309,13 +329,8 @@ export default {
                     complete: false,
                 },
                 {
-                    label: 'Validate data quality',
-                    description: 'Move records from draft to validated status.',
-                    complete: false,
-                },
-                {
-                    label: 'Set package / destination references',
-                    description: 'Keep destinations consistent across records.',
+                    label: 'Validate records',
+                    description: 'Move records from draft to ready for reports.',
                     complete: false,
                 },
                 {
@@ -324,14 +339,30 @@ export default {
                     complete: false,
                 },
                 {
+                    label: 'Track inventory',
+                    description: 'Monitor items, stock movements, and low stock alerts.',
+                    complete: false,
+                },
+                {
                     label: 'Review basic reports',
                     description: 'Check summaries once records are available.',
                     complete: false,
                 },
             ],
+            reportReadiness: [
+                { label: 'Sales Summary', status: 'Basic' },
+                { label: 'Expense Summary', status: 'Basic' },
+                { label: 'Inventory Summary', status: 'Basic' },
+                { label: 'Forecasting Inputs', status: 'Planned' },
+                { label: 'Trajectory Insights', status: 'Planned' },
+            ],
         };
     },
     mounted() {
+        if (!requireMockAuth()) {
+            return;
+        }
+
         window.addEventListener('keydown', this.handleKeydown);
     },
     beforeUnmount() {

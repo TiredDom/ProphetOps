@@ -68,9 +68,15 @@ DB_PORT=3306
 DB_DATABASE=prophetops
 DB_USERNAME=root
 DB_PASSWORD=
+
+SESSION_DRIVER=file
+CACHE_STORE=file
+QUEUE_CONNECTION=sync
 ```
 
 The empty `DB_PASSWORD` is normal for many default XAMPP installations.
+
+For frontend-only work, `SESSION_DRIVER=file` is important because the login and dashboard pages should be able to load even when MySQL is not running yet.
 
 ## First-Time Install
 
@@ -133,7 +139,15 @@ http://127.0.0.1:8000
 If the scaffold is working, you should see the ProphetOps welcome screen with:
 
 ```text
-System Ready
+Internal Account Access
+```
+
+Sprint 1 login is prototype-only. The planned demo accounts are:
+
+```text
+owner@prophetops.local / owner123
+admin@prophetops.local / admin123
+staff@prophetops.local / staff123
 ```
 
 ## Quick Scaffold Check
@@ -148,7 +162,7 @@ Use this checklist to confirm the scaffold is successful:
 - `npm run dev` is running.
 - `php artisan serve` is running.
 - Browser opens `http://127.0.0.1:8000`.
-- The ProphetOps welcome screen appears.
+- The ProphetOps Account Access screen appears.
 
 ## Common Issues
 
@@ -163,6 +177,20 @@ Fix:
 2. Open phpMyAdmin.
 3. Confirm the `prophetops` database exists.
 4. Confirm `.env` uses `DB_DATABASE=prophetops`.
+
+If you are only checking frontend pages and do not need database features yet, also confirm:
+
+```env
+SESSION_DRIVER=file
+CACHE_STORE=file
+QUEUE_CONNECTION=sync
+```
+
+Then run:
+
+```bash
+php artisan config:clear
+```
 
 ### Application Key Missing
 
@@ -251,10 +279,11 @@ When done working:
 Before changing code, read:
 
 ```text
+information/sprint-1-direction.md
 markdowns/general knowledge.md
 information/module-map.md
 information/feature-log.md
 information/decisions.md
 ```
 
-Keep ProphetOps internal-facing. Do not turn it into a public booking website, payment gateway, or customer portal.
+Keep ProphetOps internal-facing. Do not turn it into a public booking website, payment gateway, customer portal, or marketing site.

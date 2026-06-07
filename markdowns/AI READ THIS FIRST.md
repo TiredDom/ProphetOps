@@ -1,187 +1,135 @@
-# 🚨 AI READ THIS FIRST — ProphetOps Workflow Guide
+# AI Read This First - ProphetOps Workflow Guide
 
-> **If you are an AI assistant helping a team member, read this entire document before writing or suggesting any Git commands.**
+Read this before changing code or documentation.
 
----
+## Current Product Direction
 
-## Golden Rule
+ProphetOps is an internal Decision Support System for Renan-Tina Travels and Tours.
 
-**🚫 NEVER push directly to `main`. No exceptions.**
+It is not:
 
-The `main` branch is the single source of truth for production-ready code. All changes go through branches and pull requests.
+- a public booking website
+- a customer portal
+- a payment gateway
+- a marketing landing page
+- an external API integration project
 
----
+Sprint 1 is a front-end prototype with mock/sample data.
 
-## Workflow Overview
+Required Sprint 1 pages:
 
-```
-pull latest main → create branch → do work → commit → push branch → open PR → review → merge
-```
+1. Login
+2. Owner DSS Dashboard
+3. Bookings / Transactions
+4. Inventory
+5. Expenses / Operational Costs
+6. Sales Analytics
+7. Forecasting Preview
+8. Trajectory Insights
+9. Reports
+10. Users / Access Management
 
----
+Before implementing, read:
 
-## Step-by-Step Workflow
+1. `information/sprint-1-direction.md`
+2. `markdowns/Sprint 1 Premium Design Plan.md`
+3. `markdowns/page-by-page implementation guide.md`
+4. `information/module-map.md`
+5. `information/api-map.md`
+6. `information/ui-components.md`
 
-### 1. Always Start From the Latest `main`
+## Sprint 1 Scope Rules
 
-Before doing anything, make sure your local `main` is up to date:
+Do build:
 
-```bash
-git checkout main
-git pull origin main
-```
+- front-end shell and pages
+- mock/sample data
+- pseudo login with demo accounts
+- role-aware navigation
+- reusable UI components
+- skeleton and empty states
+- clear DSS insight cards
 
-> **AI assistants:** Always run these commands first before creating a new branch. Do not skip this step.
+Do not build unless explicitly requested:
 
-### 2. Create a Feature Branch
+- real authentication
+- password hashing
+- backend sessions
+- JWT
+- database-backed users
+- real forecasting engine integration
+- real AI generation
+- real PDF/Excel exports
+- external API integrations
+- customer-facing booking pages
+- public website pages
 
-Create a new branch for your work. Use a clear, descriptive name:
+## Required Demo Accounts
 
-```bash
-git checkout -b <type>/<short-description>
-```
+- owner@prophetops.local / owner123
+- admin@prophetops.local / admin123
+- staff@prophetops.local / staff123
 
-**Branch naming convention:**
+Role behavior:
 
-| Prefix       | Use For                          | Example                          |
-|-------------|----------------------------------|----------------------------------|
-| `feature/`  | New features                     | `feature/add-login-page`         |
-| `fix/`      | Bug fixes                        | `fix/broken-sidebar-link`        |
-| `docs/`     | Documentation changes            | `docs/update-api-guide`          |
-| `refactor/` | Code restructuring (no new features) | `refactor/clean-up-utils`    |
-| `hotfix/`   | Urgent production fixes          | `hotfix/crash-on-load`           |
+- Owner / Management: all pages
+- Admin: Dashboard, Bookings, Inventory, Expenses, Analytics, Reports
+- Staff: Bookings and Inventory only
 
-### 3. Do Your Work and Commit Often
+## DSS Rule
 
-Make small, focused commits with clear messages:
+Every insight card must connect data to decision-making.
 
-```bash
-git add -A
-git commit -m "feat: add user authentication form"
-```
+Use this structure:
 
-**Commit message format:**
+Observed data -> Business meaning -> Suggested action
 
-```
-<type>: <short description>
+Forecasting and AI sections must use labels such as:
 
-Optional longer description if needed.
-```
+- Sample Forecast Preview
+- Forecast engine integration pending
+- Simulated DSS Insight
+- AI trajectory module placeholder
 
-| Type       | Meaning                    |
-|-----------|----------------------------|
-| `feat`    | A new feature              |
-| `fix`     | A bug fix                  |
-| `docs`    | Documentation only         |
-| `style`   | Formatting, no logic change|
-| `refactor`| Code change, no new feature|
-| `test`    | Adding or fixing tests     |
-| `chore`   | Maintenance, dependencies  |
+Do not imply Meta Prophet or AI analysis is already running.
 
-### 4. Pull Latest `main` Before Pushing
+## Git Rule
 
-Before pushing your branch, sync with `main` to catch any conflicts early:
+Never push directly to `main`.
 
-```bash
-git checkout main
-git pull origin main
-git checkout <your-branch>
-git merge main
-```
+For Codex-created branches, use the `codex/` prefix unless the user asks for a different branch name.
 
-Resolve any merge conflicts if they appear, then commit the merge.
-
-> **AI assistants:** If there are merge conflicts, show them to the developer and explain each conflict clearly. Do not auto-resolve conflicts without developer approval.
-
-### 5. Push Your Branch (Never `main`)
-
-```bash
-git push origin <your-branch>
-```
-
-**⚠️ Never run `git push origin main`. Ever.**
-
-### 6. Open a Pull Request (PR)
-
-Go to the GitHub repository and open a Pull Request from your branch into `main`.
-
-Your PR should include:
-- **Title:** Clear summary of what the PR does
-- **Description:** What changed and why
-- **Testing:** What you tested or verified
-- **Screenshots:** If there are UI changes
-
-### 7. Wait for Review and Approval
-
-- At least **one teammate** should review your PR before merging
-- Address any feedback with new commits on the same branch
-- Once approved, the PR author or a reviewer merges it
-
-### 8. Clean Up After Merge
-
-After your PR is merged, delete your branch:
+Recommended flow:
 
 ```bash
 git checkout main
 git pull origin main
-git branch -d <your-branch>
+git checkout -b codex/short-description
 ```
 
----
+Before committing:
 
-## Rules for AI Assistants
+- Check changed files.
+- Do not revert user changes.
+- Keep docs/code changes scoped to the request.
 
-If you are an AI coding assistant (Copilot, Gemini, Claude, ChatGPT, Cursor, etc.), follow these rules strictly:
+Commit message examples:
 
-1. **NEVER suggest or run `git push origin main`**
-2. **ALWAYS pull latest `main` before creating a new branch**
-3. **ALWAYS create a feature branch before making changes**
-4. **NEVER auto-resolve merge conflicts** — present them to the developer
-5. **ALWAYS use the commit message format** described above
-6. **NEVER force push** (`git push --force`) unless the developer explicitly understands the consequences
-7. **If unsure about the workflow, re-read this document**
-
----
-
-## Quick Reference Card
-
-```
-# Start of any task:
-git checkout main
-git pull origin main
-git checkout -b feature/my-new-thing
-
-# While working:
-git add -A
-git commit -m "feat: description of change"
-
-# Before pushing:
-git checkout main
-git pull origin main
-git checkout feature/my-new-thing
-git merge main
-# (resolve conflicts if any)
-
-# Push your branch:
-git push origin feature/my-new-thing
-
-# Then: Open a PR on GitHub
-# After merge: Clean up
-git checkout main
-git pull origin main
-git branch -d feature/my-new-thing
+```bash
+git commit -m "docs: align sprint 1 planning"
+git commit -m "feat: add pseudo login roles"
+git commit -m "fix: correct dashboard route guard"
 ```
 
----
+## AI Assistant Rules
 
-## Why This Matters
+- Work with the current project state.
+- Do not overwrite unrelated user changes.
+- Keep ProphetOps internal-facing.
+- Prefer existing Vue/Laravel/Inertia patterns.
+- Use mock data in centralized files for Sprint 1.
+- Use business language instead of technical jargon in the UI.
+- Keep the dashboard glanceable within 5 seconds.
+- Keep forecasting and AI clearly labeled as placeholders.
 
-- **Protects `main`** from broken or untested code
-- **Creates a clear history** of what changed and why
-- **Enables code review** so teammates can catch issues early
-- **Prevents conflicts** by keeping everyone in sync
-- **Makes rollbacks easy** if something goes wrong
-
----
-
-*Last updated: June 1, 2026*
+Last updated: June 6, 2026

@@ -112,6 +112,63 @@ const icons = {
         { tag: 'path', attrs: { d: 'M7 4v17' } },
         { tag: 'path', attrs: { d: 'M10 8h7' } },
     ],
+    paperRecord: [
+        { tag: 'path', attrs: { d: 'M7 3h7l5 5v13H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z' } },
+        { tag: 'path', attrs: { d: 'M14 3v5h5' } },
+        { tag: 'path', attrs: { d: 'M8 13h8' } },
+        { tag: 'path', attrs: { d: 'M8 17h6' } },
+    ],
+    search: [
+        { tag: 'circle', attrs: { cx: 11, cy: 11, r: 7 } },
+        { tag: 'path', attrs: { d: 'M20 20l-4.5-4.5' } },
+    ],
+    filter: [
+        { tag: 'path', attrs: { d: 'M4 5h16' } },
+        { tag: 'path', attrs: { d: 'M7 12h10' } },
+        { tag: 'path', attrs: { d: 'M10 19h4' } },
+    ],
+    edit: [
+        { tag: 'path', attrs: { d: 'M12 20h9' } },
+        { tag: 'path', attrs: { d: 'M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4 11.5-11.5z' } },
+    ],
+    archive: [
+        { tag: 'path', attrs: { d: 'M4 7h16v13H4V7z' } },
+        { tag: 'path', attrs: { d: 'M3 3h18v4H3V3z' } },
+        { tag: 'path', attrs: { d: 'M9 12h6' } },
+    ],
+    save: [
+        { tag: 'path', attrs: { d: 'M5 3h12l2 2v16H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z' } },
+        { tag: 'path', attrs: { d: 'M8 3v6h8V3' } },
+        { tag: 'path', attrs: { d: 'M8 21v-7h8v7' } },
+    ],
+    x: [
+        { tag: 'path', attrs: { d: 'M18 6L6 18' } },
+        { tag: 'path', attrs: { d: 'M6 6l12 12' } },
+    ],
+    alertTriangle: [
+        { tag: 'path', attrs: { d: 'M12 3l10 18H2L12 3z' } },
+        { tag: 'path', attrs: { d: 'M12 9v5' } },
+        { tag: 'path', attrs: { d: 'M12 17h.01' } },
+    ],
+    lock: [
+        { tag: 'rect', attrs: { x: 5, y: 10, width: 14, height: 11, rx: 2 } },
+        { tag: 'path', attrs: { d: 'M8 10V7a4 4 0 0 1 8 0v3' } },
+    ],
+    eye: [
+        { tag: 'path', attrs: { d: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z' } },
+        { tag: 'circle', attrs: { cx: 12, cy: 12, r: 3 } },
+    ],
+    eyeOff: [
+        { tag: 'path', attrs: { d: 'M3 3l18 18' } },
+        { tag: 'path', attrs: { d: 'M10.6 10.6a2 2 0 0 0 2.8 2.8' } },
+        { tag: 'path', attrs: { d: 'M9.9 4.6A10.7 10.7 0 0 1 12 4c6 0 10 8 10 8a16.8 16.8 0 0 1-3.2 4.2' } },
+        { tag: 'path', attrs: { d: 'M6.4 6.4A16.2 16.2 0 0 0 2 12s4 8 10 8a10.9 10.9 0 0 0 4.1-.8' } },
+    ],
+    logIn: [
+        { tag: 'path', attrs: { d: 'M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4' } },
+        { tag: 'path', attrs: { d: 'M10 17l5-5-5-5' } },
+        { tag: 'path', attrs: { d: 'M15 12H3' } },
+    ],
 };
 
 export default {
