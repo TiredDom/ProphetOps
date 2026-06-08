@@ -33,10 +33,11 @@ Before implementing, read:
 
 1. `information/sprint-1-direction.md`
 2. `markdowns/Sprint 1 Premium Design Plan.md`
-3. `markdowns/page-by-page implementation guide.md`
-4. `information/module-map.md`
-5. `information/api-map.md`
-6. `information/ui-components.md`
+3. `markdowns/meta-prophet-prescriptive-dss-plan.md`
+4. `markdowns/page-by-page implementation guide.md`
+5. `information/module-map.md`
+6. `information/api-map.md`
+7. `information/ui-components.md`
 
 ## Sprint 1 Scope Rules
 
@@ -93,6 +94,21 @@ Forecasting and AI sections must use labels such as:
 
 Do not imply Meta Prophet or AI analysis is already running.
 
+## Forecasting And Prescriptive DSS Rule
+
+The main paper feature is Meta Prophet forecasting with a prescriptive DSS layer.
+
+Before changing the Dashboard, Forecasting, or Trajectory Insights pages, read:
+
+- `markdowns/meta-prophet-prescriptive-dss-plan.md`
+
+Planning direction:
+
+- Prophet produces the forecast.
+- The prescriptive DSS layer translates forecast output into explainable recommended actions.
+- Current Sprint 1 UI can show sample/simulated output only.
+- Real Prophet integration belongs to a later backend phase.
+
 ## Git Rule
 
 Never push directly to `main`.
@@ -132,4 +148,4 @@ git commit -m "fix: correct dashboard route guard"
 - Keep the dashboard glanceable within 5 seconds.
 - Keep forecasting and AI clearly labeled as placeholders.
 
-Last updated: June 6, 2026
+Last updated: June 8, 2026

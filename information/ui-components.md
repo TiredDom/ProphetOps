@@ -50,7 +50,18 @@ Purpose:
 Displays the page header area, mobile menu trigger, and account/status actions.
 
 Sprint 1 direction:
-Keep the top bar stable across pages. It can show last updated time, local intranet status, profile/logout controls, or page-level context when useful.
+Keep the top bar stable across pages. It now supports user role/profile display and logout controls through the shared app shell.
+
+### AppShell
+
+Path:
+`resources/js/Components/layout/AppShell.vue`
+
+Purpose:
+Wraps new Sprint 1 pages with the sidebar, top bar, role-aware navigation, frontend mock route guard, and logout behavior.
+
+Used In:
+Dashboard, Bookings, Inventory, Expenses, Analytics, Forecasting Preview, Trajectory Insights, Reports, and Users.
 
 ### StatCard
 
@@ -89,7 +100,7 @@ Every data-heavy page should include a polished empty state with one recommended
 
 Build or extract these when implementation needs them:
 
-- AppShell
+- AppShell: implemented
 - Sidebar
 - TopBar
 - PageHeader
@@ -141,6 +152,16 @@ Required structure:
 - Business meaning
 - Suggested action
 
+Future prescriptive DSS structure:
+
+- Forecast signal or observed data
+- Business meaning
+- Prescribed action
+- Priority
+- Evidence
+- Affected package or destination
+- Time horizon
+
 Labels:
 
 - Risk
@@ -159,6 +180,8 @@ Each card must include:
 - Short finding
 - Why it matters
 - One clear action button
+
+When connected to Meta Prophet later, each dashboard decision card should come from the latest forecast run or prescriptive DSS insight and should remain explainable.
 
 Dashboard limit:
 Show up to 3 priority decision cards on the first screen.
@@ -205,6 +228,7 @@ Use cases:
 - Logout confirmation if needed
 - Short export options
 - Simple status changes
+- Discarding unsaved drawer changes
 
 Rules:
 
@@ -212,6 +236,18 @@ Rules:
 - Always include Cancel and Confirm.
 - Destructive actions use danger styling and clear wording.
 - Do not put large forms, charts, or tables inside modals.
+
+Sprint 1 modal plan:
+Use `markdowns/sprint-1-modal-interaction-plan.md` before implementing modal behavior.
+
+Recommended modal variants:
+
+- Logout confirmation
+- Report preview
+- Export/feature placeholder
+- Alerts
+- Profile/access information
+- Unsaved changes confirmation
 
 ### SkeletonCard
 
@@ -280,3 +316,4 @@ Important:
 - Operational Records should become Bookings / Transactions direction.
 - Data Validation should become data quality behavior, not a required standalone page.
 - Inventory remains a required page and should align to package slots and operational availability.
+- Legacy page and CSS cleanup should follow `markdowns/legacy-removal-plan.md`.

@@ -42,8 +42,8 @@ Main paths:
 
 Current status:
 
-- A frontend login page and mock auth service already exist.
-- Current behavior should be adjusted to the required demo accounts and role-based access from the new Sprint 1 plan.
+- A frontend login page and mock auth service exist.
+- Current behavior uses the required demo accounts and role-based access from the new Sprint 1 plan.
 
 Sprint 1 target:
 
@@ -55,6 +55,11 @@ Sprint 1 target:
 - Guard routes on the frontend only.
 - Logout clears mock session.
 - Navigation adapts based on role.
+
+Current implementation:
+
+- `resources/js/services/mockAuth.js` defines demo users, role permissions, default role redirects, and frontend route guards.
+- `resources/js/Components/layout/AppShell.vue` applies role-aware navigation and logout behavior on new Sprint 1 pages.
 
 Out of scope:
 
@@ -74,19 +79,21 @@ Current path:
 - Existing page: `resources/js/Pages/Welcome.vue`
 - Current route: `GET /dashboard`
 
-Sprint 1 target:
+Current status:
 
-- Rework the current dashboard into "Decision Support Overview".
-- Show a single Business Gist / DSS Insight Summary near the top.
-- Show up to 6 KPI cards.
-- Show up to 3 priority decision cards on the first screen.
-- Include sales trend, revenue vs expenses, top packages, forecast preview, recent transactions, and recent inventory changes.
+- Reworked into "Decision Support Overview".
+- Shows one Business Gist / DSS Insight Summary near the top.
+- Shows 6 KPI cards.
+- Shows 3 priority decision cards.
+- Includes sales trend, revenue vs expenses, top packages, forecast preview, recent transactions, and recent inventory changes using mock data.
 
 Important notes:
 
 - This should not feel like a generic admin homepage.
 - It must answer what is happening, why it matters, and what should be reviewed next.
 - Forecast and AI areas must be labeled as sample or simulated.
+- Future dashboard forecasting behavior must follow `markdowns/meta-prophet-prescriptive-dss-plan.md`.
+- When real forecasting exists, the dashboard should show the latest forecast-driven gist and the top three prescriptive actions, not a dense forecasting workspace.
 
 ## Bookings / Transactions
 
@@ -95,10 +102,18 @@ Centralize booking records from Messenger, Google Sheets, Gmail, notebooks, and 
 
 Legacy predecessor:
 
-- Existing `resources/js/Pages/OperationalRecords.vue` should be treated as the old intake concept and reworked or replaced for Bookings / Transactions.
-- Existing route `GET /data/operational-records` is legacy direction and should not be the final Sprint 1 route label.
+- `resources/js/Pages/OperationalRecords.vue` is legacy and should be removed after active pages are verified.
+- Existing route `GET /data/operational-records` is legacy direction and currently redirects to `/bookings`.
+- Follow `markdowns/legacy-removal-plan.md` for cleanup.
 
 Sprint 1 target:
+Current status:
+
+- Implemented as `resources/js/Pages/Bookings.vue`.
+- Current route: `GET /bookings`.
+- Uses centralized mock data, search, filters, table, and drawer add/edit/view behavior.
+
+Sprint 1 behavior:
 
 - Create an Attio-like records table.
 - Fields: Booking ID, booking date, client/agency partner, destination/package, passenger count, gross revenue, payment status, booking status, staff assigned, notes.
@@ -117,9 +132,9 @@ Monitor package availability, slots, and operational stock.
 Current path:
 
 - Existing page: `resources/js/Pages/Inventory.vue`
-- Current route: `GET /operations/inventory`
+- Current route: `GET /inventory`
 
-Sprint 1 target:
+Current status:
 
 - Align inventory language to travel package availability and operational stock.
 - Fields: package name, destination, available slots, sold count, reserved count, status, last updated.
@@ -137,7 +152,8 @@ Record costs needed for financial analysis and DSS interpretation.
 
 Current status:
 
-- Not implemented yet.
+- Implemented as `resources/js/Pages/Expenses.vue`.
+- Current route: `GET /expenses`.
 
 Sprint 1 target:
 
@@ -156,7 +172,8 @@ Provide basic business analysis before full AI forecasting.
 
 Current status:
 
-- Not implemented yet.
+- Implemented as `resources/js/Pages/SalesAnalytics.vue`.
+- Current route: `GET /analytics`.
 
 Sprint 1 target:
 
@@ -166,17 +183,20 @@ Sprint 1 target:
 ## Forecasting Preview
 
 Purpose:
-Prepare the interface for future Meta Prophet integration.
+Prepare the interface for future Meta Prophet integration and forecast-run review.
 
 Current status:
 
-- Not implemented yet.
+- Implemented as `resources/js/Pages/ForecastingPreview.vue`.
+- Current route: `GET /forecasting`.
 
 Sprint 1 target:
 
 - Use mock data only.
 - Include 30-day booking projection, 30-day revenue projection, demand trend chart, seasonality notes, data requirements, and forecast status card.
 - Required label: "Sample Forecast Preview - Forecast engine integration pending".
+- Plan future model output around `ds`, `y`, `yhat`, `yhat_lower`, and `yhat_upper`.
+- The detailed forecasting plan lives in `markdowns/meta-prophet-prescriptive-dss-plan.md`.
 
 Important note:
 
@@ -185,11 +205,12 @@ Important note:
 ## Trajectory Insights
 
 Purpose:
-Show simulated AI/DSS business interpretation.
+Show simulated DSS interpretation now and evolve into the prescriptive recommendation layer for forecast-driven decisions.
 
 Current status:
 
-- Not implemented yet.
+- Implemented as `resources/js/Pages/TrajectoryInsights.vue`.
+- Current route: `GET /trajectory-insights`.
 
 Sprint 1 target:
 
@@ -197,6 +218,8 @@ Sprint 1 target:
 - Categories: sales trend, cost risk, inventory risk, marketing opportunity, demand increase.
 - Each insight includes finding, reason, and suggested action.
 - Required labels: "Simulated DSS Insight" and "AI trajectory module placeholder".
+- Future insight cards should include forecast signal, business meaning, prescribed action, priority, evidence, affected package/destination, and time horizon.
+- Use `markdowns/meta-prophet-prescriptive-dss-plan.md` as the source of truth for this evolution.
 
 ## Reports
 
@@ -205,7 +228,8 @@ Provide internal documentation cards for owners and stakeholders.
 
 Current status:
 
-- Not implemented yet.
+- Implemented as `resources/js/Pages/Reports.vue`.
+- Current route: `GET /reports`.
 
 Sprint 1 target:
 
@@ -220,7 +244,8 @@ Support limited internal access in the prototype.
 
 Current status:
 
-- Not implemented yet as a page.
+- Implemented as `resources/js/Pages/Users.vue`.
+- Current route: `GET /users`.
 
 Sprint 1 target:
 
@@ -235,13 +260,14 @@ Data quality remains important, but it is no longer a required standalone Sprint
 
 Current path:
 
-- Existing page: `resources/js/Pages/DataValidation.vue`
-- Current route: `GET /data/validation`
+- Existing page: `resources/js/Pages/DataValidation.vue` is legacy and should be removed after active pages are verified.
+- Current legacy route: `GET /data/validation`, redirecting to `/analytics`.
 
 New direction:
 
 - Keep validation ideas as behavior inside Bookings, Inventory, Expenses, Analytics, Forecasting Preview, and Reports.
 - Do not make Data Validation compete with the required Sprint 1 pages unless the user asks to restore it.
+- Follow `markdowns/legacy-removal-plan.md` for cleanup.
 
 ## Navigation
 

@@ -3,6 +3,171 @@
 Current direction note:
 Entries before `2026-06-06 - Sprint 1 DSS Planning Reset` are historical. Some older entries mention legacy pages such as Operational Records, Data Validation, Packages, Settings, or earlier visual directions. The active implementation direction is now `information/sprint-1-direction.md`.
 
+## 2026-06-08 - Legacy Removal Planning
+
+Type:
+Planning / Cleanup Direction
+
+Summary:
+Added a staged plan for removing legacy Operational Records, standalone Data Validation, and old route naming from active Sprint 1 work.
+
+Files updated:
+
+- markdowns/legacy-removal-plan.md
+- markdowns/README.md
+- markdowns/page-by-page implementation guide.md
+- information/sprint-1-direction.md
+- information/ui-components.md
+- information/decisions.md
+- information/feature-log.md
+
+Important:
+No legacy files were deleted in this planning step. The recommended removal keeps temporary redirects while deleting legacy page files and legacy-only CSS only after active Sprint 1 pages are verified.
+
+AI Handoff:
+- Module: Legacy Cleanup Planning
+- What changed: Classified legacy pages, routes, CSS, docs, and historical logs for staged cleanup.
+- Next likely task: Implement the cleanup by deleting legacy page files, pruning legacy-only CSS, updating route/docs wording, and verifying active routes.
+
+## 2026-06-08 - Sprint 1 Modal Interaction Planning
+
+Type:
+Planning / Interaction Design
+
+Summary:
+Scanned the current Vue pages and shared components for clickable actions that need modal, drawer, link, disabled, or inline behavior during Sprint 1.
+
+Files updated:
+
+- markdowns/sprint-1-modal-interaction-plan.md
+- markdowns/README.md
+- markdowns/page-by-page implementation guide.md
+- information/ui-components.md
+- information/feature-log.md
+
+Important:
+No modal code was implemented. The plan keeps Sprint 1 frontend-only and mockup-only.
+
+AI Handoff:
+- Module: Sprint 1 Interaction Planning
+- What changed: Defined which actions should use logout confirmation, report preview, export placeholder, alerts/profile modals, unsaved-changes confirmation, drawers, page links, or inline controls.
+- Next likely task: Implement the planned modal behaviors in the existing Vue components without adding backend dependencies.
+
+## 2026-06-08 - Meta Prophet And Prescriptive DSS Planning
+
+Type:
+Planning / Forecasting Direction
+
+Summary:
+Added a planning reference for the main paper feature: Meta Prophet forecasting connected to a prescriptive DSS recommendation layer.
+
+Files updated:
+
+- markdowns/meta-prophet-prescriptive-dss-plan.md
+- markdowns/README.md
+- markdowns/AI READ THIS FIRST.md
+- markdowns/Sprint 1 Premium Design Plan.md
+- markdowns/page-by-page implementation guide.md
+- information/sprint-1-direction.md
+- information/module-map.md
+- information/database-map.md
+- information/api-map.md
+- information/decisions.md
+- information/ui-components.md
+
+Important:
+No forecasting code, backend jobs, database tables, or real AI generation were implemented. The current app must still label forecast and trajectory output as sample/simulated until real integration starts.
+
+AI Handoff:
+- Module: Forecasting / Prescriptive DSS Planning
+- What changed: Defined the future flow from business records to Prophet forecast output to explainable recommended actions on the dashboard.
+- Next likely task: Refine the existing Dashboard, Forecasting Preview, and Trajectory Insights mock UI to match this plan while keeping all output sample/simulated.
+
+## 2026-06-08 - Page Placement And Premium Visual QA Pass
+
+Module:
+Sprint 1 Frontend / Visual QA
+
+Summary:
+Reviewed the active Sprint 1 pages through headless Edge screenshots and fixed inconsistent placement issues. The dashboard KPI cards now use a balanced grid, topbar actions no longer wrap at desktop width, table badges remain compact, dashboard inventory statuses no longer stretch into full-width bars, and revenue/expense helper text has protected spacing below progress bars.
+
+Files Updated:
+- resources/css/app.css
+- resources/js/Components/layout/TopBar.vue
+- resources/js/Pages/Welcome.vue
+- information/feature-log.md
+
+Verification:
+- `npm run build` passes.
+- Active route checks return HTTP 200.
+- Headless visual checks covered `/dashboard`, `/bookings`, `/inventory`, `/expenses`, `/analytics`, `/forecasting`, `/trajectory-insights`, `/reports`, and `/users`.
+- Rendered checks found no squeezed panels, no stretched badges, and no desktop topbar wrapping.
+
+## 2026-06-08 - Premium Spacing Consistency Pass
+
+Module:
+Sprint 1 Frontend / Visual System
+
+Summary:
+Added a final CSS consistency layer to normalize spacing, page width, panel rhythm, card padding, table spacing, filters, drawer spacing, login card spacing, sidebar polish, and topbar treatment across the Sprint 1 pages.
+
+Files Updated:
+- resources/css/app.css
+- information/feature-log.md
+
+User-Facing Behavior:
+Pages now use a more consistent premium light dashboard feel with cleaner white surfaces, softer borders, restrained shadows, consistent 24px/16px spacing rhythm, stable card padding, and better mobile spacing.
+
+How To Verify:
+Run `npm run build`, then open the core routes: `/dashboard`, `/bookings`, `/inventory`, `/expenses`, `/analytics`, `/forecasting`, `/trajectory-insights`, `/reports`, and `/users`.
+
+## 2026-06-08 - Sprint 1 DSS Frontend Implementation Slice
+
+Module:
+Sprint 1 Frontend / DSS Prototype
+
+Summary:
+Implemented the first broad pass of the new Sprint 1 plan. The app now has the required page routes and frontend pages for Login, Owner DSS Dashboard, Bookings, Inventory, Expenses, Sales Analytics, Forecasting Preview, Trajectory Insights, Reports, and Users / Access Management.
+
+Files Added:
+- resources/js/Components/layout/AppShell.vue
+- resources/js/Pages/Bookings.vue
+- resources/js/Pages/Expenses.vue
+- resources/js/Pages/SalesAnalytics.vue
+- resources/js/Pages/ForecastingPreview.vue
+- resources/js/Pages/TrajectoryInsights.vue
+- resources/js/Pages/Reports.vue
+- resources/js/Pages/Users.vue
+- resources/js/data/mockData.js
+
+Files Updated:
+- routes/web.php
+- resources/css/app.css
+- resources/js/Components/icons/AppIcon.vue
+- resources/js/Components/layout/TopBar.vue
+- resources/js/Pages/Login.vue
+- resources/js/Pages/Welcome.vue
+- resources/js/Pages/Inventory.vue
+- resources/js/data/navigation.js
+- resources/js/services/mockAuth.js
+- information/feature-log.md
+
+User-Facing Behavior:
+The Login page now uses the required Sprint 1 demo accounts and role-based redirects. The sidebar uses the required navigation labels and hides restricted pages based on role. Dashboard, Bookings, Inventory, Expenses, Analytics, Forecasting, Trajectory Insights, Reports, and Users are all navigable pages using centralized mock data.
+
+Prototype Boundaries:
+Forecasting and trajectory insights are clearly labeled as sample/simulated placeholders. No real authentication, backend persistence, real forecasting, AI generation, export generation, or external integration was added.
+
+How To Verify:
+Run `npm run build`, then run Laravel and open `/login`. Use `owner@prophetops.local / owner123` for all pages, `admin@prophetops.local / admin123` for the admin subset, or `staff@prophetops.local / staff123` for Bookings and Inventory only.
+
+AI Handoff:
+- Module: Sprint 1 DSS Frontend
+- What changed: Added role-aware shell/navigation, centralized mock business data, and all required Sprint 1 pages.
+- Main files: AppShell.vue, mockAuth.js, mockData.js, navigation.js, routes/web.php, new page files.
+- Current verification: `npm run build` passes and all required Laravel routes return HTTP 200.
+- Next likely task: polish visual details with browser screenshots, add deeper empty/skeleton states, and refine form validation if needed.
+
 ## 2026-06-06 - Sprint 1 DSS Planning Reset
 
 Summary:

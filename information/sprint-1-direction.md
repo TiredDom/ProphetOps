@@ -70,6 +70,7 @@ Current implementation note:
 - Existing `OperationalRecords.vue` should be treated as a legacy predecessor to Bookings / Transactions.
 - Existing `DataValidation.vue` is not a required standalone Sprint 1 page in the new plan. Keep data quality behavior inside the relevant data pages and future backend validation work.
 - Existing `Inventory.vue` remains relevant, but it should align to package availability and operational stock language.
+- Legacy cleanup should follow `markdowns/legacy-removal-plan.md`.
 
 ## Pseudo Login Scope
 
@@ -150,6 +151,20 @@ Forecasting and AI labels must be explicit:
 - AI trajectory module placeholder
 
 Do not imply that Meta Prophet or an AI module is already running.
+
+## Meta Prophet And Prescriptive DSS Direction
+
+The main future research feature is Meta Prophet forecasting with a prescriptive DSS layer.
+
+Use `markdowns/meta-prophet-prescriptive-dss-plan.md` before changing the Dashboard, Forecasting Preview, or Trajectory Insights behavior.
+
+Feature direction:
+
+- Meta Prophet should forecast demand, booking volume, or revenue from validated historical records.
+- The prescriptive DSS layer should convert forecast signals into explainable recommended actions.
+- Dashboard recommendations should be based on forecast direction, confidence, inventory/capacity status, and cost movement.
+- Every prescription must show the evidence, the business meaning, and the suggested action.
+- Current Sprint 1 work remains mock/sample unless backend forecasting integration is explicitly requested later.
 
 ## Mock Data Requirements
 

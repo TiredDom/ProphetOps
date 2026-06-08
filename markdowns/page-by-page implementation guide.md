@@ -24,6 +24,17 @@ Observed data -> Business meaning -> Suggested action
 
 Forecasting and AI must be labeled as sample/simulated placeholders.
 
+For clicked actions, use `sprint-1-modal-interaction-plan.md`.
+
+Sprint 1 interaction summary:
+
+- Use drawers for Add, Edit, View, and Adjust actions on business records.
+- Use modals for logout confirmation, report preview, placeholder notices, alerts, profile/access information, and discard-changes confirmation.
+- Use normal page links for dashboard decision actions and navigation.
+- Keep filters and date ranges inline.
+
+For removing old pages and route names, use `legacy-removal-plan.md`.
+
 ## Shared Navigation
 
 Primary labels:
@@ -301,7 +312,7 @@ Page title:
 "Forecasting Preview"
 
 Purpose:
-Prepare the interface for Meta Prophet integration.
+Prepare the interface for Meta Prophet integration and future forecast-run review.
 
 Primary action:
 Review Data Requirements
@@ -317,6 +328,15 @@ Include:
 - Seasonality notes
 - Data requirements
 - Forecast status card
+- Source data readiness
+- Future confidence interval display using `yhat`, `yhat_lower`, and `yhat_upper`
+
+Future real integration:
+
+- Use Meta Prophet to forecast demand, booking volume, or revenue.
+- Store generated forecast runs before showing them on the dashboard.
+- Show generated timestamp, source date range, projection range, and model status.
+- Link forecast signals to prescriptive DSS recommendations.
 
 Acceptance criteria:
 
@@ -324,6 +344,7 @@ Acceptance criteria:
 - Page clearly says the forecast engine is not integrated.
 - Data requirements explain what future Prophet integration will need.
 - No copy implies real Meta Prophet output exists.
+- Future planning follows `meta-prophet-prescriptive-dss-plan.md`.
 
 ## 8. Trajectory Insights
 
@@ -331,7 +352,7 @@ Page title:
 "Trajectory Insights"
 
 Purpose:
-Show simulated AI/DSS business interpretation.
+Show simulated DSS business interpretation now and evolve into prescriptive forecast-driven recommendations.
 
 Primary action:
 Review Suggested Actions
@@ -355,12 +376,23 @@ Each insight includes:
 - Reason
 - Suggested action
 
+Future prescriptive DSS format:
+
+- Forecast signal or observed data
+- Business meaning
+- Prescribed action
+- Priority
+- Evidence
+- Affected package or destination
+- Time horizon
+
 Acceptance criteria:
 
 - Every card follows observed data -> meaning -> action.
 - Insights are clearly simulated.
 - Suggestions are practical for travel operations.
 - No real AI generation is implied.
+- Future planning follows `meta-prophet-prescriptive-dss-plan.md`.
 
 ## 9. Reports
 
@@ -432,7 +464,7 @@ Acceptance criteria:
 2. Update app shell and navigation labels.
 3. Rework dashboard into Decision Support Overview.
 4. Build centralized mock data.
-5. Rework legacy Operational Records into Bookings / Transactions.
+5. Keep legacy Operational Records replaced by Bookings / Transactions.
 6. Align Inventory to package availability.
 7. Add Expenses.
 8. Add Sales Analytics.

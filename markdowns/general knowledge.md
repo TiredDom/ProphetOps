@@ -113,6 +113,11 @@ Deprecated active planning:
 
 These concepts may still inform Bookings, Inventory, Analytics, Reports, and future backend work.
 
+Legacy cleanup:
+
+- Follow `legacy-removal-plan.md` before deleting old page files, old CSS blocks, or old route redirects.
+- Keep historical feature/fix logs intact.
+
 ## Role Model
 
 Owner / Management:

@@ -87,3 +87,33 @@ Impact:
 - Data Validation is no longer a required standalone Sprint 1 page.
 - Forecasting and AI insight pages must be labeled as sample/simulated placeholders.
 - No real auth, backend persistence, real forecasting, AI generation, exports, or external integrations should be built in Sprint 1.
+
+## 2026-06-08 - Plan Meta Prophet Forecasting With Prescriptive DSS Before Coding
+
+Decision:
+Treat Meta Prophet forecasting plus prescriptive DSS recommendations as the main future research feature, and plan it before changing implementation.
+
+Reason:
+The forecasting feature is central to the paper. It needs a clear separation between the forecasting method and the decision-support recommendation layer so the UI does not become just a chart preview or falsely imply real AI is already running.
+
+Impact:
+
+- `markdowns/meta-prophet-prescriptive-dss-plan.md` is now the reference before changing Dashboard forecast cards, Forecasting Preview, or Trajectory Insights.
+- Prophet will be planned as the forecast engine for demand, booking volume, or revenue.
+- Prescriptive DSS will translate forecast signals, inventory/capacity status, and cost movement into explainable recommended actions.
+- Current Sprint 1 implementation remains sample/simulated until backend forecasting integration is explicitly requested.
+
+## 2026-06-08 - Remove Legacy Direction In Stages
+
+Decision:
+Use a staged legacy cleanup plan for Operational Records, standalone Data Validation, and old route names.
+
+Reason:
+The active Sprint 1 plan now uses Bookings, Inventory, Expenses, Analytics, Forecasting, Trajectory Insights, Reports, and Users. Leaving old page files and docs in place can confuse future implementation.
+
+Impact:
+
+- `markdowns/legacy-removal-plan.md` is now the source of truth for legacy cleanup.
+- Old URLs may keep temporary redirects so existing links do not break.
+- Legacy Vue page files and legacy-only CSS should be removed only after active Sprint 1 pages are verified.
+- Historical logs should remain intact.

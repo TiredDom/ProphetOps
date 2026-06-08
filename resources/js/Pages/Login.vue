@@ -9,14 +9,14 @@
                 </div>
             </div>
 
-            <div class="login-copy">
+                <div class="login-copy">
                 <span class="login-kicker">
                     <span class="status-dot"></span>
                     Internal Account Access
                 </span>
-                <h1 id="login-title">Sign in to the operational workspace</h1>
+                <h1 id="login-title">Sign in to ProphetOps</h1>
                 <p>
-                    Authorized users only. Sign in to continue to ProphetOps.
+                    Decision Support System for Travel Operations.
                 </p>
             </div>
 
@@ -73,6 +73,19 @@
                     <span class="mock-auth-note">Authorized users only</span>
                 </div>
 
+                <div class="demo-account-list" aria-label="Demo accounts">
+                    <p>Demo accounts</p>
+                    <button
+                        v-for="account in demoAccounts"
+                        :key="account.email"
+                        type="button"
+                        @click="fillDemoAccount(account)"
+                    >
+                        <strong>{{ account.role }}</strong>
+                        <span>{{ account.email }} / {{ account.password }}</span>
+                    </button>
+                </div>
+
                 <div v-if="statusMessage" class="login-status" role="status">
                     <AppIcon name="shieldCheck" />
                     <span>{{ statusMessage }}</span>
@@ -90,7 +103,14 @@
 
 <script>
 import AppIcon from '../Components/icons/AppIcon.vue';
-import { isMockAuthenticated, mockLogin, normalizeLoginEmail } from '../services/mockAuth';
+import {
+    defaultPathForRole,
+    demoUsers,
+    getMockUser,
+    isMockAuthenticated,
+    mockLogin,
+    normalizeLoginEmail,
+} from '../services/mockAuth';
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -110,6 +130,7 @@ export default {
             isLoading: false,
             showPassword: false,
             statusMessage: '',
+            demoAccounts: demoUsers,
         };
     },
     computed: {
@@ -119,7 +140,7 @@ export default {
     },
     mounted() {
         if (isMockAuthenticated()) {
-            window.location.replace('/dashboard');
+            window.location.replace(defaultPathForRole(getMockUser()?.role));
         }
     },
     methods: {
@@ -151,19 +172,28 @@ export default {
             this.statusMessage = '';
 
             try {
-                mockLogin({
+                const user = mockLogin({
                     email: this.form.email,
+                    password: this.form.password,
                     rememberMe: this.form.rememberMe,
                 });
 
-                this.statusMessage = 'Access confirmed. Opening dashboard...';
+                this.statusMessage = 'Access confirmed. Opening workspace...';
                 window.setTimeout(() => {
-                    window.location.href = '/dashboard';
+                    window.location.href = defaultPathForRole(user.role);
                 }, 250);
-            } catch {
-                this.statusMessage = 'Unable to open the dashboard. Please try again.';
+            } catch (error) {
+                this.errors = {
+                    password: error.message || 'Use one of the Sprint 1 demo accounts.',
+                };
+                this.statusMessage = '';
                 this.isLoading = false;
             }
+        },
+        fillDemoAccount(account) {
+            this.form.email = account.email;
+            this.form.password = account.password;
+            this.errors = {};
         },
     },
 };

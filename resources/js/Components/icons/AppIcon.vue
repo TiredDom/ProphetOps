@@ -169,6 +169,11 @@ const icons = {
         { tag: 'path', attrs: { d: 'M10 17l5-5-5-5' } },
         { tag: 'path', attrs: { d: 'M15 12H3' } },
     ],
+    logOut: [
+        { tag: 'path', attrs: { d: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4' } },
+        { tag: 'path', attrs: { d: 'M16 17l5-5-5-5' } },
+        { tag: 'path', attrs: { d: 'M21 12H9' } },
+    ],
 };
 
 export default {

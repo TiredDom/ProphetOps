@@ -146,6 +146,9 @@ Fields:
 - projection date
 - projected bookings
 - projected revenue
+- yhat
+- yhat_lower
+- yhat_upper
 - confidence/status label
 - seasonality note
 - data requirement note
@@ -157,15 +160,21 @@ Required label:
 ### Trajectory Insights
 
 Purpose:
-Support simulated DSS insight cards.
+Support simulated DSS insight cards and future prescriptive recommendations.
 
 Fields:
 
 - insight type: Risk, Opportunity, Warning, Action, Trend
+- forecast signal
 - observed data
 - business meaning
-- suggested action
+- prescribed action
+- priority
+- evidence
+- affected package/destination
+- time horizon
 - category
+- insight status
 - placeholder label
 
 Required labels:
@@ -295,11 +304,15 @@ Future fields:
 
 - id
 - forecast_type
+- forecast_target
 - source_range_start
 - source_range_end
 - projection_range_start
 - projection_range_end
 - status
+- model_name
+- model_version
+- error_message
 - generated_at
 - created_at
 - updated_at
@@ -308,18 +321,47 @@ Important:
 
 - Do not create this table until forecasting integration is actually in scope.
 
+### forecast_points
+
+Purpose:
+Store future forecast values from each Meta Prophet run.
+
+Future fields:
+
+- id
+- forecast_run_id
+- forecast_date
+- yhat
+- yhat_lower
+- yhat_upper
+- trend_value
+- seasonality_note
+- created_at
+- updated_at
+
+Important:
+
+- Do not create this table until real forecast output needs to be persisted.
+
 ### insight_snapshots
 
 Purpose:
-Store future AI/DSS interpretation outputs after real integration.
+Store future DSS interpretation outputs after real integration.
 
 Future fields:
 
 - id
 - insight_type
+- forecast_run_id
+- forecast_signal
 - observed_data
 - business_meaning
-- suggested_action
+- prescribed_action
+- priority
+- evidence
+- affected_package_id
+- affected_destination
+- time_horizon
 - source_period
 - status
 - generated_at
@@ -328,4 +370,8 @@ Future fields:
 
 Important:
 
-- Do not create this table until AI trajectory integration is actually in scope.
+- Do not create this table until prescriptive DSS integration is actually in scope.
+
+Future naming note:
+
+- If the project needs clearer paper alignment later, `insight_snapshots` can evolve into `prescriptive_insights`.

@@ -1,89 +1,47 @@
 <template>
-    <div class="dashboard-shell" :class="{ 'sidebar-open': sidebarOpen }">
-        <button class="sidebar-overlay" type="button" aria-label="Close navigation" @click="closeSidebar"></button>
-
-        <Sidebar
-            :navigation-groups="navigationGroups"
-            :is-open="sidebarOpen"
-            @item-selected="closeSidebar"
-        />
-
-        <main class="main-panel">
-            <TopBar
-                eyebrow="Admin Workspace"
-                title="Welcome back, Administrator"
-                description="Decision support workspace for operational records, reports, and future forecasting readiness."
-                :current-date="currentDate"
-                :sidebar-open="sidebarOpen"
-                @toggle-sidebar="toggleSidebar"
-            />
-
-            <section class="welcome-hero dss-hero">
-                <div class="hero-content dss-overview">
-                    <div class="hero-main dss-hero-main">
-                        <div class="hero-kicker">
-                            <div class="hero-status">
-                                <span class="status-dot"></span>
-                                Decision Support System
-                            </div>
-                        </div>
-                        <h2>ProphetOps Decision Support Workspace</h2>
-                        <p>
-                            Transform scattered operational records into reports, forecasting inputs, and
-                            decision-ready insights.
-                        </p>
-                        <div class="hero-actions">
-                            <Link class="primary-button" href="/data/operational-records">
-                                <AppIcon name="plus" />
-                                Add Operational Record
-                            </Link>
-                            <Link class="secondary-button" href="/data/validation">
-                                <AppIcon name="shieldCheck" />
-                                Review Data
-                            </Link>
-                        </div>
-                    </div>
-
-                    <div class="hero-priority dss-next-action" aria-label="Next dashboard priority">
-                        <span class="priority-label">Next Best Action</span>
-                        <strong>Add the first operational record</strong>
-                        <p>Start with one clean entry so reports and future forecasts have a reliable base.</p>
-                    </div>
-
-                    <div class="dss-pipeline" aria-label="Decision support system flow">
-                        <article
-                            v-for="step in dssPipeline"
-                            :key="step.label"
-                            class="pipeline-card"
-                            :class="{ planned: step.planned }"
-                        >
-                            <span class="pipeline-icon" aria-hidden="true">
-                                <AppIcon :name="step.icon" />
-                            </span>
-                            <div>
-                                <strong>{{ step.label }}</strong>
-                                <p>{{ step.description }}</p>
-                            </div>
-                            <span class="record-badge" :class="step.badgeClass">{{ step.status }}</span>
-                        </article>
-                    </div>
+    <AppShell
+        active-label="Dashboard"
+        eyebrow="Owner DSS"
+        title="Decision Support Overview"
+        description="Business status, decision priorities, and Sprint 1 forecast readiness from mock travel operations data."
+    >
+        <section class="dss-page">
+            <div class="dss-toolbar">
+                <div class="segment-control" aria-label="Date range">
+                    <button
+                        v-for="range in ranges"
+                        :key="range"
+                        type="button"
+                        :class="{ active: selectedRange === range }"
+                        @click="selectedRange = range"
+                    >
+                        {{ range }}
+                    </button>
                 </div>
-
-                <div class="hero-summary" aria-label="Data foundation status">
-                    <div class="summary-header">
-                        <span>DSS Readiness</span>
-                        <strong>Foundation View</strong>
-                    </div>
-                    <div v-for="item in systemReadiness" :key="item.label" class="summary-row">
-                        <span>{{ item.label }}</span>
-                        <strong>{{ item.status }}</strong>
-                    </div>
+                <div class="system-status">
+                    <span class="status-dot"></span>
+                    Local Intranet Active
+                    <span>Last updated {{ lastUpdated }}</span>
                 </div>
+            </div>
+
+            <section class="business-gist">
+                <div>
+                    <span class="insight-label">DSS Insight Summary</span>
+                    <h2>Sales are above last month's pace, but operating costs are increasing.</h2>
+                    <p>
+                        Recommended action: review high-cost destinations before approving new promos.
+                    </p>
+                </div>
+                <a class="primary-button" href="/trajectory-insights">
+                    <AppIcon name="sparkles" />
+                    Review Insights
+                </a>
             </section>
 
-            <section class="stat-grid" aria-label="Operational summary">
+            <section class="stat-grid dss-kpi-grid dashboard-kpi-grid" aria-label="Dashboard KPIs">
                 <StatCard
-                    v-for="stat in stats"
+                    v-for="stat in kpiCards"
                     :key="stat.label"
                     :icon="stat.icon"
                     :label="stat.label"
@@ -94,291 +52,221 @@
                 />
             </section>
 
-            <section class="workspace-grid">
-                <ContentPanel
-                    icon="sparkles"
-                    eyebrow="Management Decision Support"
-                    title="Decision Support Preview"
-                    badge="Planned Insight"
-                    panel-class="records-panel decision-panel"
-                >
+            <section class="decision-grid">
+                <article v-for="decision in priorityDecisions" :key="decision.title" class="decision-card">
+                    <span class="record-badge" :class="statusClass(decision.type)">{{ decision.type }}</span>
+                    <h3>{{ decision.title }}</h3>
+                    <p><strong>Finding:</strong> {{ decision.finding }}</p>
+                    <p><strong>Meaning:</strong> {{ decision.meaning }}</p>
+                    <a class="secondary-button compact-button" :href="decision.href">
+                        <AppIcon name="arrowRight" />
+                        {{ decision.action }}
+                    </a>
+                </article>
+            </section>
+
+            <section class="dss-grid two-column">
+                <ContentPanel icon="fileBarChart" eyebrow="Sales" title="Sales Trend" badge="Mock data">
+                    <div class="mini-chart">
+                        <div v-for="booking in recentBookings" :key="booking.id" class="chart-row">
+                            <span>{{ booking.ds.slice(5) }}</span>
+                            <div><i :style="{ width: chartWidth(booking.grossRevenue, maxRevenue) }"></i></div>
+                            <strong>{{ formatCurrency(booking.grossRevenue) }}</strong>
+                        </div>
+                    </div>
+                </ContentPanel>
+
+                <ContentPanel icon="wallet" eyebrow="Profit Watch" title="Revenue Vs Expenses" badge="DSS view">
+                    <div class="comparison-stack">
+                        <div>
+                            <span>Revenue</span>
+                            <strong>{{ formatCurrency(totalRevenue) }}</strong>
+                            <div class="progress-track"><i :style="{ width: '100%' }"></i></div>
+                        </div>
+                        <div>
+                            <span>Expenses</span>
+                            <strong>{{ formatCurrency(totalExpenses) }}</strong>
+                            <div class="progress-track warning"><i :style="{ width: chartWidth(totalExpenses, totalRevenue) }"></i></div>
+                        </div>
+                    </div>
                     <p class="panel-note no-indent">
-                        The dashboard turns clean internal data into practical signals for management review.
+                        Observed data -> costs are rising beside revenue. Business meaning -> profit needs monitoring before promo approvals.
                     </p>
-                    <div class="decision-list">
-                        <div v-for="item in decisionPreview" :key="item.label" class="decision-item">
-                            <span class="decision-icon" :class="item.tone" aria-hidden="true">
-                                <AppIcon :name="item.icon" />
-                            </span>
-                            <div>
-                                <strong>{{ item.label }}</strong>
-                                <p>{{ item.description }}</p>
-                            </div>
+                </ContentPanel>
+            </section>
+
+            <section class="dss-grid three-column">
+                <ContentPanel icon="mapPinned" eyebrow="Packages" title="Top Performing Packages">
+                    <div class="ranking-list">
+                        <div v-for="item in topDestinations.slice(0, 4)" :key="item.destination">
+                            <span>{{ item.destination }}</span>
+                            <strong>{{ formatCurrency(item.revenue) }}</strong>
+                            <small>{{ item.passengers }} passengers</small>
                         </div>
                     </div>
                 </ContentPanel>
 
-                <ContentPanel
-                    icon="shieldCheck"
-                    eyebrow="Validation Flow"
-                    title="Data Quality Status"
-                    panel-class="quality-panel"
-                >
-                    <p class="panel-note">
-                        Records move through these statuses after intake. Clean records become reliable inputs for reports and later forecasting.
-                    </p>
-                    <div class="quality-stack">
-                        <div v-for="status in qualityStatuses" :key="status.label" class="quality-row">
-                            <div>
-                                <span>{{ status.label }}</span>
-                                <p>{{ status.description }}</p>
-                            </div>
-                            <strong>{{ status.value }}</strong>
+                <ContentPanel icon="sparkles" eyebrow="Forecasting" title="Forecast Preview" badge="Sample Forecast Preview">
+                    <p class="placeholder-note">Forecast engine integration pending.</p>
+                    <div class="forecast-mini">
+                        <div v-for="point in forecastProjection.slice(0, 4)" :key="point.date">
+                            <span>{{ point.date }}</span>
+                            <strong>{{ point.bookings }}</strong>
+                            <small>projected bookings</small>
                         </div>
                     </div>
                 </ContentPanel>
 
-                <ContentPanel
-                    icon="check"
-                    eyebrow="Current Focus"
-                    title="Data Foundation Progress"
-                    panel-class="checklist-panel"
-                >
-                    <div class="checklist">
-                        <div
-                            v-for="step in setupSteps"
-                            :key="step.label"
-                            class="checklist-item"
-                            :class="{ complete: step.complete }"
-                        >
-                            <span class="checklist-marker" aria-hidden="true">
-                                <AppIcon :name="step.complete ? 'check' : 'arrowRight'" />
-                            </span>
-                            <div>
-                                <strong>{{ step.label }}</strong>
-                                <p>{{ step.description }}</p>
-                            </div>
-                        </div>
-                    </div>
-                </ContentPanel>
-
-                <ContentPanel icon="fileBarChart" eyebrow="Reports" title="Report And Forecast Readiness" panel-class="report-panel">
-                    <div class="report-list">
-                        <span v-for="item in reportReadiness" :key="item.label">
-                            {{ item.label }}
-                            <strong>{{ item.status }}</strong>
-                        </span>
+                <ContentPanel icon="boxes" eyebrow="Inventory" title="Recent Inventory Changes">
+                    <div class="compact-list">
+                        <a v-for="item in inventory.slice(0, 5)" :key="item.id" href="/inventory">
+                            <span>{{ item.packageName }}</span>
+                            <strong>{{ item.availableSlots }} slots</strong>
+                            <small class="record-badge compact-status" :class="statusClass(item.status)">{{ item.status }}</small>
+                        </a>
                     </div>
                 </ContentPanel>
             </section>
-        </main>
-    </div>
+
+            <ContentPanel icon="database" eyebrow="Transactions" title="Recent Transactions" badge="5 rows">
+                <div class="table-scroll">
+                    <table class="dss-table">
+                        <thead>
+                            <tr>
+                                <th>Booking</th>
+                                <th>Client</th>
+                                <th>Package</th>
+                                <th>Passengers</th>
+                                <th>Revenue</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="booking in recentBookings.slice(0, 5)" :key="booking.id">
+                                <td><strong>{{ booking.id }}</strong><span>{{ booking.ds }}</span></td>
+                                <td>{{ booking.client }}</td>
+                                <td>{{ booking.package }}</td>
+                                <td>{{ booking.y }}</td>
+                                <td>{{ formatCurrency(booking.grossRevenue) }}</td>
+                                <td><span class="record-badge" :class="statusClass(booking.bookingStatus)">{{ booking.bookingStatus }}</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </ContentPanel>
+        </section>
+    </AppShell>
 </template>
 
 <script>
-import { Link } from '@inertiajs/vue3';
+import AppShell from '../Components/layout/AppShell.vue';
 import ContentPanel from '../Components/dashboard/ContentPanel.vue';
 import StatCard from '../Components/dashboard/StatCard.vue';
 import AppIcon from '../Components/icons/AppIcon.vue';
-import Sidebar from '../Components/layout/Sidebar.vue';
-import TopBar from '../Components/layout/TopBar.vue';
-import { createNavigationGroups } from '../data/navigation';
-import { requireMockAuth } from '../services/mockAuth';
+import {
+    bookings,
+    expenses,
+    forecastProjection,
+    formatCurrency,
+    formatNumber,
+    groupBookingsByDestination,
+    inventory,
+    totalBy,
+} from '../data/mockData';
 
 export default {
     name: 'Welcome',
     components: {
         AppIcon,
+        AppShell,
         ContentPanel,
-        Link,
-        Sidebar,
         StatCard,
-        TopBar,
     },
     data() {
         return {
-            sidebarOpen: false,
-            currentDate: new Intl.DateTimeFormat('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-            }).format(new Date()),
-            navigationGroups: createNavigationGroups('Dashboard'),
-            stats: [
-                {
-                    icon: 'wallet',
-                    label: 'Total Sales',
-                    value: 'PHP 0.00',
-                    note: 'No validated records yet',
-                    status: 'Empty',
-                    tone: 'primary',
-                },
-                {
-                    icon: 'database',
-                    label: 'Operational Records',
-                    value: '0',
-                    note: 'Start by adding an operational record',
-                    status: 'Ready',
-                    tone: 'data',
-                },
-                {
-                    icon: 'fileBarChart',
-                    label: 'Expenses',
-                    value: 'PHP 0.00',
-                    note: 'No cost records encoded yet',
-                    status: 'Empty',
-                    tone: 'warning',
-                },
-                {
-                    icon: 'boxes',
-                    label: 'Low Stock',
-                    value: '0',
-                    note: 'Inventory alerts will appear here',
-                    status: 'Clear',
-                    tone: 'success',
-                },
-            ],
-            dssPipeline: [
-                {
-                    icon: 'database',
-                    label: 'Data Intake',
-                    description: 'Messenger, Sheets, Gmail, notebooks, and paper records',
-                    status: 'Ready',
-                    badgeClass: 'status-validated',
-                },
-                {
-                    icon: 'shieldCheck',
-                    label: 'Data Validation',
-                    description: 'Check missing or unclear information',
-                    status: 'Structured',
-                    badgeClass: 'status-validated',
-                },
-                {
-                    icon: 'wallet',
-                    label: 'Business Monitoring',
-                    description: 'Sales, expenses, and inventory summaries',
-                    status: 'Basic',
-                    badgeClass: 'status-basic',
-                },
-                {
-                    icon: 'fileBarChart',
-                    label: 'Forecasting Preparation',
-                    description: 'Clean records for Meta Prophet',
-                    status: 'Planned',
-                    badgeClass: 'status-planned',
-                    planned: true,
-                },
-                {
-                    icon: 'sparkles',
-                    label: 'Trajectory Insights',
-                    description: 'Future decision support from forecast trends',
-                    status: 'Locked',
-                    badgeClass: 'status-locked',
-                    planned: true,
-                },
-            ],
-            systemReadiness: [
-                { label: 'Data Intake', status: 'Ready' },
-                { label: 'Validation Flow', status: 'Structured' },
-                { label: 'Reports', status: 'Basic' },
-                { label: 'Forecasting', status: 'Planned' },
-                { label: 'Trajectory Insights', status: 'Planned' },
-            ],
-            qualityStatuses: [
-                { label: 'Draft', value: '0', description: 'New or incomplete entries' },
-                { label: 'Needs Checking', value: '0', description: 'Records waiting for review' },
-                { label: 'Ready for Reports', value: '0', description: 'Clean records for summaries' },
-                { label: 'Archived', value: '0', description: 'Historical records kept for reference' },
-            ],
-            decisionPreview: [
-                {
-                    icon: 'fileBarChart',
-                    label: 'Sales trend visibility',
-                    description: 'See whether internal sales records are ready for review.',
-                    tone: 'data',
-                },
-                {
-                    icon: 'wallet',
-                    label: 'Expense monitoring',
-                    description: 'Keep operating costs visible beside sales summaries.',
-                    tone: 'warning',
-                },
-                {
-                    icon: 'boxes',
-                    label: 'Inventory awareness',
-                    description: 'Spot low stock and resource gaps before daily work is affected.',
-                    tone: 'success',
-                },
-                {
-                    icon: 'shieldCheck',
-                    label: 'Forecasting readiness',
-                    description: 'Know which records are clean enough for later forecasting.',
-                    tone: 'data',
-                },
-                {
-                    icon: 'sparkles',
-                    label: 'Management decision support',
-                    description: 'Prepare future insight views without showing fake forecasts.',
-                    tone: 'primary',
-                },
-            ],
-            setupSteps: [
-                {
-                    label: 'Add operational records',
-                    description: 'Create the first clean internal data entries.',
-                    complete: false,
-                },
-                {
-                    label: 'Validate records',
-                    description: 'Move records from draft to ready for reports.',
-                    complete: false,
-                },
-                {
-                    label: 'Encode expenses',
-                    description: 'Track operational and marketing costs.',
-                    complete: false,
-                },
-                {
-                    label: 'Track inventory',
-                    description: 'Monitor items, stock movements, and low stock alerts.',
-                    complete: false,
-                },
-                {
-                    label: 'Review basic reports',
-                    description: 'Check summaries once records are available.',
-                    complete: false,
-                },
-            ],
-            reportReadiness: [
-                { label: 'Sales Summary', status: 'Basic' },
-                { label: 'Expense Summary', status: 'Basic' },
-                { label: 'Inventory Summary', status: 'Basic' },
-                { label: 'Forecasting Inputs', status: 'Planned' },
-                { label: 'Trajectory Insights', status: 'Planned' },
-            ],
+            bookings,
+            expenses,
+            forecastProjection,
+            inventory,
+            ranges: ['Today', 'This Month', 'This Quarter'],
+            selectedRange: 'This Month',
+            lastUpdated: '8:30 AM',
         };
     },
-    mounted() {
-        if (!requireMockAuth()) {
-            return;
-        }
-
-        window.addEventListener('keydown', this.handleKeydown);
-    },
-    beforeUnmount() {
-        window.removeEventListener('keydown', this.handleKeydown);
+    computed: {
+        totalRevenue() {
+            return totalBy(this.bookings, 'grossRevenue');
+        },
+        totalBookings() {
+            return this.bookings.length;
+        },
+        passengerCount() {
+            return totalBy(this.bookings, 'y');
+        },
+        totalExpenses() {
+            return totalBy(this.expenses, 'amount');
+        },
+        estimatedProfit() {
+            return this.totalRevenue - this.totalExpenses;
+        },
+        lowInventoryCount() {
+            return this.inventory.filter((item) => ['Low', 'Critical'].includes(item.status)).length;
+        },
+        kpiCards() {
+            return [
+                { icon: 'wallet', label: 'Total Revenue', value: formatCurrency(this.totalRevenue), note: 'Gross revenue from mock bookings', status: 'Above pace', tone: 'primary' },
+                { icon: 'database', label: 'Total Bookings', value: formatNumber(this.totalBookings), note: 'Confirmed, reserved, and pending records', status: 'Active', tone: 'data' },
+                { icon: 'users', label: 'Passenger Count', value: formatNumber(this.passengerCount), note: 'Demand value for future forecasting', status: 'Forecast input', tone: 'success' },
+                { icon: 'wallet', label: 'Operating Costs', value: formatCurrency(this.totalExpenses), note: 'Tour, marketing, seasonal, overhead', status: 'Watch', tone: 'warning' },
+                { icon: 'fileBarChart', label: 'Estimated Profit', value: formatCurrency(this.estimatedProfit), note: 'Revenue minus recorded expenses', status: 'Estimate', tone: 'primary' },
+                { icon: 'boxes', label: 'Low Inventory Packages', value: String(this.lowInventoryCount), note: 'Low or Critical package capacity', status: 'Review', tone: 'warning' },
+            ];
+        },
+        priorityDecisions() {
+            return [
+                {
+                    type: 'Risk',
+                    title: 'Low Inventory Risk',
+                    finding: 'Boracay Package has only 4 slots left.',
+                    meaning: 'This may affect expected demand next week.',
+                    action: 'Review Inventory',
+                    href: '/inventory',
+                },
+                {
+                    type: 'Warning',
+                    title: 'Cost Increase Watch',
+                    finding: 'Marketing and seasonal costs are rising this period.',
+                    meaning: 'Spending may reduce estimated profit if bookings slow.',
+                    action: 'Review Expenses',
+                    href: '/expenses',
+                },
+                {
+                    type: 'Opportunity',
+                    title: 'Cebu Demand Opportunity',
+                    finding: 'Cebu Heritage Tour has strong passenger volume.',
+                    meaning: 'This package may support a controlled promo push.',
+                    action: 'View Analytics',
+                    href: '/analytics',
+                },
+            ];
+        },
+        recentBookings() {
+            return [...this.bookings].sort((a, b) => b.ds.localeCompare(a.ds));
+        },
+        maxRevenue() {
+            return Math.max(...this.bookings.map((booking) => booking.grossRevenue));
+        },
+        topDestinations() {
+            return groupBookingsByDestination(this.bookings);
+        },
     },
     methods: {
-        toggleSidebar() {
-            this.sidebarOpen = !this.sidebarOpen;
+        formatCurrency,
+        chartWidth(value, max) {
+            return `${Math.max(8, Math.round((value / max) * 100))}%`;
         },
-        closeSidebar() {
-            this.sidebarOpen = false;
-        },
-        handleKeydown(event) {
-            if (event.key === 'Escape') {
-                this.closeSidebar();
-            }
+        statusClass(value) {
+            return `status-${String(value).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
         },
     },
 };
