@@ -31,8 +31,12 @@
                 <AppIcon name="bell" />
             </button>
             <button class="profile-button" type="button">
-                <span class="profile-avatar">A</span>
-                <span>Admin</span>
+                <span class="profile-avatar">{{ initials }}</span>
+                <span>{{ displayRole }}</span>
+            </button>
+            <button class="secondary-button compact-button" type="button" @click="$emit('logout')">
+                <AppIcon name="logOut" />
+                Logout
             </button>
         </div>
     </header>
@@ -67,7 +71,33 @@ export default {
             type: Boolean,
             default: false,
         },
+        userName: {
+            type: String,
+            default: 'Admin User',
+        },
+        userRole: {
+            type: String,
+            default: 'Admin',
+        },
     },
-    emits: ['toggle-sidebar'],
+    emits: ['toggle-sidebar', 'logout'],
+    computed: {
+        initials() {
+            return this.userName
+                .split(' ')
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((name) => name[0])
+                .join('')
+                .toUpperCase() || 'PO';
+        },
+        displayRole() {
+            if (this.userRole === 'Owner / Management') {
+                return 'Owner';
+            }
+
+            return this.userRole;
+        },
+    },
 };
 </script>
