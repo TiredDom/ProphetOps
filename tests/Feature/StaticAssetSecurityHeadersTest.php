@@ -12,6 +12,7 @@ class StaticAssetSecurityHeadersTest extends TestCase
 
         $this->assertFileExists($serverPath);
         $this->assertStringContainsString('X-Content-Type-Options: nosniff', file_get_contents($serverPath));
+        $this->assertStringContainsString("header_remove('X-Powered-By')", file_get_contents($serverPath));
     }
 
     public function test_apache_static_asset_rules_set_nosniff_header(): void

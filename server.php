@@ -1,5 +1,9 @@
 <?php
 
+if (function_exists('header_remove')) {
+    header_remove('X-Powered-By');
+}
+
 $publicPath = getcwd();
 $publicRoot = rtrim(str_replace('\\', '/', realpath($publicPath) ?: $publicPath), '/').'/';
 
@@ -15,6 +19,10 @@ if ($uri !== '/'
     && str_starts_with($candidatePathForCheck, $publicRoot)
     && is_file($candidatePath)
 ) {
+    if (function_exists('header_remove')) {
+        header_remove('X-Powered-By');
+    }
+
     $extension = strtolower(pathinfo($candidatePath, PATHINFO_EXTENSION));
     $contentTypes = [
         'css' => 'text/css; charset=UTF-8',

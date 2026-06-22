@@ -33,6 +33,23 @@ class ExampleTest extends TestCase
             ->assertHeader('Cache-Control', 'must-revalidate, no-cache, no-store, private');
     }
 
+    public function test_security_headers_do_not_expose_powered_by(): void
+    {
+        $this->get('/login')->assertHeaderMissing('X-Powered-By');
+    }
+
+    public function test_csrf_cookie_is_http_only_for_zap_demo(): void
+    {
+        $response = $this->get('/login');
+
+        $csrfCookie = collect($response->headers->getCookies())
+            ->first(fn ($cookie) => $cookie->getName() === 'XSRF-TOKEN');
+
+        $this->assertNotNull($csrfCookie);
+        $this->assertTrue($csrfCookie->isHttpOnly());
+        $this->assertSame('lax', strtolower((string) $csrfCookie->getSameSite()));
+    }
+
     public function test_security_policy_stays_strict_for_built_assets(): void
     {
         $contentSecurityPolicy = $this->get('/login')->headers->get('Content-Security-Policy');
