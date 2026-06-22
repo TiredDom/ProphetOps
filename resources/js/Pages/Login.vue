@@ -1,26 +1,25 @@
 <template>
     <main class="login-shell">
         <section class="login-card" aria-labelledby="login-title">
-            <div class="login-brand">
-                <div class="brand-mark">PO</div>
-                <div>
-                    <p class="brand-name">ProphetOps</p>
-                    <p class="brand-subtitle">Local Intranet DSS</p>
+            <div class="login-card-header">
+                <div class="login-brand">
+                    <div class="brand-mark">PO</div>
+                    <div>
+                        <p class="brand-name">ProphetOps</p>
+                        <p class="brand-subtitle">Secure Workspace</p>
+                    </div>
                 </div>
-            </div>
-
-                <div class="login-copy">
-                <span class="login-kicker">
+                <span class="login-access-pill">
                     <span class="status-dot"></span>
-                    Internal Account Access
+                    Internal access
                 </span>
-                <h1 id="login-title">Sign in to ProphetOps</h1>
-                <p>
-                    Decision Support System for Travel Operations.
-                </p>
             </div>
 
-            <form class="login-form" novalidate @submit.prevent="submitLogin">
+            <div class="login-copy">
+                <h1 id="login-title">Sign in to your workspace</h1>
+            </div>
+
+            <form class="login-form" autocomplete="off" novalidate @submit.prevent="submitLogin">
                 <label class="account-field" for="email">
                     <span>Email</span>
                     <div class="account-input">
@@ -30,8 +29,8 @@
                             v-model="form.email"
                             type="email"
                             inputmode="email"
-                            autocomplete="email"
-                            placeholder="admin@prophetops.local"
+                            autocomplete="off"
+                            placeholder="Email address"
                             :aria-invalid="Boolean(errors.email)"
                             :aria-describedby="errors.email ? 'email-error' : undefined"
                             @blur="form.email = normalizedEmail"
@@ -48,8 +47,8 @@
                             id="password"
                             v-model="form.password"
                             :type="showPassword ? 'text' : 'password'"
-                            autocomplete="current-password"
-                            placeholder="Enter internal password"
+                            autocomplete="off"
+                            placeholder="Enter password"
                             :aria-invalid="Boolean(errors.password)"
                             :aria-describedby="errors.password ? 'password-error' : undefined"
                         />
@@ -65,27 +64,6 @@
                     <small v-if="errors.password" id="password-error">{{ errors.password }}</small>
                 </label>
 
-                <div class="login-options">
-                    <label class="remember-control">
-                        <input v-model="form.rememberMe" type="checkbox" />
-                        <span>Remember this device</span>
-                    </label>
-                    <span class="mock-auth-note">Authorized users only</span>
-                </div>
-
-                <div class="demo-account-list" aria-label="Demo accounts">
-                    <p>Demo accounts</p>
-                    <button
-                        v-for="account in demoAccounts"
-                        :key="account.email"
-                        type="button"
-                        @click="fillDemoAccount(account)"
-                    >
-                        <strong>{{ account.role }}</strong>
-                        <span>{{ account.email }} / {{ account.password }}</span>
-                    </button>
-                </div>
-
                 <div v-if="statusMessage" class="login-status" role="status">
                     <AppIcon name="shieldCheck" />
                     <span>{{ statusMessage }}</span>
@@ -97,20 +75,19 @@
                     {{ isLoading ? 'Checking access...' : 'Sign In' }}
                 </button>
             </form>
+
+            <div class="login-security-note">
+                <AppIcon name="shieldCheck" />
+                <span>Use your assigned internal account. Sessions are protected by the backend and cleared when you log out.</span>
+            </div>
         </section>
     </main>
 </template>
 
 <script>
+import { router } from '@inertiajs/vue3';
 import AppIcon from '../Components/icons/AppIcon.vue';
-import {
-    defaultPathForRole,
-    demoUsers,
-    getMockUser,
-    isMockAuthenticated,
-    mockLogin,
-    normalizeLoginEmail,
-} from '../services/mockAuth';
+import { normalizeLoginEmail } from '../services/authAccess';
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -124,24 +101,17 @@ export default {
             form: {
                 email: '',
                 password: '',
-                rememberMe: false,
             },
             errors: {},
             isLoading: false,
             showPassword: false,
             statusMessage: '',
-            demoAccounts: demoUsers,
         };
     },
     computed: {
         normalizedEmail() {
             return normalizeLoginEmail(this.form.email);
         },
-    },
-    mounted() {
-        if (isMockAuthenticated()) {
-            window.location.replace(defaultPathForRole(getMockUser()?.role));
-        }
     },
     methods: {
         validateForm() {
@@ -171,29 +141,25 @@ export default {
             this.isLoading = true;
             this.statusMessage = '';
 
-            try {
-                const user = mockLogin({
-                    email: this.form.email,
-                    password: this.form.password,
-                    rememberMe: this.form.rememberMe,
-                });
-
-                this.statusMessage = 'Access confirmed. Opening workspace...';
-                window.setTimeout(() => {
-                    window.location.href = defaultPathForRole(user.role);
-                }, 250);
-            } catch (error) {
-                this.errors = {
-                    password: error.message || 'Use one of the Sprint 1 demo accounts.',
-                };
-                this.statusMessage = '';
-                this.isLoading = false;
-            }
-        },
-        fillDemoAccount(account) {
-            this.form.email = account.email;
-            this.form.password = account.password;
-            this.errors = {};
+            router.post('/login', {
+                email: this.form.email,
+                password: this.form.password,
+            }, {
+                onStart: () => {
+                    this.isLoading = true;
+                    this.statusMessage = '';
+                },
+                onSuccess: () => {
+                    this.statusMessage = 'Access confirmed. Opening workspace...';
+                },
+                onError: (errors) => {
+                    this.errors = errors;
+                    this.statusMessage = '';
+                },
+                onFinish: () => {
+                    this.isLoading = false;
+                },
+            });
         },
     },
 };

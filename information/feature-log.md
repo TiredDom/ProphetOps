@@ -3,6 +3,230 @@
 Current direction note:
 Entries before `2026-06-06 - Sprint 1 DSS Planning Reset` are historical. Some older entries mention legacy pages such as Operational Records, Data Validation, Packages, Settings, or earlier visual directions. The active implementation direction is now `information/sprint-1-direction.md`.
 
+## 2026-06-19 - TOPSIS Ranking Implementation
+
+Type:
+Algorithm / Backend / Frontend / Testing
+
+Summary:
+Implemented the active capstone algorithm direction. Added package criteria fields, a backend TOPSIS ranking service, default criteria weights, explainable ranking output, and a TOPSIS Ranking page on `/forecasting`. Updated package catalog fields so criteria can be maintained from the UI.
+
+Files updated:
+
+- app/Support/TopsisDecisionSupport.php
+- app/Http/Controllers/ForecastingController.php
+- app/Models/TravelPackage.php
+- database/migrations/2026_06_19_000050_add_topsis_fields_to_travel_packages_table.php
+- database/seeders/DatabaseSeeder.php
+- resources/js/Pages/ForecastingPreview.vue
+- resources/js/Pages/Inventory.vue
+- resources/js/Pages/Welcome.vue
+- resources/js/Pages/TrajectoryInsights.vue
+- resources/js/Pages/Reports.vue
+- resources/js/data/navigation.js
+- resources/js/services/authAccess.js
+- tests/Feature/TopsisDecisionSupportTest.php
+- tests/Feature/ExampleTest.php
+
+Verification:
+- `php artisan test` passed.
+- `php artisan migrate --force` passed.
+- `php artisan db:seed --force` passed.
+- `npm run build` passed.
+
+AI Handoff:
+- Module: TOPSIS decision support
+- What changed: The project now has a real algorithm-backed ranking feature for travel package alternatives.
+- Next likely task: Update IAS test and vulnerability trackers to reflect the functional system.
+
+## 2026-06-17 - Local Backend Completion
+
+Type:
+Backend / Persistence / Security
+
+Summary:
+Implemented the local Laravel backend needed to make ProphetOps functional without Meta Prophet. Authentication now uses Laravel sessions and seeded demo users. Bookings, package presets, expenses, dashboard, analytics, forecasting trend, trajectory insights, reports, and users now receive database-backed data through controllers and shared support transforms.
+
+Files updated:
+
+- routes/web.php
+- app/Http/Controllers/
+- app/Http/Middleware/
+- app/Models/
+- app/Support/ProphetOpsData.php
+- database/migrations/
+- database/seeders/DatabaseSeeder.php
+- resources/js/Pages/
+- resources/js/Components/layout/AppShell.vue
+- resources/js/services/authAccess.js
+- resources/js/utils/formatters.js
+- tests/Feature/ExampleTest.php
+- information/api-map.md
+- information/database-map.md
+- information/module-map.md
+
+Verification:
+- `php artisan migrate --seed` passed.
+- `php artisan test` passed.
+- `npm run build` passed.
+- PHP syntax lint passed.
+
+AI Handoff:
+- Module: Backend foundation
+- What changed: Core demo data is now saved locally and guarded by backend auth/roles. Forecasting remains a simple planning trend, not Meta Prophet.
+- Next likely task: Manual browser QA and optional ZAP/security-class testing.
+
+## 2026-06-09 - Login Session And Dashboard Card Cleanup
+
+Type:
+Frontend / Security Polish / Dashboard Simplification
+
+Summary:
+Removed remember-device behavior and the automatic Login redirect from existing sessions. The frontend session now uses sessionStorage only, so users intentionally sign in and access does not persist through localStorage. Dashboard priority cards were simplified into compact review cards with one business sentence and one Review action; the full Signal, Meaning, Evidence, and Action details remain on Trajectory Insights.
+
+Files updated:
+
+- resources/js/Pages/Login.vue
+- resources/js/services/mockAuth.js
+- resources/js/Pages/Welcome.vue
+- resources/css/app.css
+- information/sprint-1-direction.md
+- information/module-map.md
+- information/ui-components.md
+- information/feature-log.md
+
+Verification:
+- Pending build check.
+
+AI Handoff:
+- Module: Login / Dashboard
+- What changed: Login is now session-only without remember-device or auto sign-in redirect; dashboard cards are compact.
+- Next likely task: Run visual QA on `/login` and `/dashboard`.
+
+## 2026-06-09 - Modular Graph Implementation
+
+Type:
+Frontend / Graph System / Presentation Polish
+
+Summary:
+Implemented the modular graph direction. Added reusable chart components, replaced the Forecasting page's heavy bar chart with a contained line graph, moved the Dashboard forecast card to a compact reusable line trend, and updated Sales Analytics charts to use contained reusable chart components. Also removed visible mock/preview/sample/placeholder wording from the main app surfaces touched in this pass.
+
+Files updated:
+
+- resources/js/Components/charts/ChartPanel.vue
+- resources/js/Components/charts/LineTrendChart.vue
+- resources/js/Components/charts/MiniBarChart.vue
+- resources/js/Components/charts/ComparisonTrack.vue
+- resources/js/Pages/ForecastingPreview.vue
+- resources/js/Pages/Welcome.vue
+- resources/js/Pages/SalesAnalytics.vue
+- resources/js/Pages/Reports.vue
+- resources/js/Pages/TrajectoryInsights.vue
+- resources/js/Pages/Bookings.vue
+- resources/js/Pages/Inventory.vue
+- resources/js/Pages/Expenses.vue
+- resources/js/Pages/Users.vue
+- resources/js/Pages/Login.vue
+- resources/js/Components/layout/AppShell.vue
+- resources/js/data/mockData.js
+- resources/js/services/mockAuth.js
+- resources/css/app.css
+
+Verification:
+- `npm run build` passes.
+- `php artisan route:list --except-vendor` shows active Sprint 1 routes and legacy redirects.
+
+AI Handoff:
+- Module: Graph System / Forecasting
+- What changed: Main charts now use reusable components with fixed chart frames and controlled overflow.
+- Next likely task: Browser screenshot QA for `/dashboard`, `/forecasting`, and `/analytics`, then tune chart spacing if needed.
+
+## 2026-06-09 - Forecasting Page Simplification Plan
+
+Type:
+Planning / Forecasting UI
+
+Summary:
+Reviewed the full Forecasting page and added a focused simplification plan. The next implementation direction is to replace the heavy bar-style graph with one clean line graph, remove repeated lower mini charts, keep formulas and Prophet field names out of the visible app UI, and show a concise prescriptive DSS signal beside or below the forecast.
+
+Presentation wording update:
+The plan now says to remove visible UI wording such as "mockup", "mock", "preview", "sample only", "placeholder", and "forecast engine integration pending". The team can disclose during presentation and documentation that Sprint 1 is a mock/prototype, while the app screen itself should look polished and product-ready.
+
+Scope note:
+This wording rule also applies to Trajectory Insights, Reports, and other main app surfaces. Avoid visible labels that make the page feel unfinished; use professional product wording in the app and keep prototype disclaimers in docs/presentation material.
+
+Graph system note:
+Added a modular graph system plan so future Forecasting, Dashboard, Analytics, and Reports graphs use reusable contained components instead of page-specific chart markup.
+
+Files updated:
+
+- markdowns/forecasting-page-simplification-plan.md
+- markdowns/modular-graph-system-plan.md
+- markdowns/README.md
+- markdowns/meta-prophet-prescriptive-dss-plan.md
+- markdowns/page-by-page implementation guide.md
+- information/sprint-1-direction.md
+- information/module-map.md
+- information/ui-components.md
+- information/feature-log.md
+
+Important:
+This is planning only. No Forecasting page code, backend forecasting, real Meta Prophet model, or AI generation was added.
+
+AI Handoff:
+- Module: Forecasting
+- What changed: Created the implementation guide for simplifying the Forecasting page into a premium line-chart DSS screen.
+- Next likely task: Implement `forecasting-page-simplification-plan.md` and `modular-graph-system-plan.md` in `resources/js/Pages/ForecastingPreview.vue`, `resources/js/Components/charts/`, and related CSS.
+
+## 2026-06-09 - Sprint 1 Flow And Modal Implementation
+
+Type:
+Frontend / Sprint 1 Mockup
+
+Summary:
+Implemented the planned Sprint 1 flow improvements. The dashboard now shows a simple demo flow, compact mock Prophet snapshot, and top prescriptive action cards. Forecasting now acts as the main mock Prophet graph page. Trajectory Insights now presents prescriptive DSS cards with signal, meaning, evidence, action, priority, and horizon. Reports now has preview and export placeholder modals. The topbar now has alerts, profile/access, and logout confirmation modals.
+
+Follow-up refinement:
+The dashboard Prophet snapshot was simplified into a clean forecast-only executive trend so the black actual-demand bars do not appear as a visual issue. Actual vs forecast and confidence interval details remain on the Forecasting page. Admin access now includes Forecasting and Trajectory Insights for smoother Sprint 1 demo flow.
+
+Files updated:
+
+- resources/js/Components/feedback/AppModal.vue
+- resources/js/Components/layout/AppShell.vue
+- resources/js/Components/layout/TopBar.vue
+- resources/js/Pages/Welcome.vue
+- resources/js/Pages/ForecastingPreview.vue
+- resources/js/Pages/TrajectoryInsights.vue
+- resources/js/Pages/Reports.vue
+- resources/js/data/mockData.js
+- resources/js/services/mockAuth.js
+- resources/css/app.css
+- markdowns/legacy-removal-plan.md
+- markdowns/meta-prophet-prescriptive-dss-plan.md
+- markdowns/page-by-page implementation guide.md
+- markdowns/sprint-1-modal-interaction-plan.md
+- information/sprint-1-direction.md
+- information/module-map.md
+- information/ui-components.md
+- information/feature-log.md
+
+Files removed:
+
+- resources/js/Pages/OperationalRecords.vue
+- resources/js/Pages/DataValidation.vue
+
+Important:
+This remains frontend-only. No backend persistence, real exports, real Meta Prophet model, or real AI generation was added.
+
+Verification:
+- `npm run build` passes.
+- `php artisan route:list --except-vendor` shows active Sprint 1 routes and legacy redirect routes.
+
+AI Handoff:
+- Module: Sprint 1 Presentation Flow
+- What changed: Converted the prototype into a clearer demo path: Bookings -> Dashboard signal -> Prophet mock forecast -> Prescriptive insights -> Reports.
+- Next likely task: Visual QA with browser screenshots and optional deeper CSS pruning for old records/validation selectors.
+
 ## 2026-06-08 - Legacy Removal Planning
 
 Type:

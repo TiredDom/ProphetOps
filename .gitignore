@@ -19,6 +19,16 @@
 /storage/*.key
 /storage/pail
 /vendor
+video/
+/.agents
+/.claude
+/.codex
+/.gemini
+/.impeccable
+/outputs/*
+!/outputs/tracker-ready/
+/outputs/tracker-ready/*
+!/outputs/tracker-ready/*.xlsx
 Homestead.json
 Homestead.yaml
 Thumbs.db

@@ -1,13 +1,13 @@
 # Sprint 1 Legacy Removal Plan
 
-This plan removes old project direction without breaking the active Sprint 1 mockup.
+This plan records the completed removal of old project direction from the active ProphetOps routes and files.
 
-Current scope:
+Current status:
 
-- Planning only.
-- No backend work needed.
-- No database work needed.
-- No deletion should happen until the active Sprint 1 pages are verified.
+- `OperationalRecords.vue` has been removed.
+- `DataValidation.vue` has been removed.
+- Legacy URL redirects have been removed.
+- `resources/js/data/mockData.js` has been removed because active pages now use backend props.
 
 ## What Counts As Legacy
 
@@ -18,11 +18,11 @@ Legacy direction:
 - Old `/operations/inventory` route naming
 - Old page language that centered generic operational records instead of bookings, expenses, inventory, analytics, forecasting, reports, and DSS insights
 
-Active Sprint 1 replacements:
+Active replacements:
 
 - Operational Records -> Bookings / Transactions
 - Data Validation -> data-quality behavior inside Bookings, Inventory, Expenses, Analytics, Forecasting Preview, and Reports
-- `/operations/inventory` -> `/inventory`
+- Old inventory URL -> `/inventory`
 - Package references as a separate planning requirement -> Inventory and Bookings package context
 
 ## Current Project State
@@ -40,18 +40,16 @@ Active pages now exist:
 - Reports
 - Users
 
-Legacy routes already have a soft-removal layer:
+Legacy routes have been removed:
 
-- `/data/operational-records` redirects to `/bookings`
-- `/data/validation` redirects to `/analytics`
-- `/operations/inventory` redirects to `/inventory`
+- `/data/operational-records`
+- `/data/validation`
+- `/operations/inventory`
 
 Remaining legacy items:
 
-- `resources/js/Pages/OperationalRecords.vue`
-- `resources/js/Pages/DataValidation.vue`
-- legacy-only CSS for old records and validation layouts
-- docs that still describe legacy routes/pages as current workspaces
+- legacy-only CSS for old records and validation layouts that can be pruned more deeply later
+- historical docs/logs that intentionally mention old work
 
 ## Recommended Removal Strategy
 
@@ -59,13 +57,15 @@ Use a staged removal.
 
 Stage 1: Soft removal
 
-- Keep redirects for old URLs so existing links do not break.
+- Remove old URLs from active docs and navigation.
 - Remove old legacy labels from active docs.
 - Make it clear that Bookings, Analytics, and embedded data quality behavior are the active replacements.
 
 Stage 2: Hard removal
 
 - Delete legacy page files after active pages pass visual and route checks.
+- Delete unused mock data after pages move to backend props.
+- Remove legacy redirects when strict cleanup is requested.
 - Remove legacy-only CSS blocks.
 - Keep shared drawer/table/status styles used by active pages.
 - Keep historical feature logs and fix logs as history.
@@ -80,7 +80,7 @@ Stage 3: Final cleanup
 
 ## Files To Remove Later
 
-Remove after verification:
+Removed:
 
 - `resources/js/Pages/OperationalRecords.vue`
 - `resources/js/Pages/DataValidation.vue`
@@ -98,7 +98,7 @@ Do not remove yet:
 
 ## CSS Cleanup Plan
 
-Remove legacy-only CSS after deleting the legacy page files.
+Legacy page files are now deleted. A small active-layout cleanup has been applied, but a deeper CSS pruning can happen later after visual QA.
 
 Likely legacy-only groups:
 
@@ -143,21 +143,17 @@ Before deleting any CSS block, search for the class in active files.
 
 ## Route Plan
 
-Current redirect behavior is acceptable for Sprint 1:
+Removed routes:
 
-- `/data/operational-records` -> `/bookings`
-- `/data/validation` -> `/analytics`
-- `/operations/inventory` -> `/inventory`
+- `/data/operational-records`
+- `/data/validation`
+- `/operations/inventory`
 
-Recommended Sprint 1 choice:
+Active routes:
 
-- Keep redirects even after deleting legacy pages.
-- Do not show these routes in navigation.
-- Do not mention them in user-facing UI.
-
-Optional strict cleanup later:
-
-- Remove the redirect routes after the final demo if the project should not support old links.
+- `/bookings`
+- `/analytics`
+- `/inventory`
 
 ## Docs Cleanup Plan
 
@@ -212,14 +208,14 @@ Do not preserve:
 
 ## Recommended Implementation Sequence
 
-1. Confirm active replacement pages work.
-2. Keep redirects in `routes/web.php`.
-3. Delete `OperationalRecords.vue`.
-4. Delete `DataValidation.vue`.
-5. Search for references to deleted components.
-6. Remove legacy-only CSS blocks.
-7. Update active docs.
-8. Run build.
+1. Confirm active replacement pages work. Done.
+2. Remove redirects from `routes/web.php`. Done.
+3. Delete `OperationalRecords.vue`. Done.
+4. Delete `DataValidation.vue`. Done.
+5. Search for references to deleted components. Done.
+6. Remove legacy-only CSS blocks. Partially done; deeper pruning can follow after screenshots.
+7. Update active docs. Done.
+8. Run build. Done.
 9. Check active routes:
    - `/login`
    - `/dashboard`
@@ -231,7 +227,7 @@ Do not preserve:
    - `/trajectory-insights`
    - `/reports`
    - `/users`
-10. Check legacy redirects still land on active pages.
+10. Confirm removed legacy URLs are no longer part of active route list.
 
 ## Acceptance Criteria
 

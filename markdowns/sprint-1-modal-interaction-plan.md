@@ -1,14 +1,20 @@
 # Sprint 1 Modal Interaction Plan
 
+Status: historical interaction reference.
+
+Read `information/README.md` first. The app is no longer frontend-only; use this file only for modal and drawer behavior ideas that still match the current backend-backed system.
+
 This plan is based on a scan of the current ProphetOps Vue pages and shared components.
 
-Current scope:
+Current status:
 
 - Sprint 1 mockup only.
 - No backend work needed.
 - No database persistence needed.
 - No real export generation needed.
 - No real forecasting or AI execution needed.
+- Logout, topbar alerts/profile, report preview, and export placeholder modals are implemented.
+- Add/Edit/View information still uses drawers.
 
 The goal is to make clicked actions feel complete and professional while keeping the system frontend-only.
 
@@ -56,7 +62,7 @@ TopBar / AppShell
 Current action:
 `Logout`
 
-Recommended behavior:
+Implemented behavior:
 Open a confirmation modal before clearing the mock session.
 
 Modal content:
@@ -80,7 +86,7 @@ Reports page
 Current action:
 `View report`
 
-Recommended behavior:
+Implemented behavior:
 Open a report preview modal instead of doing nothing.
 
 Modal content:
@@ -109,8 +115,8 @@ Current actions:
 Current state:
 Disabled.
 
-Recommended behavior:
-Keep disabled for the cleanest Sprint 1 experience, or enable them later only to open a placeholder modal.
+Implemented behavior:
+Open a placeholder modal that explains export generation is planned for a future phase.
 
 Modal content if enabled:
 
@@ -132,7 +138,7 @@ TopBar
 Current action:
 Bell icon / `View alerts`
 
-Recommended behavior:
+Implemented behavior:
 Open a small alerts modal or popover showing mock system notices.
 
 Suggested Sprint 1 modal content:
@@ -155,7 +161,7 @@ TopBar
 Current action:
 Profile button
 
-Recommended behavior:
+Implemented behavior:
 Open a small access info modal.
 
 Modal content:

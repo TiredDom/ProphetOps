@@ -1,6 +1,8 @@
 # ProphetOps Sprint 1 Premium Design Plan
 
-This is the active Sprint 1 plan for ProphetOps.
+Status: historical UI planning reference.
+
+This is no longer the active source of truth for product direction, backend state, or algorithm direction. Read `information/README.md` first. The current system is backend-backed, and TOPSIS is the active capstone algorithm direction.
 
 ## Project Context
 

@@ -1,12 +1,15 @@
-# ProphetOps Database And Mock Data Map
+# ProphetOps Database And Data Map
 
-Sprint 1 is front-end focused. Use mock/sample data unless backend persistence is explicitly requested later.
+ProphetOps now uses local Laravel database persistence for the core demo system. Use this map when changing seeded data, migrations, data transforms, or page props.
 
 ## Current Database State
 
-The project currently includes Laravel default migrations only:
+The project currently includes Laravel default migrations plus ProphetOps business tables:
 
 - users
+- travel_packages
+- bookings
+- expenses
 - password_reset_tokens
 - sessions
 - cache
@@ -15,15 +18,15 @@ The project currently includes Laravel default migrations only:
 - job_batches
 - failed_jobs
 
-No ProphetOps business tables are implemented yet.
+The local `.env` is configured for SQLite at `database/database.sqlite` because the local MySQL service was not available during backend setup.
 
-## Sprint 1 Data Approach
+## Current Data Approach
 
-Use centralized mock data files on the frontend so backend integration can replace them later.
+Use database records transformed through `app/Support/ProphetOpsData.php` so Vue pages receive clean camelCase props.
 
-Mock data must support the DSS model from the study.
+Saved data should support the DSS model from the study.
 
-Required fields:
+Current DSS fields:
 
 - ds: booking date
 - y: passenger count or demand value
@@ -37,12 +40,45 @@ Required fields:
 
 Data should feel realistic for a B2B travel and tours agency.
 
-## Suggested Mock Data Groups
+## TOPSIS Data Requirements
+
+TOPSIS is the active capstone algorithm direction. Use `information/topsis-decision-support-plan.md` before adding algorithm fields, migrations, or UI output.
+
+The first TOPSIS version can rank travel packages using standardized internal data.
+
+Useful current fields:
+
+- package name
+- destination
+- duration
+- base price
+- available slots
+- supplier reliability score
+- travel type
+- business value score
+- risk score
+- sold count
+- reserved count
+- gross revenue
+- operating cost
+- booking volume
+- payment or booking status
+
+Likely fields to add later:
+
+- customer priority tags
+- criteria weight set
+- persisted TOPSIS closeness coefficient
+- persisted decision explanation
+
+Do not design the data model around supplier APIs or Facebook APIs. Source data may be manually standardized from sheets, messages, posters, and staff communication.
+
+## Current Data Groups
 
 ### Demo Users
 
 Purpose:
-Support pseudo login and role-based navigation.
+Support Laravel login and role-based navigation.
 
 Fields:
 
@@ -62,7 +98,7 @@ Demo accounts:
 ### Bookings / Transactions
 
 Purpose:
-Provide the historical business records needed for sales monitoring and future forecasting.
+Provide the historical business records needed for sales monitoring and decision support.
 
 Fields:
 
@@ -77,7 +113,7 @@ Fields:
 - staff assigned
 - notes
 
-Forecasting fields:
+Decision-support fields:
 
 - ds: booking date
 - y: passenger count or demand value
@@ -114,7 +150,7 @@ Fields:
 - payment status
 - notes
 
-Forecasting/DSS fields:
+Decision-support fields:
 
 - operational cost
 - marketing cost
@@ -123,7 +159,7 @@ Forecasting/DSS fields:
 ### Analytics
 
 Purpose:
-Support sales, demand, and cost summaries from mock bookings and expenses.
+Support sales, demand, and cost summaries from saved bookings and expenses.
 
 Derived values:
 
@@ -136,36 +172,34 @@ Derived values:
 - top packages
 - costliest category
 
-### Forecast Preview
+### Forecast Preview / Planning Trend
 
 Purpose:
-Prepare the UI shape for future Meta Prophet integration.
+Support simple trend review from saved booking records. This is a supporting view, not the active capstone algorithm.
 
-Fields:
+Current planning fields:
 
 - projection date
 - projected bookings
 - projected revenue
-- yhat
-- yhat_lower
-- yhat_upper
 - confidence/status label
 - seasonality note
 - data requirement note
 
-Required label:
+Current behavior:
+Uses saved booking records and a simple planning trend only. Do not imply Meta Prophet is already running.
 
-"Sample Forecast Preview - Forecast engine integration pending"
+Historical forecasting fields such as `yhat`, `yhat_lower`, and `yhat_upper` only matter if the team explicitly restores forecasting.
 
-### Trajectory Insights
+### DSS Review Signals
 
 Purpose:
-Support simulated DSS insight cards and future prescriptive recommendations.
+Support DSS-style insight cards and future prescriptive recommendations.
 
 Fields:
 
 - insight type: Risk, Opportunity, Warning, Action, Trend
-- forecast signal
+- criterion signal or observed signal
 - observed data
 - business meaning
 - prescribed action
@@ -175,23 +209,20 @@ Fields:
 - time horizon
 - category
 - insight status
-- placeholder label
 
-Required labels:
+Current behavior:
+Uses saved bookings, package presets, and expenses to produce explainable action cards. No real AI generation is implemented.
 
-- "Simulated DSS Insight"
-- "AI trajectory module placeholder"
+## Implemented Business Tables
 
-## Future Database Tables
-
-These are future backend planning targets, not Sprint 1 frontend requirements.
+These tables are implemented locally.
 
 ### users
 
 Purpose:
 Store authorized internal users with roles.
 
-Future fields:
+Fields:
 
 - id
 - name
@@ -208,19 +239,23 @@ Future fields:
 Purpose:
 Store centralized booking and transaction records.
 
-Future fields:
+Fields:
 
 - id
-- booking_code
+- code
 - booking_date
-- client_name
-- agency_partner
-- package_id
 - passenger_count
+- client
+- travel_package_id
+- package_name
+- package_code
+- entry_type
+- destination
 - gross_revenue
 - payment_status
 - booking_status
-- staff_assigned_id
+- staff_assigned
+- source
 - notes
 - created_at
 - updated_at
@@ -228,53 +263,26 @@ Future fields:
 ### travel_packages
 
 Purpose:
-Store package and destination references used by bookings, inventory, and analytics.
+Store package presets used by bookings, inventory, and analytics.
 
-Future fields:
+Fields:
 
 - id
+- code
 - package_name
 - destination
+- duration
 - base_price
-- capacity
-- status
-- notes
-- created_at
-- updated_at
-
-### inventory_items
-
-Purpose:
-Store package availability, slots, or operational stock.
-
-Future fields:
-
-- id
-- package_id
+- inclusions
+- travel_type
+- supplier_reliability_score
+- business_value_score
+- risk_score
 - available_slots
 - sold_count
 - reserved_count
 - status
-- last_updated_by
-- notes
-- created_at
-- updated_at
-
-### inventory_movements
-
-Purpose:
-Track package slot adjustments and operational stock movements.
-
-Future fields:
-
-- id
-- inventory_item_id
-- movement_type
-- quantity
-- movement_date
-- related_booking_id
-- reason
-- notes
+- last_updated_at
 - created_at
 - updated_at
 
@@ -283,35 +291,37 @@ Future fields:
 Purpose:
 Store operational cost records.
 
-Future fields:
+Fields:
 
 - id
+- code
 - expense_date
 - category
 - amount
-- package_id
+- related_package
 - payment_status
 - notes
 - created_at
 - updated_at
 
-### forecast_runs
+## Future TOPSIS Database Tables
+
+These are future integration targets, not current requirements.
+
+### topsis_runs
 
 Purpose:
-Store future Meta Prophet forecast outputs after real integration.
+Store each TOPSIS ranking run if the team needs ranking history.
 
 Future fields:
 
 - id
-- forecast_type
-- forecast_target
-- source_range_start
-- source_range_end
-- projection_range_start
-- projection_range_end
+- run_name
+- target_decision
+- weight_set_name
+- criteria_snapshot
+- alternatives_snapshot
 - status
-- model_name
-- model_version
 - error_message
 - generated_at
 - created_at
@@ -319,41 +329,45 @@ Future fields:
 
 Important:
 
-- Do not create this table until forecasting integration is actually in scope.
+- Do not create this table until TOPSIS persistence is actually in scope.
 
-### forecast_points
+### topsis_results
 
 Purpose:
-Store future forecast values from each Meta Prophet run.
+Store ranked alternatives from each TOPSIS run.
 
 Future fields:
 
 - id
-- forecast_run_id
-- forecast_date
-- yhat
-- yhat_lower
-- yhat_upper
-- trend_value
-- seasonality_note
+- topsis_run_id
+- alternative_type
+- alternative_id
+- alternative_name
+- normalized_values
+- weighted_values
+- positive_distance
+- negative_distance
+- closeness_coefficient
+- rank
+- explanation
 - created_at
 - updated_at
 
 Important:
 
-- Do not create this table until real forecast output needs to be persisted.
+- Do not create this table until the TOPSIS output needs to be persisted.
 
 ### insight_snapshots
 
 Purpose:
-Store future DSS interpretation outputs after real integration.
+Store future DSS interpretation outputs after TOPSIS or other decision-support logic is implemented.
 
 Future fields:
 
 - id
 - insight_type
-- forecast_run_id
-- forecast_signal
+- topsis_run_id
+- criterion_signal
 - observed_data
 - business_meaning
 - prescribed_action
@@ -375,3 +389,7 @@ Important:
 Future naming note:
 
 - If the project needs clearer paper alignment later, `insight_snapshots` can evolve into `prescriptive_insights`.
+
+## Historical Forecast Tables
+
+Older docs mention `forecast_runs` and `forecast_points` for Meta Prophet. Treat those as historical notes only unless the team explicitly restores forecasting as a project feature.

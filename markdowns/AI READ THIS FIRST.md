@@ -2,6 +2,16 @@
 
 Read this before changing code or documentation.
 
+Current source of truth:
+
+1. `information/README.md`
+2. `information/topsis-decision-support-plan.md`
+3. `information/module-map.md`
+4. `information/api-map.md`
+5. `information/database-map.md`
+
+Older Sprint 1 and Meta Prophet documents are historical unless the user explicitly restores those directions.
+
 ## Current Product Direction
 
 ProphetOps is an internal Decision Support System for Renan-Tina Travels and Tours.
@@ -14,9 +24,16 @@ It is not:
 - a marketing landing page
 - an external API integration project
 
-Sprint 1 is a front-end prototype with mock/sample data.
+Current system state:
 
-Required Sprint 1 pages:
+- Laravel + Inertia + Vue local web system.
+- SQLite database at `database/database.sqlite`.
+- Backend Laravel session login and role access are active.
+- Bookings, package catalog, expenses, analytics, reports, and dashboard use saved records.
+- TOPSIS is the active algorithm direction.
+- Meta Prophet is historical unless the user explicitly restores forecasting.
+
+Current pages:
 
 1. Login
 2. Owner DSS Dashboard
@@ -24,46 +41,43 @@ Required Sprint 1 pages:
 4. Inventory
 5. Expenses / Operational Costs
 6. Sales Analytics
-7. Forecasting Preview
+7. TOPSIS Ranking
 8. Trajectory Insights
 9. Reports
 10. Users / Access Management
 
-Before implementing, read:
+Before implementing a specific task, read only the related map:
 
-1. `information/sprint-1-direction.md`
-2. `markdowns/Sprint 1 Premium Design Plan.md`
-3. `markdowns/meta-prophet-prescriptive-dss-plan.md`
-4. `markdowns/page-by-page implementation guide.md`
-5. `information/module-map.md`
-6. `information/api-map.md`
-7. `information/ui-components.md`
+1. Modules/pages: `information/module-map.md`
+2. Routes/controllers: `information/api-map.md`
+3. Database/data transforms: `information/database-map.md`
+4. UI components: `information/ui-components.md`
+5. Algorithm planning: `information/topsis-decision-support-plan.md`
 
-## Sprint 1 Scope Rules
+## Current Scope Rules
 
 Do build:
 
-- front-end shell and pages
-- mock/sample data
-- pseudo login with demo accounts
+- backend-backed internal pages
+- saved business records
+- Laravel session login with demo accounts
 - role-aware navigation
 - reusable UI components
 - skeleton and empty states
 - clear DSS insight cards
+- TOPSIS-ready package and decision-support data
 
 Do not build unless explicitly requested:
 
-- real authentication
-- password hashing
-- backend sessions
 - JWT
-- database-backed users
-- real forecasting engine integration
 - real AI generation
 - real PDF/Excel exports
 - external API integrations
 - customer-facing booking pages
 - public website pages
+- payment flows
+- supplier/Facebook API integrations
+- Meta Prophet forecasting
 
 ## Required Demo Accounts
 
@@ -85,29 +99,29 @@ Use this structure:
 
 Observed data -> Business meaning -> Suggested action
 
-Forecasting and AI sections must use labels such as:
+Visible app UI should use polished labels such as:
 
-- Sample Forecast Preview
-- Forecast engine integration pending
-- Simulated DSS Insight
-- AI trajectory module placeholder
+- Decision Support
+- TOPSIS Ranking
+- Business Priority
+- Recommended Review
 
-Do not imply Meta Prophet or AI analysis is already running.
+Do not imply Meta Prophet, AI analysis, or external API automation is already running.
 
-## Forecasting And Prescriptive DSS Rule
+## TOPSIS DSS Rule
 
-The main paper feature is Meta Prophet forecasting with a prescriptive DSS layer.
+The active paper feature is a TOPSIS-supported Business Decision Support System.
 
-Before changing the Dashboard, Forecasting, or Trajectory Insights pages, read:
+Before changing the Dashboard, TOPSIS Ranking, or Trajectory Insights pages, read:
 
-- `markdowns/meta-prophet-prescriptive-dss-plan.md`
+- `information/topsis-decision-support-plan.md`
 
 Planning direction:
 
-- Prophet produces the forecast.
-- The prescriptive DSS layer translates forecast output into explainable recommended actions.
-- Current Sprint 1 UI can show sample/simulated output only.
-- Real Prophet integration belongs to a later backend phase.
+- TOPSIS ranks package or travel-operation alternatives.
+- Criteria should be explainable to owners, admins, and staff.
+- Output should include ranking, score/closeness coefficient, recommended review action, and plain-language reason.
+- Fragmented source data from Google Sheets, messages, posters, and manual communication is valid for the study.
 
 ## Git Rule
 
@@ -143,9 +157,10 @@ git commit -m "fix: correct dashboard route guard"
 - Do not overwrite unrelated user changes.
 - Keep ProphetOps internal-facing.
 - Prefer existing Vue/Laravel/Inertia patterns.
-- Use mock data in centralized files for Sprint 1.
+- Use backend records and `app/Support/ProphetOpsData.php` for shared page data.
 - Use business language instead of technical jargon in the UI.
 - Keep the dashboard glanceable within 5 seconds.
-- Keep forecasting and AI clearly labeled as placeholders.
+- Keep TOPSIS and DSS output explainable, not black-box.
+- Treat old forecasting and AI notes as historical unless restored.
 
-Last updated: June 8, 2026
+Last updated: June 19, 2026

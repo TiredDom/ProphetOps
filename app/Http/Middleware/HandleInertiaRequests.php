@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\ProphetOpsData;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -35,9 +36,24 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $user = $request->user();
+
         return [
             ...parent::share($request),
-            //
+            'auth' => [
+                'user' => $user ? [
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => $user->role,
+                    'status' => $user->status,
+                    'lastLogin' => $user->last_login_at?->format('M j, g:i A') ?? 'Not yet',
+                ] : null,
+                'permissions' => $user ? ProphetOpsData::ROLE_PERMISSIONS[$user->role] ?? [] : [],
+                'rolePermissions' => ProphetOpsData::ROLE_PERMISSIONS,
+            ],
+            'flash' => [
+                'notice' => fn () => $request->session()->get('notice'),
+            ],
         ];
     }
 }

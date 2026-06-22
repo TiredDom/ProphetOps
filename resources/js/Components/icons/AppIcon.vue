@@ -58,6 +58,21 @@ const icons = {
         { tag: 'path', attrs: { d: 'M12 17v-7' } },
         { tag: 'path', attrs: { d: 'M15 17v-5' } },
     ],
+    lineChart: [
+        { tag: 'path', attrs: { d: 'M4 19V5' } },
+        { tag: 'path', attrs: { d: 'M4 19h16' } },
+        { tag: 'path', attrs: { d: 'M7 15l3-4 3 2 4-6 3 3' } },
+        { tag: 'circle', attrs: { cx: 7, cy: 15, r: 1 } },
+        { tag: 'circle', attrs: { cx: 10, cy: 11, r: 1 } },
+        { tag: 'circle', attrs: { cx: 13, cy: 13, r: 1 } },
+        { tag: 'circle', attrs: { cx: 17, cy: 7, r: 1 } },
+    ],
+    routePath: [
+        { tag: 'circle', attrs: { cx: 6, cy: 18, r: 2.2 } },
+        { tag: 'circle', attrs: { cx: 18, cy: 6, r: 2.2 } },
+        { tag: 'path', attrs: { d: 'M8 18h3.5a3 3 0 0 0 0-6H10a3 3 0 0 1 0-6h5.8' } },
+        { tag: 'path', attrs: { d: 'M15.5 3.5L18 6l-2.5 2.5' } },
+    ],
     sparkles: [
         { tag: 'path', attrs: { d: 'M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z' } },
         { tag: 'path', attrs: { d: 'M5 15l.8 2.2L8 18l-2.2.8L5 21l-.8-2.2L2 18l2.2-.8L5 15z' } },

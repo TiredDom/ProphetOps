@@ -188,12 +188,13 @@ Dashboard density rule:
 
 - Do not turn the dashboard into a full forecasting workspace.
 - Keep the first screen glanceable within 5 seconds.
+- Show only a clean compact forecast trend on the dashboard; actual-vs-forecast and confidence interval details belong on the Forecasting page.
 - Put detailed model output and historical checks on the Forecasting page.
 - Put the complete recommendation list on Trajectory Insights or a future Prescriptive Insights page.
 
 ## Forecasting Page Plan
 
-The Forecasting page should evolve from "Forecasting Preview" into a "Meta Prophet Forecasting Workspace" only when real backend integration starts.
+The Forecasting page should evolve into a "Meta Prophet Forecasting Workspace" only when real backend integration starts.
 
 Required future sections:
 
@@ -208,11 +209,25 @@ Required future sections:
 - Latest generated timestamp
 - Link to prescriptive recommendations
 
-Until real integration exists, keep labels such as:
+Until real integration exists, keep mock/prototype disclosure in documentation, presenter notes, paper limitations, and AI handoff notes.
+
+For the visible app UI, avoid labels such as:
 
 - Sample Forecast Preview
 - Forecast engine integration pending
 - Sample projection based on mock data
+- Mockup
+- Preview
+- Placeholder
+
+Use polished labels instead:
+
+- Forecasting
+- Meta Prophet Forecast
+- Demand Forecast Trend
+- Forecast demand
+- Confidence range
+- Prescriptive DSS Signal
 
 ## Trajectory Insights / Prescriptive Page Plan
 

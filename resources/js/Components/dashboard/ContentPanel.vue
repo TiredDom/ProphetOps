@@ -7,7 +7,7 @@
                 </span>
                 <div>
                     <p class="eyebrow">{{ eyebrow }}</p>
-                    <h3>{{ title }}</h3>
+                    <component :is="headingTag">{{ title }}</component>
                 </div>
             </div>
             <span v-if="badge" class="status-badge">{{ badge }}</span>
@@ -45,6 +45,10 @@ export default {
         panelClass: {
             type: String,
             default: '',
+        },
+        headingTag: {
+            type: String,
+            default: 'h2',
         },
     },
 };

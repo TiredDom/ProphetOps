@@ -1,5 +1,9 @@
 # Authentication Frontend To Backend Guide
 
+Status: historical authentication transition guide.
+
+Current auth is already backend-backed with Laravel sessions. Read `information/README.md`, `information/module-map.md`, and `information/api-map.md` first. Use this file only as history for how the project moved from mock auth to backend auth.
+
 Sprint 1 authentication is prototype-only. Treat it as a user experience scaffold, not production security.
 
 ## 1. Current Frontend-Only Behavior
