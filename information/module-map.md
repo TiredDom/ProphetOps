@@ -1,6 +1,6 @@
 # ProphetOps Module Map
 
-This map describes the current project shape and the new Sprint 1 target direction. Use it with `information/sprint-1-direction.md`.
+This map describes the current project shape after the local backend implementation. Use it with `information/sprint-1-direction.md`.
 
 ## Project Scaffolding
 
@@ -20,49 +20,88 @@ Current status:
 - Vue pages are in `resources/js/Pages/`.
 - Vue components are in `resources/js/Components/`.
 - Current styling uses custom CSS in `resources/css/app.css`.
-- No real backend feature persistence is implemented yet.
+- Core backend persistence is implemented for users, bookings, package presets, and expenses.
 
 Important notes:
 
 - Keep using the existing stack and conventions.
-- Sprint 1 should remain front-end focused with mock/sample data.
-- Do not introduce a public website, customer booking portal, payment flow, or external API integration during Sprint 1.
+- Keep the Laravel + Inertia + Vue structure simple and modular.
+- Do not introduce a public website, customer booking portal, payment flow, or external API integration unless the user explicitly changes scope.
+
+## Algorithm / TOPSIS Decision Support
+
+Purpose:
+Provide the active capstone algorithm direction.
+
+Current source of truth:
+
+- `information/topsis-decision-support-plan.md`
+
+Current status:
+
+- TOPSIS is the active algorithm direction.
+- Meta Prophet is historical unless the team explicitly restores forecasting.
+- The system should rank travel package or operations alternatives through explainable criteria and weights.
+- Current package records support the first TOPSIS ranking module.
+- The visible owner-facing Package Decision Guide is available at `/decision-guide`; `/forecasting` is only a compatibility redirect.
+
+Expected decisions:
+
+- Which package should staff recommend for a client or agency partner.
+- Which package should admins prioritize, monitor, or promote.
+- Which package has risk because of low slots, weak data, or low business value.
+- Which option best fits budget, destination, duration, capacity, supplier reliability, and business value.
+
+Important notes:
+
+- Do not depend on Facebook or supplier APIs.
+- Fragmented source data from sheets, messages, posters, and manual communication is part of the research problem.
+- Keep TOPSIS outputs explainable in business language, not formula-heavy UI copy.
 
 ## Authentication / Account Access
 
 Purpose:
-Provide prototype-only internal access before entering the ProphetOps workspace.
+Provide internal access before entering the ProphetOps workspace.
 
 Main paths:
 
 - Frontend page: `resources/js/Pages/Login.vue`
-- Mock auth service: `resources/js/services/mockAuth.js`
+- Backend controller: `app/Http/Controllers/AuthController.php`
+- Role middleware: `app/Http/Middleware/EnsureRoleCanAccess.php`
+- Shared Inertia auth props: `app/Http/Middleware/HandleInertiaRequests.php`
+- Frontend access helpers: `resources/js/services/authAccess.js`
 - Page routes: `routes/web.php`
 - Styling: `resources/css/app.css`
 
 Current status:
 
-- A frontend login page and mock auth service already exist.
-- Current behavior should be adjusted to the required demo accounts and role-based access from the new Sprint 1 plan.
+- The login page now posts to Laravel authentication.
+- Laravel sessions, hashed demo passwords, and backend role checks are active.
+- Navigation adapts from Inertia auth props instead of browser session storage.
 
-Sprint 1 target:
+Current target:
 
 - Demo accounts:
   - owner@prophetops.local / owner123
   - admin@prophetops.local / admin123
   - staff@prophetops.local / staff123
-- Store a mock session in localStorage or frontend state.
-- Guard routes on the frontend only.
-- Logout clears mock session.
+- Use Laravel sessions only.
+- Remove remember-device behavior.
+- Keep Login as an intentional sign-in page for guests.
+- Guard protected routes on the backend with `auth` and `role.access`.
+- Logout invalidates the Laravel session.
 - Navigation adapts based on role.
+
+Current implementation:
+
+- `app/Support/ProphetOpsData.php` defines demo accounts, role permissions, default role paths, and shared data transforms.
+- `resources/js/Components/layout/AppShell.vue` applies role-aware navigation and posts logout to `/logout`.
 
 Out of scope:
 
-- Real backend auth
-- Password hashing
-- Backend sessions
 - JWT
-- Database-backed users
+- Self-service user creation
+- Public registration
 
 ## Owner DSS Dashboard
 
@@ -74,19 +113,21 @@ Current path:
 - Existing page: `resources/js/Pages/Welcome.vue`
 - Current route: `GET /dashboard`
 
-Sprint 1 target:
+Current status:
 
-- Rework the current dashboard into "Decision Support Overview".
-- Show a single Business Gist / DSS Insight Summary near the top.
-- Show up to 6 KPI cards.
-- Show up to 3 priority decision cards on the first screen.
-- Include sales trend, revenue vs expenses, top packages, forecast preview, recent transactions, and recent inventory changes.
+- Reworked into "Decision Support Overview".
+- Shows one Business Gist / DSS Insight Summary near the top.
+- Shows 6 KPI cards.
+- Shows 3 priority decision cards.
+- Includes sales trend, revenue vs expenses, top packages, TOPSIS-ready decision preview, recent transactions, and recent inventory changes using saved database records.
 
 Important notes:
 
 - This should not feel like a generic admin homepage.
 - It must answer what is happening, why it matters, and what should be reviewed next.
-- Forecast and AI areas must be labeled as sample or simulated.
+- Forecast and AI areas must not imply that Meta Prophet or real AI is already running.
+- Future dashboard DSS behavior should follow `information/topsis-decision-support-plan.md`.
+- When TOPSIS ranking exists, the dashboard should show the best decision gist and the top three review actions, not a dense algorithm workspace.
 
 ## Bookings / Transactions
 
@@ -95,10 +136,16 @@ Centralize booking records from Messenger, Google Sheets, Gmail, notebooks, and 
 
 Legacy predecessor:
 
-- Existing `resources/js/Pages/OperationalRecords.vue` should be treated as the old intake concept and reworked or replaced for Bookings / Transactions.
-- Existing route `GET /data/operational-records` is legacy direction and should not be the final Sprint 1 route label.
+- `resources/js/Pages/OperationalRecords.vue` was removed.
+- Old legacy redirects were removed. `/bookings` is the only active records route.
 
-Sprint 1 target:
+Current status:
+
+- Implemented as `resources/js/Pages/Bookings.vue`.
+- Current route: `GET /bookings`.
+- Uses database-backed records, search, filters, table, drawer add/edit/view behavior, and bulk updates.
+
+Current behavior:
 
 - Create an Attio-like records table.
 - Fields: Booking ID, booking date, client/agency partner, destination/package, passenger count, gross revenue, payment status, booking status, staff assigned, notes.
@@ -107,7 +154,7 @@ Sprint 1 target:
 
 DSS purpose:
 
-- This page creates the historical data needed for sales monitoring and future forecasting.
+- This page creates the historical data needed for sales monitoring and decision-support ranking.
 
 ## Inventory
 
@@ -117,18 +164,19 @@ Monitor package availability, slots, and operational stock.
 Current path:
 
 - Existing page: `resources/js/Pages/Inventory.vue`
-- Current route: `GET /operations/inventory`
+- Current route: `GET /inventory`
 
-Sprint 1 target:
+Current status:
 
 - Align inventory language to travel package availability and operational stock.
 - Fields: package name, destination, available slots, sold count, reserved count, status, last updated.
 - Include Add Package, Adjust Stock, View Related Bookings, low-stock filter, and Low/Critical warning cards.
+- Data is stored in `travel_packages`.
 
 DSS behavior:
 
 - If stock is low, show this message or equivalent:
-  "Low availability may affect future demand. Review package capacity."
+  "Low availability may affect package decisions. Review package capacity."
 
 ## Expenses / Operational Costs
 
@@ -137,9 +185,11 @@ Record costs needed for financial analysis and DSS interpretation.
 
 Current status:
 
-- Not implemented yet.
+- Implemented as `resources/js/Pages/Expenses.vue`.
+- Current route: `GET /expenses`.
+- Data is stored in `expenses`.
 
-Sprint 1 target:
+Current behavior:
 
 - Create a page for expense date, category, amount, related destination/package, payment status, and notes.
 - Categories: tour operations, marketing, seasonal cost, overhead.
@@ -152,51 +202,60 @@ DSS behavior:
 ## Sales Analytics
 
 Purpose:
-Provide basic business analysis before full AI forecasting.
+Provide basic business analysis for DSS interpretation and TOPSIS-ready decision support.
 
 Current status:
 
-- Not implemented yet.
+- Implemented as `resources/js/Pages/SalesAnalytics.vue`.
+- Current route: `GET /analytics`.
 
-Sprint 1 target:
+Current behavior:
 
 - Include monthly sales chart, booking volume chart, revenue by destination, top packages table, revenue vs expenses comparison, and summary cards.
 - Summary cards: Top Revenue Route, Highest Passenger Volume, Most Active Month, Costliest Category.
 
-## Forecasting Preview
+## Package Decision Guide
 
 Purpose:
-Prepare the interface for future Meta Prophet integration.
+Compare package alternatives using TOPSIS criteria and explainable business output.
 
 Current status:
 
-- Not implemented yet.
+- Implemented as `resources/js/Pages/ForecastingPreview.vue`.
+- Current route: `GET /decision-guide`.
+- Old route: `GET /forecasting` redirects to `/decision-guide`.
 
-Sprint 1 target:
+Current target:
 
-- Use mock data only.
-- Include 30-day booking projection, 30-day revenue projection, demand trend chart, seasonality notes, data requirements, and forecast status card.
-- Required label: "Sample Forecast Preview - Forecast engine integration pending".
+- Use saved package catalog data and TOPSIS criteria fields.
+- Accept budget, destination, duration, and travel type priority inputs.
+- Show compared alternatives, fit score/closeness coefficient, criteria weights, and explanation.
+- Keep formulas/details in documentation or tests instead of formula-heavy UI copy.
+- The backend ranking service lives in `app/Support/TopsisDecisionSupport.php`.
+- The active algorithm plan lives in `information/topsis-decision-support-plan.md`.
 
 Important note:
 
-- Do not imply Meta Prophet is already running.
+- Do not imply Meta Prophet, AI generation, or external supplier API automation is running.
 
-## Trajectory Insights
+## DSS Review Signals
 
 Purpose:
-Show simulated AI/DSS business interpretation.
+Support dashboard and report review cards with explainable DSS-style signals.
 
 Current status:
 
-- Not implemented yet.
+- No standalone route. The former Trajectory Insights page was removed to keep the navigation focused.
+- Helper data still lives in `app/Support/ProphetOpsData.php` for dashboard and reports.
 
-Sprint 1 target:
+Current behavior:
 
-- Use simulated insight cards.
+- Use saved bookings, packages, and expenses to build current DSS-style insight cards.
 - Categories: sales trend, cost risk, inventory risk, marketing opportunity, demand increase.
 - Each insight includes finding, reason, and suggested action.
-- Required labels: "Simulated DSS Insight" and "AI trajectory module placeholder".
+- Avoid visible UI labels such as "simulated", "AI placeholder", "mock", "preview", and "sample only".
+- Future insight cards should include criterion signal, business meaning, prescribed action, priority, evidence, affected package/destination, and time horizon.
+- Use `information/topsis-decision-support-plan.md` as the source of truth for this evolution.
 
 ## Reports
 
@@ -205,42 +264,45 @@ Provide internal documentation cards for owners and stakeholders.
 
 Current status:
 
-- Not implemented yet.
+- Implemented as `resources/js/Pages/Reports.vue`.
+- Current route: `GET /reports`.
 
-Sprint 1 target:
+Current behavior:
 
-- Report cards: Sales Summary, Inventory Summary, Expense Summary, Forecast Summary, DSS Evaluation Summary.
-- Actions: View report, Export PDF placeholder, Export Excel placeholder.
-- Export buttons may be disabled or placeholder-only.
+- Report cards: Sales Summary, Inventory Summary, Expense Summary, TOPSIS Decision Summary, DSS Evaluation Summary.
+- Actions: View report, Export PDF, Export Excel.
+- Export actions may open an availability modal if not implemented yet, but the main UI should avoid placeholder wording.
 
 ## Users / Access Management
 
 Purpose:
-Support limited internal access in the prototype.
+Support limited internal access.
 
 Current status:
 
-- Not implemented yet as a page.
+- Implemented as `resources/js/Pages/Users.vue`.
+- Current route: `GET /users`.
+- User records come from the backend.
 
-Sprint 1 target:
+Current behavior:
 
 - Show user table with name, role, email/username, status, and last login.
 - Roles: Owner / Management, Admin, Staff.
-- Keep this prototype-only until real backend authentication is requested.
+- Keep user self-service and public registration out of scope.
 
 ## Data Validation
 
 Purpose:
 Data quality remains important, but it is no longer a required standalone Sprint 1 page in the new plan.
 
-Current path:
+Previous path:
 
-- Existing page: `resources/js/Pages/DataValidation.vue`
-- Current route: `GET /data/validation`
+- Existing page `resources/js/Pages/DataValidation.vue` was removed.
+- Old legacy redirects were removed. `/analytics` is the active analysis route.
 
 New direction:
 
-- Keep validation ideas as behavior inside Bookings, Inventory, Expenses, Analytics, Forecasting Preview, and Reports.
+- Keep validation ideas as behavior inside Bookings, Inventory, Expenses, Analytics, Package Decision Guide, and Reports.
 - Do not make Data Validation compete with the required Sprint 1 pages unless the user asks to restore it.
 
 ## Navigation
@@ -252,8 +314,7 @@ Required labels:
 - Inventory
 - Expenses
 - Analytics
-- Forecasting
-- Trajectory Insights
+- Package Decision Guide
 - Reports
 - Users
 
@@ -267,4 +328,5 @@ Target behavior:
 - Sidebar on desktop.
 - Collapsible/mobile navigation on small screens.
 - Role-based visibility.
+- Sprint 1 demo access: Owner sees all pages, Admin sees Dashboard through Reports including Package Decision Guide, Staff sees Bookings and Inventory.
 - Restricted pages should not break the UI.

@@ -8,7 +8,7 @@
             <p>{{ message }}</p>
         </div>
         <button v-if="actionLabel" class="empty-state-action" type="button" @click="$emit('action')">
-            <AppIcon name="plus" />
+            <AppIcon :name="actionIcon" />
             {{ actionLabel }}
         </button>
     </div>
@@ -38,6 +38,10 @@ export default {
         actionLabel: {
             type: String,
             default: '',
+        },
+        actionIcon: {
+            type: String,
+            default: 'plus',
         },
     },
     emits: ['action'],

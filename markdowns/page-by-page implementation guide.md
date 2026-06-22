@@ -1,6 +1,8 @@
 # ProphetOps Page-By-Page Implementation Guide
 
-This guide translates the active Sprint 1 plan into implementation direction. It is guidance only; no backend coding is required unless the user explicitly asks later.
+Status: historical page planning reference.
+
+Read `information/README.md` first. The current system is already backend-backed, and TOPSIS is the active capstone algorithm direction. Use this file only for old UI/page intent, not current backend or algorithm instructions.
 
 ## Shared Rules
 
@@ -22,7 +24,19 @@ Every DSS insight should use:
 
 Observed data -> Business meaning -> Suggested action
 
-Forecasting and AI must be labeled as sample/simulated placeholders.
+Forecasting and AI prototype status should be explained in documentation and presentation notes. Visible app screens should avoid labels such as "mockup", "mock", "preview", "sample only", and "placeholder".
+
+For clicked actions, use `sprint-1-modal-interaction-plan.md`.
+
+Sprint 1 interaction summary:
+
+- Use drawers for Add, Edit, View, and Adjust actions on business records.
+- Use modals for logout confirmation, report viewing, availability notices, alerts, profile/access information, and discard-changes confirmation.
+- Use normal page links for dashboard decision actions and navigation.
+- Keep filters and date ranges inline.
+- Use `modular-graph-system-plan.md` before adding or refactoring graphs.
+
+For removing old pages and route names, use `legacy-removal-plan.md`.
 
 ## Shared Navigation
 
@@ -41,7 +55,7 @@ Primary labels:
 Role visibility:
 
 - Owner / Management: all pages
-- Admin: Dashboard, Bookings, Inventory, Expenses, Analytics, Reports
+- Admin: Dashboard, Bookings, Inventory, Expenses, Analytics, Forecasting, Trajectory Insights, Reports
 - Staff: Bookings and Inventory only
 
 ## 1. Login
@@ -295,35 +309,47 @@ Acceptance criteria:
 - Summary cards explain business meaning.
 - Page does not claim to run AI or Prophet.
 
-## 7. Forecasting Preview
+## 7. Forecasting
 
 Page title:
-"Forecasting Preview"
+"Forecasting"
 
 Purpose:
-Prepare the interface for Meta Prophet integration.
+Prepare the interface for Meta Prophet integration and future forecast-run review.
 
 Primary action:
-Review Data Requirements
+Review Prescriptive Insights
 
-Required label:
-"Sample Forecast Preview - Forecast engine integration pending"
+Presentation UI rule:
+Do not show visible labels such as "mockup", "mock", "preview", "sample only", "placeholder", or "forecast engine integration pending" on the app screen. Keep those disclosures in documentation, presenter script, or paper limitations.
 
 Include:
 
-- 30-day booking projection
-- 30-day revenue projection
-- Demand trend chart
-- Seasonality notes
-- Data requirements
-- Forecast status card
+- One main demand forecast line graph
+- Actual demand line
+- Forecast demand line
+- Light confidence range
+- Compact forecast summary cards
+- Prescriptive DSS signal near the graph
+
+Graph rule:
+Use a modular chart shell and reusable line graph. The graph must stay contained inside its panel on desktop and mobile.
+
+Future real integration:
+
+- Use Meta Prophet to forecast demand, booking volume, or revenue.
+- Store generated forecast runs before showing them on the dashboard.
+- Show generated timestamp, source date range, projection range, and model status.
+- Link forecast signals to prescriptive DSS recommendations.
 
 Acceptance criteria:
 
 - Page uses mock data only.
-- Page clearly says the forecast engine is not integrated.
-- Data requirements explain what future Prophet integration will need.
+- Visible app copy stays professional and does not repeatedly say the page is mock/prototype/sample.
+- Visible page copy stays business-facing and does not show formulas.
 - No copy implies real Meta Prophet output exists.
+- Simplification follows `forecasting-page-simplification-plan.md`.
+- Future planning follows `meta-prophet-prescriptive-dss-plan.md`.
 
 ## 8. Trajectory Insights
 
@@ -331,15 +357,13 @@ Page title:
 "Trajectory Insights"
 
 Purpose:
-Show simulated AI/DSS business interpretation.
+Show DSS business interpretation now and evolve into prescriptive forecast-driven recommendations.
 
 Primary action:
 Review Suggested Actions
 
-Required labels:
-
-- Simulated DSS Insight
-- AI trajectory module placeholder
+Presentation UI rule:
+Do not show visible labels that call the page simulated, AI placeholder, mock, or preview. Keep those disclosures in documentation, presenter script, or paper limitations.
 
 Insight categories:
 
@@ -355,12 +379,23 @@ Each insight includes:
 - Reason
 - Suggested action
 
+Future prescriptive DSS format:
+
+- Forecast signal or observed data
+- Business meaning
+- Prescribed action
+- Priority
+- Evidence
+- Affected package or destination
+- Time horizon
+
 Acceptance criteria:
 
 - Every card follows observed data -> meaning -> action.
-- Insights are clearly simulated.
+- Insights are explainable and documentation clarifies Sprint 1 uses prototype data.
 - Suggestions are practical for travel operations.
 - No real AI generation is implied.
+- Future planning follows `meta-prophet-prescriptive-dss-plan.md`.
 
 ## 9. Reports
 
@@ -384,15 +419,15 @@ Report cards:
 Actions:
 
 - View report
-- Export PDF placeholder
-- Export Excel placeholder
+- Export PDF
+- Export Excel
 
 Acceptance criteria:
 
-- Export actions are disabled or clearly placeholder-only.
+- Export actions open a short availability modal if not implemented yet, without using placeholder wording on the main page.
 - Reports use mock data.
 - Report summaries are business-readable.
-- Forecast reports include sample/placeholder labels.
+- Forecast report prototype status is documented outside the visible app UI.
 
 ## 10. Users / Access Management
 
@@ -416,7 +451,7 @@ Table fields:
 Roles:
 
 - Owner / Management: full access
-- Admin: bookings, inventory, expenses, analytics, reports
+- Admin: bookings, inventory, expenses, analytics, forecasting, trajectory insights, reports
 - Staff: bookings and inventory only
 
 Acceptance criteria:
@@ -432,11 +467,11 @@ Acceptance criteria:
 2. Update app shell and navigation labels.
 3. Rework dashboard into Decision Support Overview.
 4. Build centralized mock data.
-5. Rework legacy Operational Records into Bookings / Transactions.
+5. Keep legacy Operational Records replaced by Bookings / Transactions.
 6. Align Inventory to package availability.
 7. Add Expenses.
 8. Add Sales Analytics.
-9. Add Forecasting Preview.
+9. Add Forecasting.
 10. Add Trajectory Insights.
 11. Add Reports.
 12. Add Users / Access Management.

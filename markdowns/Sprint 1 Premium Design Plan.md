@@ -1,6 +1,8 @@
 # ProphetOps Sprint 1 Premium Design Plan
 
-This is the active Sprint 1 plan for ProphetOps.
+Status: historical UI planning reference.
+
+This is no longer the active source of truth for product direction, backend state, or algorithm direction. Read `information/README.md` first. The current system is backend-backed, and TOPSIS is the active capstone algorithm direction.
 
 ## Project Context
 
@@ -15,6 +17,8 @@ This is not a public booking website. It is an internal business decision-suppor
 Build the front-end shell and main pages using mock/sample data.
 
 Forecasting and AI insights can be placeholders, but the app must already feel like a DSS.
+
+The main future research feature is Meta Prophet forecasting with a prescriptive DSS layer. Use `meta-prophet-prescriptive-dss-plan.md` before changing forecasting, dashboard forecast cards, or trajectory/prescriptive insight behavior.
 
 The app should communicate immediately:
 
@@ -387,6 +391,12 @@ Required label:
 
 Do not imply that Meta Prophet is already running.
 
+Future direction:
+
+- Real Prophet output should include forecast values, confidence intervals, source range, projection range, and generated timestamp.
+- Forecasting should feed the dashboard and the prescriptive DSS layer.
+- Follow `meta-prophet-prescriptive-dss-plan.md` before implementing the real forecasting feature.
+
 ## Page 8: Trajectory Insights
 
 Purpose:
@@ -419,6 +429,12 @@ Required labels:
 
 - "Simulated DSS Insight"
 - "AI trajectory module placeholder"
+
+Future direction:
+
+- Evolve this page into the prescriptive DSS review space.
+- Each recommendation should show forecast signal, business meaning, prescribed action, priority, and evidence.
+- Keep recommendations explainable and rule-based first.
 
 ## Page 9: Reports
 

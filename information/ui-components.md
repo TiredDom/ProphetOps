@@ -1,6 +1,6 @@
 # ProphetOps UI Components
 
-This file tracks reusable UI patterns for the Sprint 1 DSS prototype.
+This file tracks reusable UI patterns for the current ProphetOps DSS prototype.
 
 ## Current Extracted Components
 
@@ -13,10 +13,10 @@ Purpose:
 Provides reusable line icons for navigation, stat cards, buttons, panel headers, and empty states.
 
 Current use:
-Sidebar, TopBar, StatCard, ContentPanel, EmptyState, Login, Dashboard, legacy Operational Records, legacy Data Validation, Inventory.
+Sidebar, TopBar, StatCard, ContentPanel, EmptyState, Login, Dashboard, Bookings, Inventory, Expenses, Analytics, Package Decision Guide, Reports, and Users.
 
 Sprint 1 direction:
-Keep using this component unless an icon library is intentionally added. Add icons for Bookings, Expenses, Analytics, Forecasting, Trajectory Insights, Reports, Users, drawers, alerts, and exports as needed.
+Keep using this component unless an icon library is intentionally added. Add icons for Bookings, Expenses, Analytics, Package Decision Guide, Reports, Users, drawers, alerts, and exports as needed.
 
 ### Sidebar
 
@@ -34,8 +34,7 @@ Update navigation to the required labels:
 - Inventory
 - Expenses
 - Analytics
-- Forecasting
-- Trajectory Insights
+- Package Decision Guide
 - Reports
 - Users
 
@@ -50,7 +49,18 @@ Purpose:
 Displays the page header area, mobile menu trigger, and account/status actions.
 
 Sprint 1 direction:
-Keep the top bar stable across pages. It can show last updated time, local intranet status, profile/logout controls, or page-level context when useful.
+Keep the top bar stable across pages. It now supports user role/profile display and logout controls through the shared app shell.
+
+### AppShell
+
+Path:
+`resources/js/Components/layout/AppShell.vue`
+
+Purpose:
+Wraps current pages with the sidebar, top bar, role-aware navigation, shared Inertia auth props, and logout behavior.
+
+Used In:
+Dashboard, Bookings, Inventory, Expenses, Analytics, Package Decision Guide, Reports, and Users.
 
 ### StatCard
 
@@ -72,7 +82,33 @@ Purpose:
 Provides a reusable solid panel with title, optional eyebrow/badge, and body content.
 
 Sprint 1 direction:
-Use for charts, table summaries, report cards, forecast preview sections, and readable DSS panels.
+Use for table summaries, report cards, and readable DSS panels. For charts, prefer the future chart components from `markdowns/modular-graph-system-plan.md` so every graph stays contained and consistent.
+
+### Chart Components
+
+Path:
+`resources/js/Components/charts/`
+
+Purpose:
+Provide reusable graph shells and chart types for Package Decision Guide, Dashboard, Analytics, and Reports.
+
+Current components:
+
+- `ChartPanel`
+- `LineTrendChart`
+- `MiniBarChart`
+- `ComparisonTrack`
+
+Sprint 1 direction:
+Use these shared chart components instead of page-specific chart markup when a chart appears on Dashboard, Package Decision Guide, Analytics, or Reports.
+
+Containment rules:
+
+- Every graph must have a stable height.
+- Every graph must stay inside its card/panel.
+- No chart should create horizontal page overflow.
+- Axis labels and legends must stay inside the graph frame.
+- Long descriptions should be moved to DSS signal cards, modals, documentation, or presentation notes.
 
 ### EmptyState
 
@@ -85,11 +121,61 @@ Displays a useful empty state with an icon, title, helper text, and optional act
 Sprint 1 direction:
 Every data-heavy page should include a polished empty state with one recommended action.
 
+### ActionNotice
+
+Path:
+`resources/js/Components/feedback/ActionNotice.vue`
+
+Purpose:
+Displays reusable inline feedback for form errors, save confirmations, warnings, and page-level status messages.
+
+Sprint 1 direction:
+Use this instead of one-off alert markup. Every notice should have a clear title, short business-readable message, semantic tone, and accessible live-region behavior.
+
+### AppModal
+
+Path:
+`resources/js/Components/feedback/AppModal.vue`
+
+Purpose:
+Provides the shared focused dialog pattern for logout, report preview, export preparation, alerts, profile/access information, and the workspace guide.
+
+Sprint 1 direction:
+Use modals for short focused decisions or information. Do not place large forms, charts, or dense tables inside modals.
+
+### AppDrawer
+
+Path:
+`resources/js/Components/feedback/AppDrawer.vue`
+
+Purpose:
+Provides the shared right-side drawer pattern for record detail, add/edit, and review workflows.
+
+Sprint 1 direction:
+Use drawers when the user needs table context while editing or reviewing a business record.
+
+### Record Components
+
+Path:
+`resources/js/Components/records/`
+
+Current components:
+
+- `FilterBar`
+- `DataTableFrame`
+- `BulkActionBar`
+
+Purpose:
+Keeps record-heavy pages consistent with reusable filter layout, keyboard-focusable table frames, and multi-select action handling.
+
+Sprint 1 direction:
+Use these on Bookings, Inventory, Expenses, Users, Reports, and other dense record pages instead of duplicating table shell, filter, or selection-action markup.
+
 ## Recommended Sprint 1 Components
 
 Build or extract these when implementation needs them:
 
-- AppShell
+- AppShell: implemented
 - Sidebar
 - TopBar
 - PageHeader
@@ -97,12 +183,20 @@ Build or extract these when implementation needs them:
 - InsightCard
 - DecisionCard
 - StatusBadge
-- DataTable
-- FilterBar
+- DataTableFrame: implemented
+- FilterBar: implemented
+- BulkActionBar: implemented
 - SearchInput
 - ChartCard
+- ChartPanel: implemented
+- LineTrendChart: implemented
+- MiniBarChart: implemented
+- ComparisonTrack: implemented
 - EmptyState
+- ActionNotice: implemented
 - SkeletonCard
+- AppDrawer: implemented
+- AppModal: implemented
 - DrawerPanel
 - ConfirmModal
 - FormSection
@@ -141,6 +235,16 @@ Required structure:
 - Business meaning
 - Suggested action
 
+Future prescriptive DSS structure:
+
+- TOPSIS criterion signal or observed data
+- Business meaning
+- Prescribed action
+- Priority
+- Evidence
+- Affected package or destination
+- Time horizon
+
 Labels:
 
 - Risk
@@ -156,9 +260,13 @@ Use on the dashboard for priority owner review items.
 Each card must include:
 
 - Insight type
-- Short finding
-- Why it matters
+- Short review title
+- One concise business sentence
 - One clear action button
+
+Do not show separate Signal, Meaning, Evidence, and Action labels on dashboard cards. Put the full explanation inside focused guide drawers, report details, or the relevant record page.
+
+When connected to TOPSIS later, each dashboard decision card should come from the latest ranking output or prescriptive DSS insight and should remain explainable.
 
 Dashboard limit:
 Show up to 3 priority decision cards on the first screen.
@@ -205,6 +313,7 @@ Use cases:
 - Logout confirmation if needed
 - Short export options
 - Simple status changes
+- Discarding unsaved drawer changes
 
 Rules:
 
@@ -212,6 +321,18 @@ Rules:
 - Always include Cancel and Confirm.
 - Destructive actions use danger styling and clear wording.
 - Do not put large forms, charts, or tables inside modals.
+
+Sprint 1 modal plan:
+Use `markdowns/sprint-1-modal-interaction-plan.md` before implementing modal behavior.
+
+Recommended modal variants:
+
+- Logout confirmation
+- Report preview
+- Export/feature placeholder
+- Alerts
+- Profile/access information
+- Unsaved changes confirmation
 
 ### SkeletonCard
 
@@ -232,7 +353,7 @@ Use for Sprint 1 prototype access behavior.
 Rules:
 
 - Owner / Management: all pages
-- Admin: Dashboard, Bookings, Inventory, Expenses, Analytics, Reports
+- Admin: Dashboard, Bookings, Inventory, Expenses, Analytics, Package Decision Guide, Reports
 - Staff: Bookings and Inventory only
 
 Restricted pages should fail gracefully.
@@ -263,7 +384,7 @@ Spacing:
 
 ## Existing Page-Level Patterns To Reuse Carefully
 
-Existing Operational Records, Data Validation, and Inventory pages contain useful patterns:
+Legacy Operational Records and Data Validation contained useful patterns that should stay folded into the current pages:
 
 - responsive sidebar shell
 - summary cards
@@ -273,10 +394,11 @@ Existing Operational Records, Data Validation, and Inventory pages contain usefu
 - detail panels
 - clear empty states
 
-New Sprint 1 implementation can reuse these patterns, but should align labels and information architecture to the new required pages.
+Current implementation can reuse these patterns, but should align labels and information architecture to the active required pages.
 
 Important:
 
 - Operational Records should become Bookings / Transactions direction.
 - Data Validation should become data quality behavior, not a required standalone page.
 - Inventory remains a required page and should align to package slots and operational availability.
+- Legacy page and CSS cleanup should follow `markdowns/legacy-removal-plan.md`.

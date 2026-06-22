@@ -1,5 +1,9 @@
 # General Knowledge: ProphetOps AI Development Guide
 
+Status: historical general guide.
+
+Read `information/README.md` first. Current auth/data are backend-backed, and TOPSIS is the active capstone algorithm direction. Use this file only for broad product context when it does not conflict with the current information maps.
+
 ## Purpose
 
 This guide tells future assistants and developers how to think about ProphetOps before implementing features.
@@ -112,6 +116,11 @@ Deprecated active planning:
 - Package references as a separate Sprint 1 requirement
 
 These concepts may still inform Bookings, Inventory, Analytics, Reports, and future backend work.
+
+Legacy cleanup:
+
+- Follow `legacy-removal-plan.md` before deleting old page files, old CSS blocks, or old route redirects.
+- Keep historical feature/fix logs intact.
 
 ## Role Model
 

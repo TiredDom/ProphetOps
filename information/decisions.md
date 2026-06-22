@@ -1,5 +1,52 @@
 # ProphetOps Decisions
 
+Newest decisions override older planning notes unless the user explicitly asks to restore an older direction.
+
+## 2026-06-19 - Present TOPSIS Through An Owner-Friendly Guide
+
+Decision:
+Use `Package Decision Guide` as the visible app module and keep TOPSIS as the method label inside that guide.
+
+Reason:
+The owner and staff do not need a technical page name to use the system. The capstone still uses TOPSIS academically, but the product should tell the owner which package fits the current business priorities.
+
+Impact:
+
+- Active owner-facing route: `/decision-guide`.
+- `/forecasting` is only a compatibility redirect.
+- The former standalone Trajectory Insights page was removed from navigation so DSS interpretation lives in Dashboard summaries, Reports, and the Package Decision Guide.
+- Documentation should prefer owner-facing labels unless it is explaining the algorithm.
+
+## 2026-06-19 - Use TOPSIS As The Active Capstone Algorithm
+
+Decision:
+Use TOPSIS as the active named algorithm for the capstone direction.
+
+Reason:
+The adviser asked for an algorithm-centered direction and advised not to title the study around Meta Prophet. TOPSIS is easier to defend for a capstone because it ranks travel package or operations alternatives through clear criteria and weights instead of requiring a full forecasting model.
+
+Impact:
+
+- Active title: `ProphetOps: A Business Decision Support System Using TOPSIS for Travel Operations Management`.
+- `information/topsis-decision-support-plan.md` is the source of truth for algorithm planning.
+- Meta Prophet and old forecasting plans are historical unless the team explicitly restores forecasting.
+- Supplier/Facebook API integration remains out of scope because source data is fragmented across Google Sheets, messages, posters, and manual communication.
+- Current backend data should be extended toward package criteria, criteria weights, and explainable TOPSIS ranking output.
+
+## 2026-06-19 - Treat The Local Backend As Current System State
+
+Decision:
+Treat the Laravel session login, role access, SQLite database, bookings, package catalog, expenses, analytics, reports, and dashboard as the current working system state.
+
+Reason:
+The prototype moved beyond frontend-only Sprint 1 mock behavior. Keeping old mock-auth instructions as active guidance would confuse future work.
+
+Impact:
+
+- Current auth/data instructions live in `information/module-map.md`, `information/api-map.md`, and `information/database-map.md`.
+- Old mock-auth and mock-data docs are historical only.
+- Demo accounts remain owner/admin/staff, but they are backed by Laravel users and hashed passwords.
+
 ## 2026-06-01 - Use Laravel + Inertia.js + Vue 3 Stack
 
 Decision:
@@ -87,3 +134,33 @@ Impact:
 - Data Validation is no longer a required standalone Sprint 1 page.
 - Forecasting and AI insight pages must be labeled as sample/simulated placeholders.
 - No real auth, backend persistence, real forecasting, AI generation, exports, or external integrations should be built in Sprint 1.
+
+## 2026-06-08 - Plan Meta Prophet Forecasting With Prescriptive DSS Before Coding
+
+Decision:
+Treat Meta Prophet forecasting plus prescriptive DSS recommendations as the main future research feature, and plan it before changing implementation.
+
+Reason:
+The forecasting feature is central to the paper. It needs a clear separation between the forecasting method and the decision-support recommendation layer so the UI does not become just a chart preview or falsely imply real AI is already running.
+
+Impact:
+
+- `markdowns/meta-prophet-prescriptive-dss-plan.md` is now the reference before changing Dashboard forecast cards, Forecasting Preview, or Trajectory Insights.
+- Prophet will be planned as the forecast engine for demand, booking volume, or revenue.
+- Prescriptive DSS will translate forecast signals, inventory/capacity status, and cost movement into explainable recommended actions.
+- Current Sprint 1 implementation remains sample/simulated until backend forecasting integration is explicitly requested.
+
+## 2026-06-08 - Remove Legacy Direction In Stages
+
+Decision:
+Use a staged legacy cleanup plan for Operational Records, standalone Data Validation, and old route names.
+
+Reason:
+The active Sprint 1 plan now uses Bookings, Inventory, Expenses, Analytics, Forecasting, Trajectory Insights, Reports, and Users. Leaving old page files and docs in place can confuse future implementation.
+
+Impact:
+
+- `markdowns/legacy-removal-plan.md` is now the source of truth for legacy cleanup.
+- Old URLs may keep temporary redirects so existing links do not break.
+- Legacy Vue page files and legacy-only CSS should be removed only after active Sprint 1 pages are verified.
+- Historical logs should remain intact.

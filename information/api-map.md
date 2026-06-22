@@ -1,6 +1,6 @@
 # ProphetOps Route And API Map
 
-This project currently uses Laravel routes that render Inertia pages. Sprint 1 should continue this simple page-route style with frontend mock data unless backend work is explicitly requested.
+This project uses Laravel routes that render Inertia pages and a small set of form-style backend endpoints for local persistence. The app is still a local internal DSS prototype, but authentication, roles, bookings, package presets, and expenses now use the database.
 
 ## Current Implemented Page Routes
 
@@ -9,26 +9,45 @@ This project currently uses Laravel routes that render Inertia pages. Sprint 1 s
 Route: `GET /`
 
 Purpose:
-Render the frontend-only Login / Account Access page.
+Redirect guests to the login page.
 
 Response:
-`Inertia::render('Login')`
+Redirect to `/login`.
 
 Permissions:
-Public page route. Login processing is prototype-only and frontend-based.
+Public route.
 
 ### Login
 
 Route: `GET /login`
 
 Purpose:
-Render the frontend-only Login / Account Access page.
+Render the Login / Account Access page.
 
 Response:
 `Inertia::render('Login')`
 
 Permissions:
-Public page route. No backend authentication endpoint exists yet.
+Public page route. Authenticated users redirect to their role default page.
+
+Route: `POST /login`
+
+Purpose:
+Authenticate an active internal user with Laravel sessions.
+
+Response:
+Redirect to the intended page or the user's role default page.
+
+Security:
+Uses password hashing, session regeneration, active-user checks, and login throttling.
+
+Route: `POST /logout`
+
+Purpose:
+Log out the current user and invalidate the Laravel session.
+
+Permissions:
+Authenticated users only.
 
 ### Dashboard
 
@@ -41,84 +60,161 @@ Response:
 `Inertia::render('Welcome')`
 
 New Sprint 1 direction:
-Rework this page into Owner DSS Dashboard / Decision Support Overview.
+Implemented as Owner DSS Dashboard / Decision Support Overview using `Welcome.vue`.
 
 Permissions:
-Frontend-only mock auth and role checks for Sprint 1.
-
-### Legacy Operational Records
-
-Route: `GET /data/operational-records`
-
-Purpose:
-Render the current Operational Records frontend workspace.
-
-Response:
-`Inertia::render('OperationalRecords')`
-
-New Sprint 1 direction:
-Treat this as the predecessor to Bookings / Transactions. It should be reworked, renamed, or replaced when implementing the new required page list.
-
-### Legacy Data Validation
-
-Route: `GET /data/validation`
-
-Purpose:
-Render the current Data Validation frontend workspace.
-
-Response:
-`Inertia::render('DataValidation')`
-
-New Sprint 1 direction:
-Data quality should remain part of the app, but Data Validation is not a required standalone page in the new Sprint 1 plan.
+Requires Laravel auth and `role.access:Dashboard`.
 
 ### Inventory
 
-Route: `GET /operations/inventory`
+Route: `GET /inventory`
 
 Purpose:
-Render the current Inventory frontend workspace.
+Render the current Package Catalog page.
 
 Response:
 `Inertia::render('Inventory')`
 
-New Sprint 1 direction:
-Keep this page and align it to package availability, slots, reserved count, sold count, Low/Critical inventory status, and related bookings.
+Permissions:
+Requires Laravel auth and `role.access:Package Catalog`.
 
-## Target Sprint 1 Page Routes
+Write routes:
 
-These routes are planning targets. They may not exist yet.
+- `POST /inventory`
+- `PUT /inventory/{package:code}`
+- `PATCH /inventory/bulk`
+
+### Bookings / Transactions
+
+Route: `GET /bookings`
+
+Purpose:
+Render the required Sprint 1 Bookings / Transactions page.
+
+Response:
+`Inertia::render('Bookings')`
+
+Permissions:
+Requires Laravel auth and `role.access:Bookings`.
+
+Write routes:
+
+- `POST /bookings`
+- `PUT /bookings/{booking:code}`
+- `PATCH /bookings/bulk`
+
+### Expenses / Operational Costs
+
+Route: `GET /expenses`
+
+Purpose:
+Render the required Sprint 1 Expenses / Operational Costs page.
+
+Response:
+`Inertia::render('Expenses')`
+
+Permissions:
+Requires Laravel auth and `role.access:Expenses`.
+
+Write routes:
+
+- `POST /expenses`
+- `PUT /expenses/{expense:code}`
+- `PATCH /expenses/bulk`
+
+### Sales Analytics
+
+Route: `GET /analytics`
+
+Purpose:
+Render the required Sprint 1 Sales Analytics page.
+
+Response:
+`Inertia::render('SalesAnalytics')`
+
+Permissions:
+Requires Laravel auth and `role.access:Analytics`.
+
+### Package Decision Guide
+
+Route: `GET /decision-guide`
+
+Purpose:
+Render the owner-facing Package Decision Guide for package alternatives.
+
+Response:
+`Inertia::render('ForecastingPreview')`
+
+Permissions:
+Requires Laravel auth and `role.access:Package Decision Guide`.
+
+Important:
+This route uses saved package records and TOPSIS criteria to compare package alternatives. Meta Prophet is not integrated. Keep TOPSIS visible as the method, not as the main page label.
+
+Accepted query inputs:
+
+- `budget`
+- `destination`
+- `duration`
+- `travelType`
+
+### Reports
+
+Route: `GET /reports`
+
+Purpose:
+Render the current Reports page.
+
+Response:
+`Inertia::render('Reports')`
+
+Permissions:
+Requires Laravel auth and `role.access:Reports`.
+
+### Users / Access Management
+
+Route: `GET /users`
+
+Purpose:
+Render the current Users / Access Management page.
+
+Response:
+`Inertia::render('Users')`
+
+Permissions:
+Requires Laravel auth and `role.access:Users`.
+
+## Current Page Routes
+
+These routes are implemented as Inertia page routes.
 
 | Page | Suggested route | Page component |
 | --- | --- | --- |
 | Login | `/login` | `Login.vue` |
-| Owner DSS Dashboard | `/dashboard` | `Dashboard.vue` or reworked `Welcome.vue` |
+| Owner DSS Dashboard | `/dashboard` | `Welcome.vue` |
 | Bookings / Transactions | `/bookings` | `Bookings.vue` |
 | Inventory | `/inventory` | `Inventory.vue` |
 | Expenses / Operational Costs | `/expenses` | `Expenses.vue` |
 | Sales Analytics | `/analytics` | `SalesAnalytics.vue` |
-| Forecasting Preview | `/forecasting` | `ForecastingPreview.vue` |
-| Trajectory Insights | `/trajectory-insights` | `TrajectoryInsights.vue` |
+| Package Decision Guide | `/decision-guide` | `ForecastingPreview.vue` |
 | Reports | `/reports` | `Reports.vue` |
 | Users / Access Management | `/users` | `Users.vue` |
 
 Route naming guidance:
 
 - Prefer short business labels over technical labels.
-- Use `/bookings`, not `/data/operational-records`, for the new primary records page.
-- Use `/analytics`, not `/data/validation`, for business analysis.
-- Use `/trajectory-insights` for simulated AI/DSS interpretation.
+- Keep `/forecasting` only as a compatibility redirect to `/decision-guide`.
+- Put DSS interpretation inside Dashboard summaries, Reports, and the Package Decision Guide instead of a separate Trajectory Insights page.
 
-## Sprint 1 Authentication Routes
+## Current Authentication Routes
 
-Do not add backend authentication endpoints during Sprint 1 frontend work.
+Backend authentication is now implemented.
 
-Prototype behavior should happen in the frontend:
-
-- Validate against demo accounts.
-- Store mock session in localStorage or frontend state.
-- Clear mock session on logout.
-- Redirect unauthorized users to `/login`.
+- `GET /login`
+- `POST /login`
+- `POST /logout`
+- protected page routes use `auth`
+- protected modules use `role.access:<module label>`
 
 Demo accounts:
 
@@ -126,46 +222,48 @@ Demo accounts:
 - admin@prophetops.local / admin123
 - staff@prophetops.local / staff123
 
-## Future Backend Endpoints
-
-These are future integration ideas, not Sprint 1 requirements.
-
-Authentication:
-
-- `POST /login`
-- `POST /logout`
-- `GET /user`
+## Current Backend Write Endpoints
 
 Bookings:
 
-- `GET /bookings`
 - `POST /bookings`
-- `PUT /bookings/{booking}`
-- `GET /bookings/{booking}`
+- `PUT /bookings/{booking:code}`
+- `PATCH /bookings/bulk`
 
-Inventory:
+Package catalog:
 
-- `GET /inventory`
 - `POST /inventory`
-- `PUT /inventory/{item}`
-- `POST /inventory/{item}/adjust`
+- `PUT /inventory/{package:code}`
+- `PATCH /inventory/bulk`
 
 Expenses:
 
-- `GET /expenses`
 - `POST /expenses`
-- `PUT /expenses/{expense}`
+- `PUT /expenses/{expense:code}`
+- `PATCH /expenses/bulk`
+
+## Future Backend Endpoints
+
+These are future integration ideas, not current requirements.
 
 Reports:
 
 - `GET /reports/{type}`
 - `POST /reports/{type}/export`
 
-Forecasting:
+TOPSIS decision support:
 
-- Future backend work may add forecast generation endpoints when Meta Prophet integration is actually implemented.
+- Future backend work may add dedicated TOPSIS API endpoints when run history or external consumption is needed.
+- Possible future endpoints include `GET /topsis`, `POST /topsis/rank`, `GET /topsis/runs/{id}`, and `GET /topsis/runs/{id}/results`.
+- Do not add these unless persisted TOPSIS runs or a separate API surface become necessary.
+
+Prescriptive DSS:
+
+- Future backend work may add endpoints for stored recommendation cards after TOPSIS output exists.
+- Possible future endpoints include `GET /prescriptive-insights`, `PATCH /prescriptive-insights/{id}/status`, and `POST /prescriptive-insights/generate`.
+- Recommendations should come from TOPSIS criteria, inventory/capacity status, cost movement, and package/business value.
 
 Important:
 
 - Do not imply these future endpoints exist.
-- Do not build them during Sprint 1 frontend-only work unless the user explicitly changes scope.
+- Do not build them until TOPSIS or prescriptive DSS integration is explicitly in scope.

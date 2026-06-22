@@ -1,12 +1,19 @@
 # ProphetOps Sprint 1 Direction
 
-This is the current source of truth for Sprint 1 planning. Use it before changing code.
+This file is legacy Sprint 1 planning with current-state corrections. For the quickest current source of truth, read `information/README.md` first.
+
+Current active capstone direction:
+
+- Title: `ProphetOps: A Business Decision Support System Using TOPSIS for Travel Operations Management`
+- TOPSIS is the active algorithm direction.
+- Meta Prophet and AI forecasting plans are historical unless the team explicitly restores them.
+- The current app is backend-backed with Laravel sessions and SQLite local persistence.
 
 ## Product Identity
 
 ProphetOps is an internal Decision Support System for Renan-Tina Travels and Tours, a B2B travel agency.
 
-It is not a public booking website, customer portal, payment gateway, or marketing site. It exists to help owners, admins, and operations staff understand bookings, inventory, costs, sales, reports, and future forecast readiness.
+It is not a public booking website, customer portal, payment gateway, or marketing site. It exists to help owners, admins, and operations staff understand bookings, package availability, costs, sales, reports, and TOPSIS-supported operational choices.
 
 The app should answer three business questions quickly:
 
@@ -14,11 +21,11 @@ The app should answer three business questions quickly:
 - Why does it matter?
 - What should the owner or staff review next?
 
-## Sprint 1 Goal
+## Current Build Goal
 
-Build the front-end shell and main pages using mock/sample data. The system should already feel like a DSS even though forecasting and AI are placeholders.
+Maintain the working Laravel + Inertia + Vue system and add a defensible TOPSIS decision-support module.
 
-Use the existing Laravel + Inertia + Vue stack and current project conventions. Do not build backend persistence, real authentication, real forecasting, real AI generation, real exports, external integrations, or customer-facing pages during Sprint 1 unless explicitly requested later.
+Use the existing Laravel + Inertia + Vue stack and current project conventions. Backend persistence, session login, and role access are already implemented. Do not build external supplier APIs, customer-facing booking pages, payment flows, real AI generation, or Meta Prophet forecasting unless explicitly requested later.
 
 ## Design Direction
 
@@ -59,21 +66,21 @@ Visual standards:
 4. Inventory
 5. Expenses / Operational Costs
 6. Sales Analytics
-7. Forecasting Preview
-8. Trajectory Insights
-9. Reports
-10. Users / Access Management
+7. Package Decision Guide
+8. Reports
+9. Users / Access Management
 
 Current implementation note:
 
 - Existing `Welcome.vue` should be treated as the current dashboard shell to rework into Owner DSS Dashboard.
-- Existing `OperationalRecords.vue` should be treated as a legacy predecessor to Bookings / Transactions.
-- Existing `DataValidation.vue` is not a required standalone Sprint 1 page in the new plan. Keep data quality behavior inside the relevant data pages and future backend validation work.
+- Legacy `OperationalRecords.vue` has been removed. Bookings / Transactions is the active records page.
+- Legacy `DataValidation.vue` has been removed. Keep data quality behavior inside the relevant data pages and future backend validation work.
 - Existing `Inventory.vue` remains relevant, but it should align to package availability and operational stock language.
+- Legacy cleanup should follow `markdowns/legacy-removal-plan.md`.
 
-## Pseudo Login Scope
+## Authentication Scope
 
-Sprint 1 authentication is prototype-only.
+Authentication now uses Laravel sessions and seeded internal users.
 
 Demo accounts:
 
@@ -83,13 +90,15 @@ Demo accounts:
 
 Expected behavior:
 
-- Store a mock session in localStorage or frontend state.
-- Add frontend-only route guarding.
-- Logout clears the mock session.
+- Use Laravel sessions only.
+- Do not add remember-device behavior.
+- Authenticated users can redirect to their role default page.
+- Guard protected routes on the backend with `auth` and `role.access`.
+- Logout invalidates the backend session.
 - Navigation adapts by role.
 - Restricted pages should not break the UI.
 
-Do not build real password hashing, backend sessions, JWT, database-backed users, or production security in Sprint 1.
+Do not build JWT, public registration, self-service user creation, or enterprise production security unless explicitly requested later.
 
 ## Role Access
 
@@ -99,7 +108,7 @@ Owner / Management:
 
 Admin:
 
-- Can access Dashboard, Bookings, Inventory, Expenses, Analytics, and Reports.
+- Can access Dashboard, Bookings, Inventory, Expenses, Analytics, Package Decision Guide, and Reports.
 
 Staff:
 
@@ -114,8 +123,7 @@ Primary navigation labels:
 - Inventory
 - Expenses
 - Analytics
-- Forecasting
-- Trajectory Insights
+- Package Decision Guide
 - Reports
 - Users
 
@@ -142,23 +150,37 @@ Example:
 - Business meaning: Spending is rising faster than bookings.
 - Suggested action: Review campaign performance.
 
-Forecasting and AI labels must be explicit:
+Decision-support presentation wording:
 
-- Sample Forecast Preview
-- Forecast engine integration pending
-- Simulated DSS Insight
-- AI trajectory module placeholder
+- Do not show repeated visible labels such as "mockup", "mock", "preview", "sample only", "placeholder", or "forecast engine integration pending" inside the app UI.
+- Use polished product-facing labels such as "Decision Support", "Package Decision Guide", "Business Priority", and "Recommended Review".
+- Keep limitations in documentation, presenter script, paper limitations, and AI handoff notes.
 
-Do not imply that Meta Prophet or an AI module is already running.
+Do not imply that Meta Prophet or an AI module is running.
 
-## Mock Data Requirements
+## TOPSIS Decision Support Direction
 
-Mock data must feel realistic for a B2B travel and tours agency and support later forecasting.
+The active research feature is TOPSIS-based travel operations decision support.
+
+Use `information/topsis-decision-support-plan.md` before changing Dashboard, Package Decision Guide, Package Catalog, Reports, or decision-support behavior.
+
+Feature direction:
+
+- TOPSIS should rank package or operational alternatives from standardized internal data.
+- The DSS layer should convert criteria scores into explainable recommended actions.
+- Dashboard recommendations should be based on package fit, capacity status, supplier reliability, cost, and business value.
+- Every recommendation must show the criteria, business meaning, and suggested action.
+- Visible app UI should not look like a rough mockup during presentation.
+- Package Decision Guide, dashboard, analytics, and report graphs should follow `markdowns/modular-graph-system-plan.md` so charts stay contained and reusable.
+
+## Saved Data Requirements
+
+Saved data must feel realistic for a B2B travel and tours agency and support TOPSIS ranking.
 
 Include:
 
 - ds: booking date
-- y: passenger count or demand value
+- y: passenger count or demand value, where still used in analytics
 - gross revenue
 - operational cost
 - marketing cost
@@ -166,8 +188,12 @@ Include:
 - inventory level
 - booking status
 - payment status
+- supplier reliability
+- package duration
+- available slots
+- package price
 
-Centralize mock data so later backend integration can replace it cleanly.
+Use backend records and transforms through `app/Support/ProphetOpsData.php`.
 
 ## Page Structure Standard
 
@@ -212,7 +238,7 @@ Use a full page for:
 
 - Dashboard
 - Analytics
-- Forecasting
+- Package Decision Guide
 - Reports
 - Complex multi-section views
 - Pages with charts and large tables
@@ -275,7 +301,7 @@ Add reusable skeleton states for:
 - Insight cards
 - Charts
 - Tables
-- Forecast preview
+- Package Decision Guide charts
 
 Do not skeleton-load the app shell/sidebar every time. The navigation should stay stable.
 
@@ -287,7 +313,7 @@ Every data-heavy page needs a polished empty state with:
 
 Example:
 
-"No bookings recorded yet. Add your first booking to start building the forecasting dataset."
+"No bookings recorded yet. Add your first booking to start building the decision-support dataset."
 
 Action:
 
@@ -325,7 +351,7 @@ Reliability:
 - Navigation active states animate smoothly.
 - Skeleton states exist for data-heavy sections.
 - Empty states exist.
-- Forecasting and AI pages clearly indicate Sprint 1 preview status.
+- TOPSIS and DSS status is documented outside the visible app UI; app screens use polished product-facing labels.
 - Dashboard is glanceable within 5 seconds.
 - First screen shows only the most important DSS information.
 - Each page has one obvious primary action.

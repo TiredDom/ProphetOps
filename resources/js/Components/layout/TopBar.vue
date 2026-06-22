@@ -14,25 +14,32 @@
                 <span></span>
             </button>
             <div>
-                <p class="eyebrow">{{ eyebrow }}</p>
                 <h1>{{ title }}</h1>
-                <p class="topbar-description">{{ description }}</p>
+                <p v-if="description" class="topbar-description">{{ description }}</p>
+                <p class="topbar-context">{{ eyebrow }}</p>
             </div>
         </div>
 
         <div class="topbar-actions">
-            <button class="date-pill" type="button">
+            <button class="date-pill" type="button" @click="$emit('open-date')">
                 <span class="button-icon" aria-hidden="true">
                     <AppIcon name="calendar" />
                 </span>
                 {{ currentDate }}
             </button>
-            <button class="icon-button" type="button" aria-label="View alerts">
+            <button class="icon-button" type="button" aria-label="View alerts" @click="$emit('open-alerts')">
                 <AppIcon name="bell" />
             </button>
-            <button class="profile-button" type="button">
-                <span class="profile-avatar">A</span>
-                <span>Admin</span>
+            <button class="icon-button" type="button" aria-label="Open workspace guide" @click="$emit('open-help')">
+                <AppIcon name="message" />
+            </button>
+            <button class="profile-button" type="button" @click="$emit('open-profile')">
+                <span class="profile-avatar">{{ initials }}</span>
+                <span>{{ displayRole }}</span>
+            </button>
+            <button class="secondary-button compact-button" type="button" @click="$emit('request-logout')">
+                <AppIcon name="logOut" />
+                Log out
             </button>
         </div>
     </header>
@@ -57,7 +64,7 @@ export default {
         },
         description: {
             type: String,
-            required: true,
+            default: '',
         },
         currentDate: {
             type: String,
@@ -67,7 +74,33 @@ export default {
             type: Boolean,
             default: false,
         },
+        userName: {
+            type: String,
+            default: 'Admin User',
+        },
+        userRole: {
+            type: String,
+            default: 'Admin',
+        },
     },
-    emits: ['toggle-sidebar'],
+    emits: ['toggle-sidebar', 'open-alerts', 'open-help', 'open-profile', 'open-date', 'request-logout'],
+    computed: {
+        initials() {
+            return this.userName
+                .split(' ')
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((name) => name[0])
+                .join('')
+                .toUpperCase() || 'PO';
+        },
+        displayRole() {
+            if (this.userRole === 'Owner / Management') {
+                return 'Owner';
+            }
+
+            return this.userRole;
+        },
+    },
 };
 </script>
