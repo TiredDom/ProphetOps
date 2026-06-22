@@ -23,6 +23,11 @@ export default defineConfig({
         },
     },
     server: {
+        // Keep Laravel's dev asset URL on IPv4 loopback so browser CSP matches it reliably on Windows.
+        host: '127.0.0.1',
+        hmr: {
+            host: '127.0.0.1',
+        },
         watch: {
             ignored: ['**/storage/framework/views/**'],
         },

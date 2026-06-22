@@ -3,19 +3,19 @@
         active-label="Users"
         eyebrow="Access"
         title="Users & Access"
-        description="Prototype-only role visibility for Sprint 1 demo accounts."
+        description="Role visibility and access overview for internal users."
     >
         <section class="dss-page">
             <section class="business-gist">
                 <div>
-                    <span class="insight-label">Prototype access management</span>
-                    <h2>Demo users only. Real database-backed users are not implemented.</h2>
-                    <p>Role behavior controls frontend navigation during Sprint 1 and must be replaced by real Laravel authorization later.</p>
+                    <span class="insight-label">Access management</span>
+                    <h2>Role behavior controls navigation across the workspace.</h2>
+                    <p>Use this page to review which work areas are visible for each internal role.</p>
                 </div>
             </section>
 
-            <ContentPanel icon="users" eyebrow="User Table" title="Access Roles" badge="Mock users">
-                <div class="table-scroll">
+            <ContentPanel icon="users" eyebrow="User Table" title="Access Roles" badge="Access list">
+                <DataTableFrame label="User access table">
                     <table class="dss-table">
                         <thead>
                             <tr>
@@ -23,8 +23,8 @@
                                 <th>Role</th>
                                 <th>Email / username</th>
                                 <th>Status</th>
-                                <th>Last login</th>
                                 <th>Access</th>
+                                <th>Action</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -33,13 +33,49 @@
                                 <td>{{ user.role }}</td>
                                 <td>{{ user.email }}</td>
                                 <td><span class="record-badge status-active">{{ user.status }}</span></td>
-                                <td>{{ user.lastLogin }}</td>
                                 <td>{{ accessSummary(user.role) }}</td>
+                                <td>
+                                    <button class="secondary-button compact-button" type="button" @click="selectedUser = user">
+                                        <AppIcon name="search" />
+                                        View
+                                    </button>
+                                </td>
                             </tr>
                         </tbody>
                     </table>
-                </div>
+                </DataTableFrame>
             </ContentPanel>
+
+            <AppModal
+                v-if="selectedUser"
+                eyebrow="User Access"
+                :title="selectedUser.name"
+                @close="selectedUser = null"
+            >
+                <div class="profile-modal-summary">
+                    <span class="profile-avatar large">{{ userInitials(selectedUser.name) }}</span>
+                    <div>
+                        <strong>{{ selectedUser.email }}</strong>
+                        <p>{{ selectedUser.role }} · {{ selectedUser.status }} · Last login {{ selectedUser.lastLogin }}</p>
+                    </div>
+                </div>
+
+                <div class="modal-section">
+                    <p class="modal-section-title">Visible pages</p>
+                    <div class="modal-chip-list">
+                        <span v-for="page in pagesForRole(selectedUser.role)" :key="page">{{ page }}</span>
+                    </div>
+                </div>
+
+                <div class="modal-section">
+                    <p class="modal-section-title">Access summary</p>
+                    <p class="modal-copy">{{ selectedUser.role }} can access {{ accessSummary(selectedUser.role) }}.</p>
+                </div>
+
+                <template #footer>
+                    <button class="primary-button" type="button" @click="selectedUser = null">Close</button>
+                </template>
+            </AppModal>
         </section>
     </AppShell>
 </template>
@@ -47,19 +83,46 @@
 <script>
 import AppShell from '../Components/layout/AppShell.vue';
 import ContentPanel from '../Components/dashboard/ContentPanel.vue';
-import { demoUsers, rolePermissions } from '../services/mockAuth';
+import DataTableFrame from '../Components/records/DataTableFrame.vue';
+import AppModal from '../Components/feedback/AppModal.vue';
+import AppIcon from '../Components/icons/AppIcon.vue';
 
 export default {
     name: 'Users',
-    components: { AppShell, ContentPanel },
+    components: { AppIcon, AppModal, AppShell, ContentPanel, DataTableFrame },
+    props: {
+        users: {
+            type: Array,
+            default: () => [],
+        },
+        rolePermissions: {
+            type: Object,
+            default: () => ({}),
+        },
+    },
+    data() {
+        return { selectedUser: null };
+    },
     computed: {
         safeUsers() {
-            return demoUsers.map(({ password: _password, ...user }) => user);
+            return this.users;
         },
     },
     methods: {
         accessSummary(role) {
-            return rolePermissions[role]?.join(', ') || 'No access';
+            return this.rolePermissions[role]?.join(', ') || 'No access';
+        },
+        pagesForRole(role) {
+            return this.rolePermissions[role] || [];
+        },
+        userInitials(name) {
+            return name
+                .split(' ')
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((part) => part[0])
+                .join('')
+                .toUpperCase();
         },
     },
 };

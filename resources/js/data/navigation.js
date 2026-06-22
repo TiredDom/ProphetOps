@@ -1,6 +1,6 @@
-import { canAccessNavigationLabel, getMockUser } from '../services/mockAuth';
+import { canAccessNavigationLabel } from '../services/authAccess';
 
-export function createNavigationGroups(activeLabel = 'Dashboard', role = getMockUser()?.role) {
+export function createNavigationGroups(activeLabel = 'Dashboard', role = null) {
     const makeItem = (item) => ({
         ...item,
         active: item.label === activeLabel,
@@ -11,16 +11,15 @@ export function createNavigationGroups(activeLabel = 'Dashboard', role = getMock
             label: 'Decision Support',
             items: [
                 makeItem({ label: 'Dashboard', icon: 'dashboard', href: '/dashboard' }),
+                makeItem({ label: 'Package Decision Guide', icon: 'shieldCheck', href: '/decision-guide' }),
                 makeItem({ label: 'Analytics', icon: 'fileBarChart', href: '/analytics' }),
-                makeItem({ label: 'Forecasting', icon: 'sparkles', href: '/forecasting' }),
-                makeItem({ label: 'Trajectory Insights', icon: 'sparkles', href: '/trajectory-insights' }),
             ],
         },
         {
             label: 'Business Records',
             items: [
                 makeItem({ label: 'Bookings', icon: 'database', href: '/bookings' }),
-                makeItem({ label: 'Inventory', icon: 'boxes', href: '/inventory' }),
+                makeItem({ label: 'Package Catalog', icon: 'boxes', href: '/inventory' }),
                 makeItem({ label: 'Expenses', icon: 'wallet', href: '/expenses' }),
             ],
         },

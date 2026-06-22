@@ -3,7 +3,7 @@
         active-label="Analytics"
         eyebrow="Analysis"
         title="Sales Analytics"
-        description="Basic business analysis before full forecasting or AI interpretation."
+        description="Business analysis for travel demand, revenue movement, and cost pressure."
     >
         <section class="dss-page">
             <section class="stat-grid dss-kpi-grid">
@@ -20,28 +20,13 @@
             </section>
 
             <section class="dss-grid two-column">
-                <ContentPanel icon="fileBarChart" eyebrow="Monthly Sales" title="Revenue By Booking Date" badge="Mock data">
-                    <div class="mini-chart">
-                        <div v-for="booking in bookings" :key="booking.id" class="chart-row">
-                            <span>{{ booking.ds.slice(5) }}</span>
-                            <div><i :style="{ width: chartWidth(booking.grossRevenue, maxRevenue) }"></i></div>
-                            <strong>{{ formatCurrency(booking.grossRevenue) }}</strong>
-                        </div>
-                    </div>
-                </ContentPanel>
+                <ChartPanel icon="fileBarChart" eyebrow="Monthly Sales" title="Revenue By Booking Date" :height="230">
+                    <MiniBarChart
+                        :items="revenueChartItems"
+                        :value-formatter="formatCurrency"
+                    />
+                </ChartPanel>
 
-                <ContentPanel icon="users" eyebrow="Volume" title="Booking Volume">
-                    <div class="mini-chart">
-                        <div v-for="booking in bookings" :key="`${booking.id}-volume`" class="chart-row">
-                            <span>{{ booking.destination }}</span>
-                            <div><i :style="{ width: chartWidth(booking.y, maxPassengers) }"></i></div>
-                            <strong>{{ booking.y }}</strong>
-                        </div>
-                    </div>
-                </ContentPanel>
-            </section>
-
-            <section class="dss-grid two-column">
                 <ContentPanel icon="mapPinned" eyebrow="Destination Revenue" title="Revenue By Destination">
                     <div class="ranking-list">
                         <div v-for="item in destinationRevenue" :key="item.destination">
@@ -51,62 +36,85 @@
                         </div>
                     </div>
                 </ContentPanel>
+            </section>
 
-                <ContentPanel icon="wallet" eyebrow="Cost Comparison" title="Revenue Vs Expenses">
-                    <div class="comparison-stack">
-                        <div>
-                            <span>Total revenue</span>
-                            <strong>{{ formatCurrency(totalRevenue) }}</strong>
-                            <div class="progress-track"><i style="width: 100%"></i></div>
+            <section>
+                <ContentPanel
+                    icon="wallet"
+                    eyebrow="Profitability"
+                    title="Revenue, Cost, and Margin"
+                    panel-class="analytics-cost-panel"
+                >
+                    <div class="analytics-cost-summary">
+                        <div v-for="metric in costSummaryMetrics" :key="metric.label">
+                            <span>{{ metric.label }}</span>
+                            <strong>{{ metric.value }}</strong>
+                            <small>{{ metric.note }}</small>
                         </div>
-                        <div>
-                            <span>Total expenses</span>
-                            <strong>{{ formatCurrency(totalExpenses) }}</strong>
-                            <div class="progress-track warning"><i :style="{ width: chartWidth(totalExpenses, totalRevenue) }"></i></div>
+                    </div>
+
+                    <div class="analytics-donut-grid">
+                        <div class="analytics-donut-section">
+                            <div>
+                                <p class="section-label">Revenue allocation</p>
+                                <strong>Profit vs operating costs</strong>
+                            </div>
+                            <DonutChart
+                                :items="revenueAllocationItems"
+                                center-label="Margin"
+                                :center-value="formatPercent(profitMargin)"
+                                aria-label="Revenue allocation by estimated profit and expenses"
+                            />
+                        </div>
+
+                        <div class="analytics-donut-section">
+                            <div>
+                                <p class="section-label">Cost drivers</p>
+                                <strong>Expense share by category</strong>
+                            </div>
+                            <DonutChart
+                                :items="expenseCategoryItems"
+                                center-label="Largest"
+                                :center-value="formatPercent(costDriverShare)"
+                                aria-label="Expense category share"
+                            />
+                        </div>
+                    </div>
+
+                    <div class="analytics-cost-breakdown">
+                        <div class="analytics-cost-note">
+                            <span>Decision cue</span>
+                            <strong>Profit is healthy, but cost growth should be checked before promo expansion.</strong>
+                            <p>{{ costliestCategory.category }} is the largest recorded cost driver this period.</p>
                         </div>
                     </div>
                 </ContentPanel>
             </section>
-
-            <ContentPanel icon="database" eyebrow="Top Packages" title="Package Performance Table">
-                <div class="table-scroll">
-                    <table class="dss-table">
-                        <thead>
-                            <tr>
-                                <th>Destination</th>
-                                <th>Bookings</th>
-                                <th>Passengers</th>
-                                <th>Revenue</th>
-                                <th>DSS Meaning</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="item in destinationRevenue" :key="`${item.destination}-row`">
-                                <td><strong>{{ item.destination }}</strong></td>
-                                <td>{{ item.bookings }}</td>
-                                <td>{{ item.passengers }}</td>
-                                <td>{{ formatCurrency(item.revenue) }}</td>
-                                <td>{{ item.revenue === destinationRevenue[0].revenue ? 'Top route to review for controlled growth.' : 'Monitor as supporting demand.' }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </ContentPanel>
         </section>
     </AppShell>
 </template>
 
 <script>
 import AppShell from '../Components/layout/AppShell.vue';
+import ChartPanel from '../Components/charts/ChartPanel.vue';
 import ContentPanel from '../Components/dashboard/ContentPanel.vue';
+import DonutChart from '../Components/charts/DonutChart.vue';
+import MiniBarChart from '../Components/charts/MiniBarChart.vue';
 import StatCard from '../Components/dashboard/StatCard.vue';
-import { bookings, expenses, expensesByCategory, formatCurrency, groupBookingsByDestination, totalBy } from '../data/mockData';
+import { expensesByCategory, formatCurrency, groupBookingsByDestination, totalBy } from '../utils/formatters';
 
 export default {
     name: 'SalesAnalytics',
-    components: { AppShell, ContentPanel, StatCard },
-    data() {
-        return { bookings, expenses };
+    components: { AppShell, ChartPanel, ContentPanel, DonutChart, MiniBarChart, StatCard },
+    props: {
+        bookings: {
+            type: Array,
+            default: () => [],
+        },
+        expenses: {
+            type: Array,
+            default: () => [],
+        },
     },
     computed: {
         totalRevenue() {
@@ -115,34 +123,109 @@ export default {
         totalExpenses() {
             return totalBy(this.expenses, 'amount');
         },
+        estimatedProfit() {
+            return this.totalRevenue - this.totalExpenses;
+        },
+        expenseRatio() {
+            return this.totalRevenue ? this.totalExpenses / this.totalRevenue : 0;
+        },
+        profitMargin() {
+            return this.totalRevenue ? this.estimatedProfit / this.totalRevenue : 0;
+        },
         destinationRevenue() {
             return groupBookingsByDestination(this.bookings);
         },
         topDestination() {
-            return this.destinationRevenue[0];
+            return this.destinationRevenue[0] || {
+                destination: 'No bookings',
+                revenue: 0,
+                passengers: 0,
+                bookings: 0,
+            };
         },
         costliestCategory() {
-            return expensesByCategory(this.expenses)[0];
+            return expensesByCategory(this.expenses)[0] || {
+                category: 'No expenses',
+                amount: 0,
+            };
         },
-        maxRevenue() {
-            return Math.max(...this.bookings.map((booking) => booking.grossRevenue));
+        costDriverShare() {
+            return this.totalExpenses ? (this.costliestCategory?.amount || 0) / this.totalExpenses : 0;
         },
-        maxPassengers() {
-            return Math.max(...this.bookings.map((booking) => booking.y));
+        expenseCategoryItems() {
+            const colors = ['#4F46E5', '#0F766E', '#B45309', '#15803D'];
+
+            return expensesByCategory(this.expenses).map((item, index) => ({
+                id: item.category,
+                label: this.shortExpenseLabel(item.category),
+                value: item.amount,
+                valueLabel: formatCurrency(item.amount),
+                color: colors[index % colors.length],
+            }));
+        },
+        revenueChartItems() {
+            return this.bookings.map((booking) => ({
+                id: booking.id,
+                label: booking.ds.slice(5),
+                value: booking.grossRevenue,
+            }));
+        },
+        revenueAllocationItems() {
+            return [
+                {
+                    label: 'Estimated profit',
+                    value: this.estimatedProfit,
+                    valueLabel: formatCurrency(this.estimatedProfit),
+                    tone: 'success',
+                },
+                {
+                    label: 'Expenses',
+                    value: this.totalExpenses,
+                    valueLabel: formatCurrency(this.totalExpenses),
+                    tone: 'warning',
+                },
+            ];
+        },
+        costSummaryMetrics() {
+            return [
+                {
+                    label: 'Estimated profit',
+                    value: formatCurrency(this.estimatedProfit),
+                    note: `${this.formatPercent(this.profitMargin)} margin`,
+                },
+                {
+                    label: 'Expense ratio',
+                    value: this.formatPercent(this.expenseRatio),
+                    note: 'Cost share of revenue',
+                },
+                {
+                    label: 'Top cost driver',
+                    value: this.costliestCategory.category,
+                    note: formatCurrency(this.costliestCategory.amount),
+                },
+            ];
         },
         stats() {
             return [
                 { icon: 'mapPinned', label: 'Top Revenue Route', value: this.topDestination.destination, note: formatCurrency(this.topDestination.revenue), status: 'Top route', tone: 'primary' },
                 { icon: 'users', label: 'Highest Passenger Volume', value: this.topDestination.destination, note: `${this.topDestination.passengers} passengers`, status: 'Demand', tone: 'success' },
-                { icon: 'calendar', label: 'Most Active Month', value: 'June', note: 'Mock data period', status: 'Current', tone: 'data' },
+                { icon: 'calendar', label: 'Most Active Month', value: 'June', note: 'Current data period', status: 'Current', tone: 'data' },
                 { icon: 'wallet', label: 'Costliest Category', value: this.costliestCategory.category, note: formatCurrency(this.costliestCategory.amount), status: 'Review', tone: 'warning' },
             ];
         },
     },
     methods: {
         formatCurrency,
-        chartWidth(value, max) {
-            return `${Math.max(8, Math.round((value / max) * 100))}%`;
+        formatPercent(value) {
+            return `${Math.round(value * 100)}%`;
+        },
+        shortExpenseLabel(value) {
+            const labels = {
+                'Tour operations': 'Tour ops',
+                'Seasonal cost': 'Seasonal',
+            };
+
+            return labels[value] || value;
         },
     },
 };
