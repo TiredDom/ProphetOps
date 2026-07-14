@@ -1,0 +1,317 @@
+{
+    "seasonal": {
+        "input": [
+            1000,
+            1048,
+            1106,
+            1164,
+            1202,
+            1160,
+            1018,
+            996,
+            974,
+            1032,
+            1110,
+            1158,
+            1096,
+            1144,
+            1202,
+            1260,
+            1298,
+            1256,
+            1114,
+            1092,
+            1070,
+            1128,
+            1206,
+            1254,
+            1192,
+            1240,
+            1298,
+            1356,
+            1394,
+            1352,
+            1210,
+            1188,
+            1166,
+            1224,
+            1302,
+            1350
+        ],
+        "result": {
+            "ok": true,
+            "method": "Holt-Winters (additive triple exponential smoothing)",
+            "seasonLength": 12,
+            "horizon": 6,
+            "params": {
+                "alpha": 0.1,
+                "beta": 0.3,
+                "gamma": 0.5
+            },
+            "tuning": {
+                "strategy": "holdout",
+                "validationSize": 6,
+                "validationMae": 6.57
+            },
+            "fitted": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1008,
+                1075.44,
+                1152.99,
+                1230.06,
+                1286.12,
+                1260.73,
+                1133.54,
+                1124.28,
+                1112.77,
+                1178.94,
+                1262.76,
+                1314.29,
+                1197.27,
+                1243.24,
+                1299.26,
+                1355.66,
+                1392.69,
+                1350.51,
+                1209.2,
+                1188.77,
+                1169.17,
+                1230.29,
+                1311.96,
+                1364
+            ],
+            "forecast": [
+                {
+                    "step": 1,
+                    "value": 1275.16,
+                    "lower": 1230.67,
+                    "upper": 1319.66
+                },
+                {
+                    "step": 2,
+                    "value": 1321.53,
+                    "lower": 1258.6,
+                    "upper": 1384.46
+                },
+                {
+                    "step": 3,
+                    "value": 1377.82,
+                    "lower": 1300.75,
+                    "upper": 1454.89
+                },
+                {
+                    "step": 4,
+                    "value": 1434.16,
+                    "lower": 1345.17,
+                    "upper": 1523.15
+                },
+                {
+                    "step": 5,
+                    "value": 1470.67,
+                    "lower": 1371.18,
+                    "upper": 1570.17
+                },
+                {
+                    "step": 6,
+                    "value": 1427.49,
+                    "lower": 1318.5,
+                    "upper": 1536.47
+                }
+            ],
+            "metrics": {
+                "mae": 23.44,
+                "rmse": 34.76,
+                "mape": 2.01,
+                "sampleSize": 24
+            },
+            "baselines": {
+                "seasonalNaiveMae": 96,
+                "naiveMae": 56.33
+            },
+            "final": {
+                "level": 1312.4,
+                "trend": 6.2
+            }
+        }
+    },
+    "declining": {
+        "input": [
+            5000,
+            4910,
+            4830,
+            4750,
+            4650,
+            4470,
+            4190,
+            4030,
+            3870,
+            3790,
+            3730,
+            3640,
+            3440,
+            3350,
+            3270,
+            3190,
+            3090,
+            2910,
+            2630,
+            2470,
+            2310,
+            2230,
+            2170,
+            2080,
+            1880,
+            1790,
+            1710,
+            1630,
+            1530,
+            1350,
+            1070,
+            910,
+            750,
+            670,
+            610,
+            520
+        ],
+        "result": {
+            "ok": true,
+            "method": "Holt-Winters (additive triple exponential smoothing)",
+            "seasonLength": 12,
+            "horizon": 6,
+            "params": {
+                "alpha": 0.1,
+                "beta": 0.3,
+                "gamma": 0.5
+            },
+            "tuning": {
+                "strategy": "holdout",
+                "validationSize": 6,
+                "validationMae": 106.78
+            },
+            "fitted": [
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                4870,
+                4464.1,
+                4066.37,
+                3676.52,
+                3283.06,
+                2833.15,
+                2312.54,
+                1945.51,
+                1614.92,
+                1402.25,
+                1247.67,
+                1100.22,
+                1794.41,
+                1737.4,
+                1689.5,
+                1635.45,
+                1551.27,
+                1374.27,
+                1083.06,
+                897.47,
+                698.41,
+                567.75,
+                448.07,
+                292.52
+            ],
+            "forecast": [
+                {
+                    "step": 1,
+                    "value": 528.6,
+                    "lower": 0,
+                    "upper": 1251.64
+                },
+                {
+                    "step": 2,
+                    "value": 465.14,
+                    "lower": 0,
+                    "upper": 1487.67
+                },
+                {
+                    "step": 3,
+                    "value": 412.9,
+                    "lower": 0,
+                    "upper": 1665.24
+                },
+                {
+                    "step": 4,
+                    "value": 359.87,
+                    "lower": 0,
+                    "upper": 1805.95
+                },
+                {
+                    "step": 5,
+                    "value": 284.03,
+                    "lower": 0,
+                    "upper": 1900.8
+                },
+                {
+                    "step": 6,
+                    "value": 123.36,
+                    "lower": 0,
+                    "upper": 1894.44
+                }
+            ],
+            "metrics": {
+                "mae": 380.93,
+                "rmse": 564.88,
+                "mape": 17.53,
+                "sampleSize": 24
+            },
+            "baselines": {
+                "seasonalNaiveMae": 1560,
+                "naiveMae": 130
+            },
+            "final": {
+                "level": 556.03,
+                "trend": -100.78
+            }
+        }
+    },
+    "tooShort": {
+        "input": [
+            1000,
+            1048,
+            1106,
+            1164,
+            1202,
+            1160,
+            1018,
+            996,
+            974,
+            1032,
+            1110,
+            1158
+        ],
+        "result": {
+            "ok": false,
+            "reason": "Holt-Winters needs at least two full seasonal cycles of history.",
+            "monthsAvailable": 12,
+            "monthsRequired": 24,
+            "seasonLength": 12
+        }
+    }
+}
