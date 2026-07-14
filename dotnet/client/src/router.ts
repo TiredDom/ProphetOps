@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import LoginView from './views/LoginView.vue';
 import DashboardView from './views/DashboardView.vue';
+import BookingsView from './views/BookingsView.vue';
 import { useAuth } from './stores/auth';
 
 const router = createRouter({
@@ -8,6 +9,7 @@ const router = createRouter({
   routes: [
     { path: '/login', component: LoginView, meta: { public: true } },
     { path: '/dashboard', component: DashboardView },
+    { path: '/bookings', component: BookingsView },
     { path: '/:pathMatch(.*)*', redirect: '/dashboard' },
   ],
 });
