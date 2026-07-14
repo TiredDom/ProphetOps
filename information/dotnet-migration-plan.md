@@ -182,11 +182,12 @@ ProphetOps.sln
 
 | Phase | Status |
 | --- | --- |
-| 0 — Solution scaffold | ▶ next |
+| 0 — Solution scaffold | ✅ done |
 | 1 — Forecasting parity | ✅ done |
-| 2 — Domain + Data (EF Core) | ☐ |
-| 3 — API + Login→Dashboard slice | ☐ |
-| 4 — Remaining endpoints/pages | ☐ |
+| 2 — Domain + Data (EF Core) | ✅ done |
+| 3a — API (auth, 3-role policies, security) | ✅ done |
+| 3b — Vue/TypeScript Login→Dashboard wiring | ✅ done |
+| 4 — Remaining endpoints/pages | ▶ next |
 | 5 — Front-end TypeScript | ☐ |
 | 6 — Security + test-suite port | ☐ |
 | 7 — Deployment packaging | ☐ |
