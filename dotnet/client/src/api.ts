@@ -58,6 +58,142 @@ export interface BookingsPayload {
 
 export type BookingInput = Omit<Booking, 'backendId'>;
 
+export interface PackageRow {
+  id: string;
+  backendId: number;
+  packageName: string;
+  destination: string;
+  duration: string | null;
+  basePrice: number;
+  inclusions: string | null;
+  availableSlots: number;
+  soldCount: number;
+  reservedCount: number;
+  status: string;
+}
+
+export interface PackageInput {
+  id: string;
+  packageName: string;
+  destination: string;
+  duration: string | null;
+  basePrice: number;
+  inclusions: string | null;
+  availableSlots: number;
+  soldCount: number;
+  reservedCount: number;
+  status: string;
+}
+
+export interface ExpenseRow {
+  id: string;
+  backendId: number;
+  date: string;
+  category: string;
+  amount: number;
+  relatedPackage: string;
+  paymentStatus: string;
+  notes: string | null;
+}
+
+export interface ExpenseInput {
+  id: string;
+  date: string;
+  category: string;
+  amount: number;
+  relatedPackage: string;
+  paymentStatus: string;
+  notes: string | null;
+}
+
+export interface AnalyticsPoint {
+  label: string;
+  value: number;
+}
+
+export interface AnalyticsData {
+  salesHistory: AnalyticsPoint[];
+  packageMix: AnalyticsPoint[];
+  paymentBreakdown: AnalyticsPoint[];
+  revenueByDestination: AnalyticsPoint[];
+  totalRevenue: number;
+  totalBookings: number;
+  averageBooking: number;
+}
+
+export interface ForecastParams {
+  alpha: number;
+  beta: number;
+  gamma: number;
+}
+
+export interface ForecastMetricsView {
+  mae: number;
+  rmse: number;
+  mape: number;
+  sampleSize: number;
+}
+
+export interface ForecastBaselines {
+  seasonalNaiveMae: number;
+  naiveMae: number;
+}
+
+export interface ForecastPoint {
+  label: string;
+  value: number;
+}
+
+export interface ForecastStepView {
+  step: number;
+  value: number;
+  lower: number;
+  upper: number;
+}
+
+export interface ForecastData {
+  method: string;
+  seasonLength: number;
+  horizon: number;
+  ok: boolean;
+  accuracy: number;
+  params: ForecastParams;
+  metrics: ForecastMetricsView;
+  baselines: ForecastBaselines;
+  history: ForecastPoint[];
+  steps: ForecastStepView[];
+}
+
+export interface ReportBreakdown {
+  label: string;
+  value: number;
+}
+
+export interface ReportCounts {
+  bookings: number;
+  packages: number;
+  expenses: number;
+  users: number;
+}
+
+export interface ReportsData {
+  revenue: number;
+  costs: number;
+  profit: number;
+  counts: ReportCounts;
+  bookingsByStatus: ReportBreakdown[];
+  expensesByCategory: ReportBreakdown[];
+  revenueByPackage: ReportBreakdown[];
+  generatedAt: string;
+}
+
+export interface UserRow {
+  name: string;
+  email: string;
+  role: string;
+  status: string;
+}
+
 export class ApiError extends Error {
   status: number;
   fields: Record<string, string>;
@@ -103,4 +239,16 @@ export const api = {
   createBooking: (input: BookingInput) => request<Booking>('POST', '/api/bookings', input),
   bulkBookings: (ids: string[], action: 'confirm' | 'paid') =>
     request<{ updated: number }>('POST', '/api/bookings/bulk', { ids, action }),
+  packages: () => request<PackageRow[]>('GET', '/api/inventory'),
+  createPackage: (input: PackageInput) => request<PackageRow>('POST', '/api/inventory', input),
+  updatePackage: (code: string, input: PackageInput) =>
+    request<PackageRow>('PUT', `/api/inventory/${code}`, input),
+  expenses: () => request<ExpenseRow[]>('GET', '/api/expenses'),
+  createExpense: (input: ExpenseInput) => request<ExpenseRow>('POST', '/api/expenses', input),
+  updateExpense: (code: string, input: ExpenseInput) =>
+    request<ExpenseRow>('PUT', `/api/expenses/${code}`, input),
+  analytics: () => request<AnalyticsData>('GET', '/api/analytics'),
+  forecast: () => request<ForecastData>('GET', '/api/forecast'),
+  reports: () => request<ReportsData>('GET', '/api/reports'),
+  users: () => request<UserRow[]>('GET', '/api/users'),
 };
