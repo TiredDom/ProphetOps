@@ -187,8 +187,8 @@ ProphetOps.sln
 | 2 — Domain + Data (EF Core) | ✅ done |
 | 3a — API (auth, 3-role policies, security) | ✅ done |
 | 3b — Vue/TypeScript Login→Dashboard wiring | ✅ done |
-| 4 — Remaining endpoints/pages | ▶ next |
-| 5 — Front-end TypeScript | ☐ |
+| 4 — Remaining endpoints/pages (all 8 pages full-stack) | ✅ done |
+| 5 — Front-end TypeScript | ▶ next |
 | 6 — Security + test-suite port | ☐ |
 | 7 — Deployment packaging | ☐ |
 | 8 — Cutover & cleanup | ☐ |
