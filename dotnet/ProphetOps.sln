@@ -1,0 +1,46 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProphetOps.Forecasting", "ProphetOps.Forecasting\ProphetOps.Forecasting.csproj", "{97863250-64B3-4C86-AC6E-678B79B8C7B0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProphetOps.Forecasting.Tests", "ProphetOps.Forecasting.Tests\ProphetOps.Forecasting.Tests.csproj", "{965C055F-88FA-4437-8C8A-698236431FAC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProphetOps.Domain", "ProphetOps.Domain\ProphetOps.Domain.csproj", "{60137E01-B62F-4476-9B2C-CA2AFC1E452B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProphetOps.Data", "ProphetOps.Data\ProphetOps.Data.csproj", "{C694E4EC-8177-4001-B1EF-57D02987A914}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProphetOps.Data.Tests", "ProphetOps.Data.Tests\ProphetOps.Data.Tests.csproj", "{232899E4-BF56-4E12-B0BE-A3074B4FF704}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{97863250-64B3-4C86-AC6E-678B79B8C7B0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{97863250-64B3-4C86-AC6E-678B79B8C7B0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{97863250-64B3-4C86-AC6E-678B79B8C7B0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{97863250-64B3-4C86-AC6E-678B79B8C7B0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{965C055F-88FA-4437-8C8A-698236431FAC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{965C055F-88FA-4437-8C8A-698236431FAC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{965C055F-88FA-4437-8C8A-698236431FAC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{965C055F-88FA-4437-8C8A-698236431FAC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{60137E01-B62F-4476-9B2C-CA2AFC1E452B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{60137E01-B62F-4476-9B2C-CA2AFC1E452B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{60137E01-B62F-4476-9B2C-CA2AFC1E452B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{60137E01-B62F-4476-9B2C-CA2AFC1E452B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C694E4EC-8177-4001-B1EF-57D02987A914}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C694E4EC-8177-4001-B1EF-57D02987A914}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C694E4EC-8177-4001-B1EF-57D02987A914}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C694E4EC-8177-4001-B1EF-57D02987A914}.Release|Any CPU.Build.0 = Release|Any CPU
+		{232899E4-BF56-4E12-B0BE-A3074B4FF704}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{232899E4-BF56-4E12-B0BE-A3074B4FF704}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{232899E4-BF56-4E12-B0BE-A3074B4FF704}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{232899E4-BF56-4E12-B0BE-A3074B4FF704}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
