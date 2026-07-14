@@ -24,18 +24,19 @@ matches what Chapters 1–3 describe (Holt-Winters forecasting, three roles, the
 - **Paper consistency:** by cutover, the forecast headline number, the three roles, and the stack
   must all be literally true of the shipped .NET system.
 
-## Current persistence reality (important — the migration fixes this)
+## Current persistence reality
 
-The Laravel app is **split-brain** on data. A real SQLite database exists and is seeded (3 users,
-6 packages, 9 bookings, 5 expenses), and controller **writes do persist** (`Booking::create`,
-`update`, bulk). But every screen **reads from the static `ProphetOpsData` arrays**, not the
-database — so a created record is saved yet never appears in the list, and analytics and the
-forecast input are computed from the static sample rather than stored data.
+The Laravel app's operational data is **fully database-backed**. A seeded SQLite database (3 users,
+6 packages, 9 bookings, 5 expenses) holds the records; `ProphetOpsData` reads through the Eloquent
+models (`Booking::query()->get()`, etc.) and controllers write through them, so a created record
+persists and appears in its list, and analytics/reports compute from stored rows. The one synthetic
+piece is `salesHistory()` — the forecast's 36-month input series — which is generated (not derived
+from the bookings table) and is disclosed in the paper as a representative sample pending the
+agency's real records.
 
-The .NET rebuild makes the **database the single source of truth**: reads and writes both go
-through EF Core, and lists, analytics, and the Holt-Winters input all come from stored rows. This
-is genuine end-to-end persistence (SQLite file survives restarts and reboots; never EF in-memory)
-and it makes the manuscript's CRUD/forecasting claims literally true.
+The .NET rebuild preserves this database-as-source-of-truth (reads and writes through EF Core) and
+ports the sample sales history as the same disclosed sample. The SQLite file survives restarts and
+reboots; never EF in-memory.
 
 ## Toolchain status
 
@@ -109,12 +110,12 @@ Bookings → Inventory (packages) → Expenses → Sales Analytics → Forecast 
 Include the business logic: decrement available slots and update sold/reserved on a new booking;
 aggregate revenue and cost; feed the forecaster from the analytics data; produce reports.
 
-Every list, analytics figure, and forecast input must read from the database through EF Core — not
-from a static sample set — so a created or edited record immediately appears everywhere (fixing the
-current split-brain). The forecaster is fed from the stored booking/revenue rows.
+Every list and analytics figure reads and writes through EF Core, matching current Laravel
+behaviour, so a created or edited record appears in its list and flows into analytics. The
+forecaster is fed from the ported sample sales history (as the paper discloses).
 
 Done when: each page reads and writes through the database with parity to Laravel, a newly created
-record shows up in its list and flows into analytics/forecasts, and each page has an integration test.
+record shows up in its list, and each page has an integration test.
 
 ## Phase 5 — Front-end TypeScript completion
 
