@@ -13,6 +13,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProphetOps.Data", "ProphetO
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProphetOps.Data.Tests", "ProphetOps.Data.Tests\ProphetOps.Data.Tests.csproj", "{232899E4-BF56-4E12-B0BE-A3074B4FF704}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProphetOps.Api", "ProphetOps.Api\ProphetOps.Api.csproj", "{D50E768F-32C3-4283-9186-922324D6E104}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProphetOps.Api.Tests", "ProphetOps.Api.Tests\ProphetOps.Api.Tests.csproj", "{B258A7B2-0A4C-42DD-9815-363E6BCC00B5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -42,5 +46,13 @@ Global
 		{232899E4-BF56-4E12-B0BE-A3074B4FF704}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{232899E4-BF56-4E12-B0BE-A3074B4FF704}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{232899E4-BF56-4E12-B0BE-A3074B4FF704}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D50E768F-32C3-4283-9186-922324D6E104}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D50E768F-32C3-4283-9186-922324D6E104}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D50E768F-32C3-4283-9186-922324D6E104}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D50E768F-32C3-4283-9186-922324D6E104}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B258A7B2-0A4C-42DD-9815-363E6BCC00B5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B258A7B2-0A4C-42DD-9815-363E6BCC00B5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B258A7B2-0A4C-42DD-9815-363E6BCC00B5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B258A7B2-0A4C-42DD-9815-363E6BCC00B5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
