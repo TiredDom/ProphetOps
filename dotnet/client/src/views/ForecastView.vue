@@ -184,8 +184,8 @@ onMounted(async () => {
 .forecast-panel {
   margin-bottom: 1.5rem;
   padding: 1.75rem 2rem;
-  background: #15221B;
-  color: #E9EDE9;
+  background: var(--color-shell);
+  color: var(--color-shell-text);
   border-radius: 10px;
 }
 .forecast-label {
@@ -211,38 +211,47 @@ onMounted(async () => {
   align-items: center;
   gap: 0.85rem;
   margin-bottom: 1.5rem;
-  padding: 1rem 1.25rem;
-  border: 1px solid rgba(21, 34, 27, 0.14);
-  border-left-width: 4px;
-  border-radius: 10px;
-  background: var(--color-surface, #FFFFFF);
+  padding: 0.9rem 1.15rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
 }
 .signal-mark {
-  font-size: 1.1rem;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: var(--radius-pill);
+  color: #FFFFFF;
+  font-size: 0.8rem;
   line-height: 1;
 }
 .signal-text {
   margin: 0;
   font-size: 1rem;
-  color: rgba(21, 34, 27, 0.88);
+  color: var(--color-text-primary);
 }
 .signal-up {
-  border-left-color: #1E6B4F;
+  background: var(--tint-success);
+  border-color: rgba(18, 128, 91, 0.24);
 }
 .signal-up .signal-mark {
-  color: #1E6B4F;
+  background: var(--color-success);
 }
 .signal-down {
-  border-left-color: #B42318;
+  background: var(--tint-danger);
+  border-color: rgba(192, 38, 31, 0.24);
 }
 .signal-down .signal-mark {
-  color: #B42318;
+  background: var(--color-danger);
 }
 .signal-flat {
-  border-left-color: #9A6700;
+  background: var(--tint-warning);
+  border-color: rgba(181, 115, 11, 0.24);
 }
 .signal-flat .signal-mark {
-  color: #9A6700;
+  background: var(--color-warning);
 }
 .forecast-chart {
   margin: 1.5rem 0;
@@ -257,7 +266,7 @@ onMounted(async () => {
   height: auto;
 }
 .forecast-band {
-  fill: rgba(30, 107, 79, 0.12);
+  fill: rgba(22, 52, 107, 0.14);
   stroke: none;
 }
 .forecast-divider {
@@ -304,7 +313,7 @@ onMounted(async () => {
 }
 .legend-swatch.band {
   height: 12px;
-  background: rgba(30, 107, 79, 0.18);
+  background: rgba(22, 52, 107, 0.2);
 }
 .dash-note {
   margin: 1.5rem 0;

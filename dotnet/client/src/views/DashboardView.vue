@@ -84,8 +84,8 @@ onMounted(async () => {
 .forecast-panel {
   margin-top: 1.5rem;
   padding: 1.75rem 2rem;
-  background: #15221B;
-  color: #E9EDE9;
+  background: var(--color-shell);
+  color: var(--color-shell-text);
   border-radius: 10px;
 }
 .forecast-label {

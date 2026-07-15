@@ -8,76 +8,91 @@
 
 :root {
     /* Canvas & surfaces */
-    --color-bg: #F5F4EF;
+    --color-bg: #F4F5F8;
     --color-surface: #FFFFFF;
-    --color-surface-sunken: #EFEDE6;
+    --color-surface-sunken: #EAEEF4;
     --color-panel: #FFFFFF;
 
-    /* Shell (sidebar) — dark ink-green */
-    --color-shell: #15221B;
-    --color-shell-raised: #1C2C23;
-    --color-shell-border: rgba(255, 255, 255, 0.09);
-    --color-shell-text: #E9EDE9;
-    --color-shell-muted: #93A398;
+    /* Boarding-pass motif — the cream ticket */
+    --color-ticket: #F3ECDC;
+    --color-ticket-border: #E4D9BF;
+    --color-gold: #B98A1E;
 
-    /* Accent — deep evergreen */
-    --color-primary: #1E6B4F;
-    --color-primary-hover: #185A42;
-    --color-primary-active: #124A36;
-    --color-primary-soft: #E9F0EB;
-    --color-secondary: #185A42;
-    --color-data: #5B6660;
+    /* Shell (sidebar) — deep navy */
+    --color-shell: #0E2247;
+    --color-shell-raised: #17335F;
+    --color-shell-border: rgba(255, 255, 255, 0.10);
+    --color-shell-text: #EAF0FB;
+    --color-shell-muted: #9FB2D0;
+
+    /* Primary — navy (trust; actions, nav, links) */
+    --color-primary: #16346B;
+    --color-primary-hover: #10274F;
+    --color-primary-active: #0C1F41;
+    --color-primary-soft: #E7ECF7;
+    --color-secondary: #A81E27;
+    --color-data: #56617A;
+
+    /* Accent — brand crimson (highlights, used sparingly) */
+    --color-accent: #C4262E;
+    --color-accent-hover: #A81E27;
+    --color-accent-ink: #8E1A20;
+    --color-accent-soft: #FBEAEA;
 
     /* Semantic roles */
-    --color-success: #1E6B4F;
-    --color-success-ink: #175640;
-    --color-warning: #9A6700;
-    --color-warning-ink: #7A5200;
-    --color-danger: #B42318;
-    --color-danger-ink: #912018;
-    --color-info: #1E6B4F;
+    --color-success: #12805B;
+    --color-success-ink: #0C6045;
+    --color-warning: #B5730B;
+    --color-warning-ink: #8A5600;
+    --color-danger: #C0261F;
+    --color-danger-ink: #94170F;
+    --color-info: #16346B;
 
     /* Semantic tints (used sparingly — rules and washes) */
-    --tint-primary: rgba(30, 107, 79, 0.08);
-    --tint-success: rgba(30, 107, 79, 0.1);
-    --tint-warning: rgba(154, 103, 0, 0.1);
-    --tint-danger: rgba(180, 35, 24, 0.08);
-    --tint-data: rgba(91, 102, 96, 0.1);
+    --tint-primary: rgba(22, 52, 107, 0.08);
+    --tint-success: rgba(18, 128, 91, 0.1);
+    --tint-warning: rgba(181, 115, 11, 0.1);
+    --tint-danger: rgba(192, 38, 31, 0.08);
+    --tint-data: rgba(86, 97, 122, 0.1);
+    --tint-accent: rgba(196, 38, 46, 0.08);
 
-    /* Tone surfaces — subtle filled callouts (dark ink stays >12:1) */
-    --tone-primary-surface: #ECF2EE;
-    --tone-primary-border: #CFE0D6;
-    --tone-primary-ink: #175640;
-    --tone-warning-surface: #FAF2E2;
-    --tone-warning-border: #E9DBBB;
-    --tone-warning-ink: #6E4A00;
-    --tone-danger-surface: #FBEDEA;
-    --tone-danger-border: #EACfC9;
-    --tone-danger-ink: #8A1F15;
-    --tone-neutral-surface: #F2F0E8;
-    --tone-neutral-border: #E1DED3;
+    /* Tone surfaces — subtle filled callouts (dark ink stays >7:1) */
+    --tone-primary-surface: #EAEFF8;
+    --tone-primary-border: #CBD8EC;
+    --tone-primary-ink: #16346B;
+    --tone-warning-surface: #FAF2E0;
+    --tone-warning-border: #EADCB9;
+    --tone-warning-ink: #7A5100;
+    --tone-danger-surface: #FBEBEA;
+    --tone-danger-border: #EFCDCA;
+    --tone-danger-ink: #94170F;
+    --tone-neutral-surface: #EEF1F6;
+    --tone-neutral-border: #DCE2EC;
+    --tone-accent-surface: #FBECEC;
+    --tone-accent-border: #F0CFCF;
+    --tone-accent-ink: #8E1A20;
 
-    /* Ink ramp — warm, weighted for legibility */
-    --color-text-primary: #1C221B;
-    --color-text-secondary: #414A40;
-    --color-text-muted: #5E675E;
-    --color-text-faint: #8B948B;
+    /* Ink ramp — navy, weighted for legibility */
+    --color-text-primary: #14213D;
+    --color-text-secondary: #3A4763;
+    --color-text-muted: #5B6883;
+    --color-text-faint: #8A96AC;
 
-    /* Borders — warm hairlines */
-    --color-border: #E2DFD5;
-    --color-border-strong: #CDC9BC;
-    --color-border-subtle: #EAE8DF;
+    /* Borders — cool hairlines */
+    --color-border: #DCE1EA;
+    --color-border-strong: #C4CCDA;
+    --color-border-subtle: #E7EBF2;
 
     /* Elevation — flat by default; overlays only */
     --shadow-xs: none;
     --shadow-sm: none;
-    --shadow-md: 0 1px 2px rgba(32, 38, 31, 0.05);
-    --shadow-lg: 0 12px 32px rgba(24, 28, 24, 0.14);
+    --shadow-md: 0 1px 2px rgba(14, 34, 71, 0.06);
+    --shadow-lg: 0 14px 34px rgba(14, 34, 71, 0.14);
     --shadow-premium: none;
 
     /* Focus */
-    --color-ring: #1E6B4F;
-    --focus-ring: 0 0 0 3px rgba(30, 107, 79, 0.28);
+    --color-ring: #2B5CB8;
+    --focus-ring: 0 0 0 3px rgba(43, 92, 184, 0.30);
 
     /* Typography */
     --font-family: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
