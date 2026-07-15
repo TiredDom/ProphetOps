@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
 using ProphetOps.Data;
@@ -77,6 +78,46 @@ app.UseStaticFiles();
 app.UseCors("spa");
 app.UseAuthentication();
 app.UseAuthorization();
+
+var antiforgery = app.Services.GetRequiredService<IAntiforgery>();
+
+app.Use(async (context, next) =>
+{
+    if (HttpMethods.IsGet(context.Request.Method) || HttpMethods.IsHead(context.Request.Method))
+    {
+        var tokens = antiforgery.GetAndStoreTokens(context);
+        context.Response.Cookies.Append("XSRF-TOKEN", tokens.RequestToken!, new CookieOptions
+        {
+            HttpOnly = false,
+            SameSite = SameSiteMode.Strict,
+            Secure = context.Request.IsHttps,
+        });
+    }
+    await next();
+});
+
+app.Use(async (context, next) =>
+{
+    var method = context.Request.Method;
+    var safe = HttpMethods.IsGet(method) || HttpMethods.IsHead(method)
+        || HttpMethods.IsOptions(method) || HttpMethods.IsTrace(method);
+    var path = context.Request.Path;
+    if (!safe && path.StartsWithSegments("/api") && !path.StartsWithSegments("/api/auth"))
+    {
+        try
+        {
+            await antiforgery.ValidateRequestAsync(context);
+        }
+        catch (AntiforgeryValidationException)
+        {
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+            await context.Response.WriteAsJsonAsync(new { message = "Invalid or missing antiforgery token." });
+            return;
+        }
+    }
+    await next();
+});
+
 app.MapControllers();
 app.MapFallbackToFile("index.html");
 app.Run();
