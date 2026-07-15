@@ -82,14 +82,14 @@
         <section class="analytics-panel">
           <div class="analytics-panel-head">
             <p class="analytics-panel-label">Revenue by destination</p>
-            <p class="analytics-panel-meta">Gross revenue per route</p>
+            <p class="analytics-panel-meta">Revenue per destination</p>
           </div>
           <div class="dss-table-frame">
             <table class="dss-table">
               <thead>
                 <tr>
                   <th>Destination</th>
-                  <th class="num">Gross revenue</th>
+                  <th class="num">Revenue</th>
                   <th>Share</th>
                 </tr>
               </thead>

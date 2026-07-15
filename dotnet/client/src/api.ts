@@ -11,6 +11,34 @@ export interface DashboardForecast {
   accuracy: number;
   mape: number;
   nextValue: number;
+  direction: 'up' | 'down' | 'flat';
+  changePercent: number;
+  peakMonth: string;
+  peakValue: number;
+}
+
+export interface LowStockPackage {
+  code: string;
+  packageName: string;
+  destination: string;
+  availableSlots: number;
+  status: string;
+}
+
+export interface PendingPayments {
+  count: number;
+  amount: number;
+}
+
+export interface RecentBooking {
+  code: string;
+  client: string;
+  package: string;
+  destination: string;
+  grossRevenue: number;
+  paymentStatus: string;
+  bookingStatus: string;
+  ds: string;
 }
 
 export interface DashboardData {
@@ -21,6 +49,9 @@ export interface DashboardData {
   packages: number;
   expenses: number;
   forecast: DashboardForecast;
+  lowStockPackages: LowStockPackage[];
+  pendingPayments: PendingPayments;
+  recentBookings: RecentBooking[];
   lastUpdated: string;
 }
 

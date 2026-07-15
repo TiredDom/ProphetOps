@@ -31,7 +31,7 @@
           </thead>
           <tbody>
             <tr v-if="!users.length">
-              <td colspan="4">No internal users configured.</td>
+              <td colspan="4">No users yet.</td>
             </tr>
             <tr v-for="user in users" :key="user.email">
               <td><strong>{{ user.name }}</strong></td>
