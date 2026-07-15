@@ -5,12 +5,22 @@ using Microsoft.EntityFrameworkCore;
 using ProphetOps.Data;
 using ProphetOps.Domain;
 
-var builder = WebApplication.CreateBuilder(args);
+var standalone = Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? "")
+    .Equals("ProphetOps.Api", StringComparison.OrdinalIgnoreCase);
+
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = standalone ? AppContext.BaseDirectory : null,
+});
+
+builder.Host.UseWindowsService();
 
 builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
 
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("Default") ?? "Data Source=prophetops.db"));
+var dbConnection = builder.Configuration.GetConnectionString("Default")
+    ?? $"Data Source={Path.Combine(builder.Environment.ContentRootPath, "prophetops.db")}";
+builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlite(dbConnection));
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
