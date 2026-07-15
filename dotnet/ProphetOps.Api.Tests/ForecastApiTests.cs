@@ -44,4 +44,17 @@ public class ForecastApiTests : IDisposable
         var response = await client.GetAsync("/api/forecast");
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
+
+    [Fact]
+    public async Task Forecast_includes_a_trajectory_insight()
+    {
+        var client = await LoginAs("owner@prophetops.local", "owner123");
+        var body = await Body(await client.GetAsync("/api/forecast"));
+
+        var insight = body.GetProperty("insight");
+        var direction = insight.GetProperty("direction").GetString();
+        Assert.Contains(direction, new[] { "up", "down", "flat" });
+        Assert.False(string.IsNullOrWhiteSpace(insight.GetProperty("peakMonth").GetString()));
+        Assert.True(insight.GetProperty("peakValue").GetDouble() > 0);
+    }
 }

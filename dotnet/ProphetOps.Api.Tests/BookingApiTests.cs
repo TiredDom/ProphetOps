@@ -108,6 +108,43 @@ public class BookingApiTests : IDisposable
     }
 
     [Fact]
+    public async Task Creating_a_booking_decrements_the_linked_package_slots()
+    {
+        var client = await LoginAs("owner@prophetops.local", "owner123");
+
+        var before = await Body(await client.GetAsync("/api/bookings"));
+        var pkgBefore = before.GetProperty("packages").EnumerateArray()
+            .First(p => p.GetProperty("id").GetString() == "PKG-101");
+        var slotsBefore = pkgBefore.GetProperty("availableSlots").GetInt32();
+        var soldBefore = pkgBefore.GetProperty("soldCount").GetInt32();
+
+        var create = await client.PostAsJsonAsync("/api/bookings", new
+        {
+            id = "BKG-SLOT1",
+            ds = "2026-07-12",
+            y = 4,
+            client = "Slot Test Co.",
+            packageId = "PKG-101",
+            entryType = "Package preset",
+            package = "Boracay Group Package",
+            destination = "Boracay",
+            grossRevenue = 48000,
+            paymentStatus = "Pending",
+            bookingStatus = "Pending",
+            staffAssigned = "Staff User",
+            source = "Package preset",
+            notes = "",
+        });
+        Assert.Equal(HttpStatusCode.OK, create.StatusCode);
+
+        var after = await Body(await client.GetAsync("/api/bookings"));
+        var pkgAfter = after.GetProperty("packages").EnumerateArray()
+            .First(p => p.GetProperty("id").GetString() == "PKG-101");
+        Assert.Equal(Math.Max(0, slotsBefore - 4), pkgAfter.GetProperty("availableSlots").GetInt32());
+        Assert.Equal(soldBefore + 4, pkgAfter.GetProperty("soldCount").GetInt32());
+    }
+
+    [Fact]
     public async Task Bulk_confirm_updates_booking_status()
     {
         var client = await LoginAs("owner@prophetops.local", "owner123");
