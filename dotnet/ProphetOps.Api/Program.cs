@@ -64,7 +64,7 @@ using (var scope = app.Services.CreateScope())
 app.Use(async (context, next) =>
 {
     var headers = context.Response.Headers;
-    headers["Content-Security-Policy"] = "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'";
+    headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'";
     headers["X-Content-Type-Options"] = "nosniff";
     headers["X-Frame-Options"] = "DENY";
     headers["Referrer-Policy"] = "no-referrer";
@@ -72,10 +72,13 @@ app.Use(async (context, next) =>
     await next();
 });
 
+app.UseDefaultFiles();
+app.UseStaticFiles();
 app.UseCors("spa");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapFallbackToFile("index.html");
 app.Run();
 
 public partial class Program { }
