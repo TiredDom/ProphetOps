@@ -55,6 +55,18 @@ public class BookingsController : ControllerBase
         var booking = new Booking();
         Apply(booking, request);
         _db.Bookings.Add(booking);
+
+        if (booking.TravelPackageId is int packageId)
+        {
+            var package = _db.TravelPackages.Find(packageId);
+            if (package is not null)
+            {
+                package.AvailableSlots = Math.Max(0, package.AvailableSlots - booking.PassengerCount);
+                package.SoldCount += booking.PassengerCount;
+                package.LastUpdatedAt = DateOnly.FromDateTime(DateTime.UtcNow);
+            }
+        }
+
         _db.SaveChanges();
 
         return Ok(Dto(booking));

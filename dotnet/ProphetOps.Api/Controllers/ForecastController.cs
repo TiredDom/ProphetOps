@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ProphetOps.Data;
@@ -13,7 +14,8 @@ public class ForecastController : ControllerBase
     [HttpGet]
     public IActionResult Get()
     {
-        var series = SampleSalesHistory.MonthlyRevenue(2026, 7).Select(v => (double)v).ToList();
+        var anchor = new DateOnly(2026, 7, 1);
+        var series = SampleSalesHistory.MonthlyRevenue(anchor.Year, anchor.Month).Select(v => (double)v).ToList();
         var forecast = HoltWintersForecaster.Forecast(series, 12, 6);
 
         var metrics = forecast.Metrics;
@@ -29,9 +31,21 @@ public class ForecastController : ControllerBase
             })
             .ToList();
 
-        var steps = (forecast.Forecast ?? new List<ForecastStep>())
+        var forecastSteps = forecast.Forecast ?? new List<ForecastStep>();
+        var steps = forecastSteps
             .Select(s => new { step = s.Step, value = s.Value, lower = s.Lower, upper = s.Upper })
             .ToList();
+
+        var recentMean = series.Count > 0 ? series.Skip(Math.Max(0, series.Count - 6)).Average() : 0;
+        var forecastMean = forecastSteps.Count > 0 ? forecastSteps.Average(s => s.Value) : recentMean;
+        var changePercent = recentMean != 0 ? Math.Round((forecastMean - recentMean) / recentMean * 100, 1) : 0;
+        var direction = changePercent > 1 ? "up" : changePercent < -1 ? "down" : "flat";
+
+        var peak = forecastSteps.OrderByDescending(s => s.Value).FirstOrDefault();
+        var peakMonth = peak is not null
+            ? anchor.AddMonths(peak.Step).ToString("MMMM yyyy", CultureInfo.InvariantCulture)
+            : "";
+        var peakValue = peak?.Value ?? 0;
 
         return Ok(new
         {
@@ -57,6 +71,13 @@ public class ForecastController : ControllerBase
             {
                 seasonalNaiveMae = forecast.Baselines?.SeasonalNaiveMae ?? 0,
                 naiveMae = forecast.Baselines?.NaiveMae ?? 0,
+            },
+            insight = new
+            {
+                direction,
+                changePercent,
+                peakMonth,
+                peakValue,
             },
             history,
             steps,

@@ -151,6 +151,13 @@ export interface ForecastStepView {
   upper: number;
 }
 
+export interface ForecastInsight {
+  direction: 'up' | 'down' | 'flat';
+  changePercent: number;
+  peakMonth: string;
+  peakValue: number;
+}
+
 export interface ForecastData {
   method: string;
   seasonLength: number;
@@ -160,6 +167,7 @@ export interface ForecastData {
   params: ForecastParams;
   metrics: ForecastMetricsView;
   baselines: ForecastBaselines;
+  insight: ForecastInsight;
   history: ForecastPoint[];
   steps: ForecastStepView[];
 }
