@@ -23,23 +23,30 @@
         </div>
       </section>
 
-      <div v-if="showForm" class="package-form-panel">
-        <h2>New package</h2>
-        <p v-if="formError" class="package-form-error" role="alert">{{ formError }}</p>
+      <Drawer :open="showForm" title="New package" @close="showForm = false">
+        <p v-if="formError" class="drawer-form-error" role="alert">{{ formError }}</p>
         <div class="form-grid">
+          <label class="account-field field-wide">
+            <span>Package name</span>
+            <input v-model.trim="form.packageName" maxlength="120" />
+          </label>
           <label class="account-field">
             <span>Package code</span>
             <input v-model.trim="form.id" maxlength="40" />
           </label>
           <label class="account-field">
-            <span>Package name</span>
-            <input v-model.trim="form.packageName" maxlength="120" />
+            <span>Status</span>
+            <select v-model="form.status">
+              <option>Normal</option>
+              <option>Low</option>
+              <option>Critical</option>
+            </select>
           </label>
-          <label class="account-field">
+          <label class="account-field field-wide">
             <span>Destination</span>
             <input v-model.trim="form.destination" maxlength="120" />
           </label>
-          <label class="account-field">
+          <label class="account-field field-wide">
             <span>Duration</span>
             <input v-model.trim="form.duration" maxlength="80" />
           </label>
@@ -59,26 +66,18 @@
             <span>Reserved slots</span>
             <input v-model.number="form.reservedCount" type="number" min="0" />
           </label>
-          <label class="account-field">
-            <span>Status</span>
-            <select v-model="form.status">
-              <option>Normal</option>
-              <option>Low</option>
-              <option>Critical</option>
-            </select>
-          </label>
-          <label class="account-field">
+          <label class="account-field field-wide">
             <span>Inclusions</span>
             <input v-model.trim="form.inclusions" maxlength="420" />
           </label>
         </div>
-        <div class="package-form-actions">
+        <template #footer>
           <button class="secondary-button" type="button" :disabled="saving" @click="showForm = false">Cancel</button>
           <button class="primary-button" type="button" :disabled="saving" @click="save">
             {{ saving ? 'Saving…' : 'Save package' }}
           </button>
-        </div>
-      </div>
+        </template>
+      </Drawer>
 
       <div class="dss-table-frame">
         <table class="dss-table">
@@ -113,6 +112,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import AppShell from '../components/AppShell.vue';
+import Drawer from '../components/Drawer.vue';
 import { api, ApiError, type PackageRow, type PackageInput } from '../api';
 
 const packages = ref<PackageRow[]>([]);
@@ -178,31 +178,9 @@ onMounted(load);
 </script>
 
 <style scoped>
-.package-form-panel {
-  margin: 1.5rem 0;
-  padding: 1.5rem 1.75rem;
-  background: var(--color-surface, #FFFFFF);
-  border: 1px solid rgba(21, 34, 27, 0.14);
-  border-radius: 10px;
-}
-.package-form-panel h2 {
-  margin: 0 0 1rem;
-  font-family: 'Fraunces Variable', Georgia, serif;
-  font-size: 1.3rem;
-}
-.form-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1rem;
-}
-.package-form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  margin-top: 1.25rem;
-}
-.package-form-error {
-  margin: 0 0 1rem;
-  color: #B42318;
+.drawer-form-error {
+  margin-bottom: var(--space-4);
+  color: var(--color-danger-ink);
+  font-size: 13px;
 }
 </style>

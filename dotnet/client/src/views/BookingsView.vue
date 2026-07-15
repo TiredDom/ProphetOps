@@ -23,27 +23,26 @@
         </div>
       </section>
 
-      <div v-if="showForm" class="booking-form-panel">
-        <h2>New booking</h2>
-        <p v-if="formError" class="booking-form-error" role="alert">{{ formError }}</p>
+      <Drawer :open="showForm" title="New booking" @close="showForm = false">
+        <p v-if="formError" class="drawer-form-error" role="alert">{{ formError }}</p>
         <div class="form-grid">
           <label class="account-field">
             <span>Booking date</span>
             <input v-model="form.ds" type="date" />
           </label>
           <label class="account-field">
+            <span>Passengers</span>
+            <input v-model.number="form.y" type="number" min="1" @input="applyPackage" />
+          </label>
+          <label class="account-field field-wide">
             <span>Client / agency partner</span>
             <input v-model.trim="form.client" maxlength="120" />
           </label>
-          <label class="account-field">
+          <label class="account-field field-wide">
             <span>Package</span>
             <select v-model="form.packageId" @change="applyPackage">
               <option v-for="p in packages" :key="p.id" :value="p.id">{{ p.packageName }}</option>
             </select>
-          </label>
-          <label class="account-field">
-            <span>Passengers</span>
-            <input v-model.number="form.y" type="number" min="1" @input="applyPackage" />
           </label>
           <label class="account-field">
             <span>Gross revenue</span>
@@ -57,7 +56,7 @@
               <option>Pending</option>
             </select>
           </label>
-          <label class="account-field">
+          <label class="account-field field-wide">
             <span>Booking status</span>
             <select v-model="form.bookingStatus">
               <option>Confirmed</option>
@@ -66,13 +65,13 @@
             </select>
           </label>
         </div>
-        <div class="booking-form-actions">
+        <template #footer>
           <button class="secondary-button" type="button" :disabled="saving" @click="showForm = false">Cancel</button>
           <button class="primary-button" type="button" :disabled="saving" @click="save">
             {{ saving ? 'Saving…' : 'Save booking' }}
           </button>
-        </div>
-      </div>
+        </template>
+      </Drawer>
 
       <div class="dss-table-frame">
         <table class="dss-table">
@@ -107,6 +106,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import AppShell from '../components/AppShell.vue';
+import Drawer from '../components/Drawer.vue';
 import { api, ApiError, type Booking, type BookingInput, type PackageOption } from '../api';
 
 const bookings = ref<Booking[]>([]);
@@ -189,31 +189,9 @@ onMounted(load);
 </script>
 
 <style scoped>
-.booking-form-panel {
-  margin: 1.5rem 0;
-  padding: 1.5rem 1.75rem;
-  background: var(--color-surface, #FFFFFF);
-  border: 1px solid rgba(21, 34, 27, 0.14);
-  border-radius: 10px;
-}
-.booking-form-panel h2 {
-  margin: 0 0 1rem;
-  font-family: 'Fraunces Variable', Georgia, serif;
-  font-size: 1.3rem;
-}
-.form-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1rem;
-}
-.booking-form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  margin-top: 1.25rem;
-}
-.booking-form-error {
-  margin: 0 0 1rem;
-  color: #B42318;
+.drawer-form-error {
+  margin-bottom: var(--space-4);
+  color: var(--color-danger-ink);
+  font-size: 13px;
 }
 </style>

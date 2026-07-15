@@ -46,19 +46,56 @@
             <svg
               :viewBox="`0 0 ${chartWidth} ${chartHeight}`"
               class="forecast-svg"
+              preserveAspectRatio="xMidYMid meet"
               role="img"
               aria-label="Recorded revenue history and six-month Holt-Winters forecast"
             >
+              <g class="forecast-grid" aria-hidden="true">
+                <line
+                  v-for="tick in chart.ticks"
+                  :key="`grid-${tick.value}`"
+                  :x1="plotLeft"
+                  :y1="tick.y"
+                  :x2="plotRight"
+                  :y2="tick.y"
+                />
+              </g>
+              <g class="forecast-axis-y" aria-hidden="true">
+                <text
+                  v-for="tick in chart.ticks"
+                  :key="`ylabel-${tick.value}`"
+                  :x="plotLeft - 8"
+                  :y="tick.y"
+                  text-anchor="end"
+                  dominant-baseline="middle"
+                >{{ tick.label }}</text>
+              </g>
+              <line
+                class="forecast-baseline"
+                :x1="plotLeft"
+                :y1="chart.baselineY"
+                :x2="plotRight"
+                :y2="chart.baselineY"
+              />
               <polygon :points="chart.band" class="forecast-band" />
               <line
                 :x1="chart.divider"
-                y1="0"
+                :y1="plotTop"
                 :x2="chart.divider"
-                :y2="chartHeight"
+                :y2="chart.baselineY"
                 class="forecast-divider"
               />
               <polyline :points="chart.historyPoints" class="forecast-line-history" />
               <polyline :points="chart.forecastPoints" class="forecast-line-forecast" />
+              <g class="forecast-axis-x" aria-hidden="true">
+                <text
+                  v-for="mark in chart.xLabels"
+                  :key="`xlabel-${mark.index}`"
+                  :x="mark.x"
+                  :y="labelY"
+                  text-anchor="middle"
+                >{{ mark.text }}</text>
+              </g>
             </svg>
             <p class="forecast-legend">
               <span><span class="legend-swatch history"></span>Recorded revenue</span>
@@ -103,9 +140,12 @@ import AppShell from '../components/AppShell.vue';
 import { api, type ForecastData } from '../api';
 
 const chartWidth = 720;
-const chartHeight = 260;
-const padX = 44;
-const padY = 24;
+const chartHeight = 320;
+const plotLeft = 58;
+const plotRight = chartWidth - 20;
+const plotTop = 20;
+const plotBottom = chartHeight - 36;
+const labelY = plotBottom + 20;
 
 const data = ref<ForecastData | null>(null);
 const loading = ref(true);
@@ -113,6 +153,37 @@ const error = ref('');
 
 function peso(value: number): string {
   return '₱' + Math.round(value).toLocaleString('en-PH');
+}
+
+function pesoCompact(value: number): string {
+  const abs = Math.abs(value);
+  if (abs >= 1000000) {
+    const millions = value / 1000000;
+    const text = millions >= 10 ? Math.round(millions).toString() : (Math.round(millions * 10) / 10).toString();
+    return '₱' + text + 'M';
+  }
+  if (abs >= 1000) {
+    return '₱' + Math.round(value / 1000) + 'k';
+  }
+  return '₱' + Math.round(value);
+}
+
+function niceNum(range: number, round: boolean): number {
+  const exponent = Math.floor(Math.log10(range));
+  const fraction = range / Math.pow(10, exponent);
+  let niceFraction: number;
+  if (round) {
+    if (fraction < 1.5) niceFraction = 1;
+    else if (fraction < 3) niceFraction = 2;
+    else if (fraction < 7) niceFraction = 5;
+    else niceFraction = 10;
+  } else {
+    if (fraction <= 1) niceFraction = 1;
+    else if (fraction <= 2) niceFraction = 2;
+    else if (fraction <= 5) niceFraction = 5;
+    else niceFraction = 10;
+  }
+  return niceFraction * Math.pow(10, exponent);
 }
 
 const nextValue = computed(() => data.value?.steps[0]?.value ?? 0);
@@ -146,14 +217,25 @@ const chart = computed(() => {
   const uppers = d.steps.map((s) => s.upper);
 
   const all = [...history, ...forecast, ...lowers, ...uppers];
-  const min = Math.min(...all);
-  const max = Math.max(...all);
-  const span = max - min || 1;
+  const rawMin = Math.min(...all);
+  const rawMax = Math.max(...all);
+
+  const tickCount = 4;
+  const spread = niceNum(Math.max(rawMax - rawMin, 1), false);
+  const tickStep = niceNum(spread / tickCount, true);
+  const niceMin = Math.floor(rawMin / tickStep) * tickStep;
+  const niceMax = Math.ceil(rawMax / tickStep) * tickStep;
+  const span = niceMax - niceMin || 1;
 
   const total = history.length + forecast.length;
-  const stepX = (chartWidth - padX * 2) / Math.max(total - 1, 1);
-  const x = (i: number) => padX + stepX * i;
-  const y = (v: number) => chartHeight - padY - ((v - min) / span) * (chartHeight - padY * 2);
+  const stepX = (plotRight - plotLeft) / Math.max(total - 1, 1);
+  const x = (i: number) => plotLeft + stepX * i;
+  const y = (v: number) => plotTop + ((niceMax - v) / span) * (plotBottom - plotTop);
+
+  const ticks: { value: number; y: number; label: string }[] = [];
+  for (let v = niceMin; v <= niceMax + tickStep / 2; v += tickStep) {
+    ticks.push({ value: v, y: y(v), label: pesoCompact(v) });
+  }
 
   const bridge = history.length - 1;
   const historyPoints = history.map((v, i) => `${x(i)},${y(v)}`).join(' ');
@@ -166,7 +248,25 @@ const chart = computed(() => {
   const bandBottom = lowers.map((v, i) => `${x(history.length + i)},${y(v)}`).reverse();
   const band = [`${x(bridge)},${y(history[bridge])}`, ...bandTop, ...bandBottom].join(' ');
 
-  return { historyPoints, forecastPoints, band, divider: x(bridge) };
+  const keep = new Set<number>([0, bridge, total - 1]);
+  for (let i = 3; i <= total - 3; i += 3) {
+    if (Math.abs(i - bridge) >= 2) keep.add(i);
+  }
+  const monthAt = (i: number) =>
+    i < d.history.length ? d.history[i].month : d.steps[i - d.history.length].month;
+  const xLabels = [...keep]
+    .sort((a, b) => a - b)
+    .map((i) => ({ index: i, x: x(i), text: monthAt(i) }));
+
+  return {
+    ticks,
+    baselineY: y(niceMin),
+    historyPoints,
+    forecastPoints,
+    band,
+    divider: x(bridge),
+    xLabels,
+  };
 });
 
 onMounted(async () => {
@@ -256,34 +356,48 @@ onMounted(async () => {
 .forecast-chart {
   margin: 1.5rem 0;
   padding: 1.25rem 1.5rem;
-  background: var(--color-surface, #FFFFFF);
-  border: 1px solid rgba(21, 34, 27, 0.14);
-  border-radius: 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
 }
 .forecast-svg {
   display: block;
   width: 100%;
   height: auto;
 }
+.forecast-grid line {
+  stroke: var(--color-border-subtle);
+  stroke-width: 1;
+}
+.forecast-baseline {
+  stroke: var(--color-border-strong);
+  stroke-width: 1;
+}
+.forecast-axis-y text,
+.forecast-axis-x text {
+  fill: var(--color-text-muted);
+  font-family: var(--font-family);
+  font-size: 11px;
+}
 .forecast-band {
-  fill: rgba(22, 52, 107, 0.14);
+  fill: rgba(22, 52, 107, 0.12);
   stroke: none;
 }
 .forecast-divider {
-  stroke: rgba(21, 34, 27, 0.2);
+  stroke: var(--color-border-strong);
   stroke-width: 1;
   stroke-dasharray: 3 3;
 }
 .forecast-line-history {
   fill: none;
-  stroke: var(--color-primary, #1E6B4F);
+  stroke: var(--color-primary);
   stroke-width: 2.5;
   stroke-linejoin: round;
   stroke-linecap: round;
 }
 .forecast-line-forecast {
   fill: none;
-  stroke: var(--color-warning, #9A6700);
+  stroke: var(--color-warning);
   stroke-width: 2.5;
   stroke-dasharray: 6 5;
   stroke-linejoin: round;
@@ -295,7 +409,7 @@ onMounted(async () => {
   gap: 0.5rem 1.5rem;
   margin: 1rem 0 0;
   font-size: 0.8rem;
-  color: rgba(21, 34, 27, 0.7);
+  color: var(--color-text-muted);
 }
 .legend-swatch {
   display: inline-block;
@@ -306,10 +420,10 @@ onMounted(async () => {
   border-radius: 2px;
 }
 .legend-swatch.history {
-  background: var(--color-primary, #1E6B4F);
+  background: var(--color-primary);
 }
 .legend-swatch.forecast {
-  background: var(--color-warning, #9A6700);
+  background: var(--color-warning);
 }
 .legend-swatch.band {
   height: 12px;
@@ -317,9 +431,9 @@ onMounted(async () => {
 }
 .dash-note {
   margin: 1.5rem 0;
-  color: rgba(21, 34, 27, 0.7);
+  color: var(--color-text-muted);
 }
 .dash-error {
-  color: #B42318;
+  color: var(--color-accent);
 }
 </style>
