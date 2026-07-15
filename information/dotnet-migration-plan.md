@@ -188,10 +188,15 @@ ProphetOps.sln
 | 3a — API (auth, 3-role policies, security) | ✅ done |
 | 3b — Vue/TypeScript Login→Dashboard wiring | ✅ done |
 | 4 — Remaining endpoints/pages (all 8 pages full-stack) | ✅ done |
-| 5 — Front-end TypeScript | ▶ next |
-| 6 — Security + test-suite port | ☐ |
-| 7 — Deployment packaging | ☐ |
-| 8 — Cutover & cleanup | ☐ |
+| 5 — Front-end TypeScript (all pages rebuilt in Vue 3 + TS) | ✅ done |
+| 6 — Security (CSRF/antiforgery, hardened headers) + security tests | ✅ done |
+| 7 — Deployment packaging (single-process, self-contained, Windows Service) | ✅ done |
+| 8 — Cutover & cleanup (Laravel removed, docs updated) | ✅ done |
+
+Migration complete. The repository now contains only the .NET + Vue application
+(`dotnet/`), its docs, and the paper materials. The Laravel/PHP prototype has been
+removed; its forecasting behaviour is preserved by the parity oracle in
+`ProphetOps.Forecasting.Tests`.
 
 ## Risks & mitigations
 
