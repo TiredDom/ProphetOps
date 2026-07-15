@@ -228,6 +228,9 @@ a {
 
 .main-panel {
     min-width: 0;
+    width: 100%;
+    max-width: 1560px;
+    margin-inline: auto;
     padding: 0 40px 72px;
 }
 
@@ -556,7 +559,6 @@ a {
     display: flex;
     flex-direction: column;
     gap: 20px;
-    max-width: 1180px;
 }
 
 .dss-grid {
