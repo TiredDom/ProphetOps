@@ -28,10 +28,23 @@
             <p class="analytics-panel-label">Sales history</p>
             <p class="analytics-panel-meta">Last {{ data.salesHistory.length }} months of revenue</p>
           </div>
-          <svg class="sales-chart" viewBox="0 0 720 220" preserveAspectRatio="none" role="img" :aria-label="chartAriaLabel">
+          <svg class="sales-chart" viewBox="0 0 640 240" preserveAspectRatio="xMidYMid meet" role="img" :aria-label="chartAriaLabel">
+            <line class="sales-axis-line" x1="56" y1="18" x2="56" y2="210" />
+            <g v-for="line in gridLines" :key="'grid-' + line.value">
+              <line
+                :class="['sales-gridline', { 'sales-gridline-base': line.value === 0 }]"
+                x1="56"
+                :y1="line.y"
+                x2="624"
+                :y2="line.y"
+              />
+              <text class="sales-ylabel" x="48" :y="line.y" text-anchor="end" dominant-baseline="middle">{{ line.label }}</text>
+            </g>
             <g v-for="bar in salesBars" :key="bar.label">
-              <rect :x="bar.x" :y="bar.y" :width="bar.width" :height="bar.height" rx="3" class="sales-bar" />
-              <text :x="bar.cx" y="212" text-anchor="middle" class="sales-axis">{{ bar.label }}</text>
+              <rect class="sales-bar" :x="bar.x" :y="bar.y" :width="bar.width" :height="bar.height" rx="2">
+                <title>{{ bar.tip }}</title>
+              </rect>
+              <text v-if="bar.showLabel" class="sales-xlabel" :x="bar.cx" y="228" text-anchor="middle">{{ bar.label }}</text>
             </g>
           </svg>
         </section>
@@ -104,8 +117,39 @@ const data = ref<AnalyticsData | null>(null);
 const loading = ref(true);
 const error = ref('');
 
+const plotLeft = 56;
+const plotRight = 624;
+const plotTop = 18;
+const plotBottom = 210;
+
 function peso(value: number): string {
   return '₱' + Math.round(value).toLocaleString('en-PH');
+}
+
+function trimNumber(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+
+function pesoCompact(value: number): string {
+  if (value >= 1_000_000) return '₱' + trimNumber(value / 1_000_000) + 'M';
+  if (value >= 1_000) return '₱' + trimNumber(value / 1_000) + 'k';
+  return '₱' + Math.round(value).toLocaleString('en-PH');
+}
+
+function niceScale(peak: number, ticks: number): { max: number; step: number } {
+  if (peak <= 0) return { max: ticks, step: 1 };
+  const rough = peak / ticks;
+  const power = Math.pow(10, Math.floor(Math.log10(rough)));
+  const norm = rough / power;
+  let factor: number;
+  if (norm <= 1) factor = 1;
+  else if (norm <= 2) factor = 2;
+  else if (norm <= 2.5) factor = 2.5;
+  else if (norm <= 5) factor = 5;
+  else factor = 10;
+  const step = factor * power;
+  return { max: Math.ceil(peak / step) * step, step };
 }
 
 function withPct(items: AnalyticsPoint[]): Array<AnalyticsPoint & { pct: number }> {
@@ -117,20 +161,42 @@ const packageBars = computed(() => withPct(data.value?.packageMix ?? []));
 const paymentBars = computed(() => withPct(data.value?.paymentBreakdown ?? []));
 const destinationBars = computed(() => withPct(data.value?.revenueByDestination ?? []));
 
+const salesScale = computed(() => {
+  const points = data.value?.salesHistory ?? [];
+  const peak = Math.max(0, ...points.map((p) => p.value));
+  return niceScale(peak, 4);
+});
+
+const gridLines = computed(() => {
+  const { max, step } = salesScale.value;
+  const span = plotBottom - plotTop;
+  const lines: Array<{ value: number; y: number; label: string }> = [];
+  for (let value = 0; value <= max + step / 2; value += step) {
+    lines.push({ value, y: plotBottom - (value / max) * span, label: pesoCompact(value) });
+  }
+  return lines;
+});
+
 const salesBars = computed(() => {
   const points = data.value?.salesHistory ?? [];
-  const max = Math.max(1, ...points.map((p) => p.value));
-  const band = 720 / (points.length || 1);
-  const gap = Math.min(14, band * 0.3);
+  const count = points.length;
+  const { max } = salesScale.value;
+  const span = plotBottom - plotTop;
+  const band = count ? (plotRight - plotLeft) / count : 0;
+  const barWidth = Math.min(38, band * 0.56);
+  const stride = band > 0 && band < 40 ? 2 : 1;
   return points.map((p, i) => {
-    const height = Math.max(2, (p.value / max) * 176);
+    const height = max > 0 ? Math.max(1, (p.value / max) * span) : 1;
+    const center = plotLeft + band * i + band / 2;
     return {
       label: p.label,
-      x: i * band + gap / 2,
-      cx: i * band + band / 2,
-      y: 184 - height,
-      width: band - gap,
+      x: center - barWidth / 2,
+      cx: center,
+      y: plotBottom - height,
+      width: barWidth,
       height,
+      showLabel: i % stride === 0,
+      tip: `${p.label} · ${peso(p.value)}`,
     };
   });
 });
@@ -156,17 +222,17 @@ onMounted(async () => {
 <style scoped>
 .analytics-note {
   margin: 1.5rem 0;
-  color: var(--color-text-secondary, rgba(21, 34, 27, 0.7));
+  color: var(--color-text-secondary);
 }
 .analytics-error {
-  color: #B42318;
+  color: var(--color-danger-ink);
 }
 .analytics-panel {
   margin-top: 1.5rem;
   padding: 1.5rem 1.75rem;
-  background: var(--color-surface, #FFFFFF);
-  border: 1px solid var(--color-border, #E2DFD5);
-  border-radius: 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
 }
 .analytics-panel-head {
   display: flex;
@@ -177,14 +243,15 @@ onMounted(async () => {
 }
 .analytics-panel-label {
   margin: 0;
-  font-family: 'Fraunces Variable', Georgia, serif;
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
   font-size: 1.15rem;
-  color: var(--color-text-primary, #1C221B);
+  color: var(--color-text-primary);
 }
 .analytics-panel-meta {
   margin: 0;
   font-size: 0.8rem;
-  color: var(--color-text-muted, #5E675E);
+  color: var(--color-text-muted);
 }
 .analytics-grid {
   display: grid;
@@ -197,14 +264,34 @@ onMounted(async () => {
 .sales-chart {
   display: block;
   width: 100%;
-  height: 220px;
+  height: auto;
+}
+.sales-axis-line,
+.sales-gridline {
+  stroke: var(--color-border-subtle);
+  stroke-width: 1;
+}
+.sales-gridline-base {
+  stroke: var(--color-border);
+}
+.sales-ylabel,
+.sales-xlabel {
+  fill: var(--color-text-muted);
+  font-family: var(--font-family);
+  font-size: 11px;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 .sales-bar {
-  fill: var(--color-primary, #1E6B4F);
+  fill: var(--color-primary);
+  transition: fill var(--transition-fast);
 }
-.sales-axis {
-  fill: var(--color-text-muted, #5E675E);
-  font-size: 11px;
+.sales-bar:hover {
+  fill: var(--color-primary-hover);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sales-bar {
+    transition: none;
+  }
 }
 .bar-rows {
   display: flex;
@@ -219,24 +306,24 @@ onMounted(async () => {
 }
 .bar-row-label {
   font-size: 0.9rem;
-  color: var(--color-text-secondary, #414A40);
+  color: var(--color-text-secondary);
 }
 .bar-row-track {
   display: block;
   width: 100%;
   height: 10px;
-  border-radius: 999px;
-  background: var(--color-surface-sunken, #EFEDE6);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-sunken);
   overflow: hidden;
 }
 .bar-row-fill {
   display: block;
   height: 100%;
-  border-radius: 999px;
-  background: var(--color-primary, #1E6B4F);
+  border-radius: var(--radius-pill);
+  background: var(--color-primary);
 }
 .bar-row-value {
   font-size: 0.9rem;
-  color: var(--color-text-primary, #1C221B);
+  color: var(--color-text-primary);
 }
 </style>

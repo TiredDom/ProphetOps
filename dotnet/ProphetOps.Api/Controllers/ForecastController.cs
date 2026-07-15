@@ -27,13 +27,21 @@ public class ForecastController : ControllerBase
             .Select((value, index) =>
             {
                 var back = recent.Count - 1 - index;
-                return new { label = back == 0 ? "M0" : "M-" + back, value };
+                var month = anchor.AddMonths(-back).ToString("MMM", CultureInfo.InvariantCulture);
+                return new { label = back == 0 ? "M0" : "M-" + back, month, value };
             })
             .ToList();
 
         var forecastSteps = forecast.Forecast ?? new List<ForecastStep>();
         var steps = forecastSteps
-            .Select(s => new { step = s.Step, value = s.Value, lower = s.Lower, upper = s.Upper })
+            .Select(s => new
+            {
+                step = s.Step,
+                month = anchor.AddMonths(s.Step).ToString("MMM", CultureInfo.InvariantCulture),
+                value = s.Value,
+                lower = s.Lower,
+                upper = s.Upper,
+            })
             .ToList();
 
         var recentMean = series.Count > 0 ? series.Skip(Math.Max(0, series.Count - 6)).Average() : 0;

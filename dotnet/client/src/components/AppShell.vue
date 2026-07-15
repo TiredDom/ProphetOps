@@ -19,6 +19,61 @@
             active-class="active"
             @click="open = false"
           >
+            <svg
+              class="nav-item-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <template v-if="item.label === 'Dashboard'">
+                <rect x="3.5" y="3.5" width="7" height="7" rx="1.4" />
+                <rect x="13.5" y="3.5" width="7" height="7" rx="1.4" />
+                <rect x="3.5" y="13.5" width="7" height="7" rx="1.4" />
+                <rect x="13.5" y="13.5" width="7" height="7" rx="1.4" />
+              </template>
+              <template v-else-if="item.label === 'Forecast'">
+                <polyline points="3 16.5 9 10.5 13 14.5 21 6.5" />
+                <polyline points="15.5 6.5 21 6.5 21 12" />
+              </template>
+              <template v-else-if="item.label === 'Analytics'">
+                <line x1="4" y1="19" x2="20" y2="19" />
+                <line x1="7.5" y1="19" x2="7.5" y2="12" />
+                <line x1="12" y1="19" x2="12" y2="8" />
+                <line x1="16.5" y1="19" x2="16.5" y2="14" />
+              </template>
+              <template v-else-if="item.label === 'Bookings'">
+                <rect x="4" y="5" width="16" height="15" rx="2" />
+                <line x1="4" y1="9.5" x2="20" y2="9.5" />
+                <line x1="8.5" y1="3" x2="8.5" y2="6.5" />
+                <line x1="15.5" y1="3" x2="15.5" y2="6.5" />
+              </template>
+              <template v-else-if="item.label === 'Package Catalog'">
+                <path d="M12 3 3.5 7.5v9L12 21l8.5-4.5v-9L12 3Z" />
+                <polyline points="3.5 7.5 12 12 20.5 7.5" />
+                <line x1="12" y1="12" x2="12" y2="21" />
+              </template>
+              <template v-else-if="item.label === 'Expenses'">
+                <path d="M6.5 3.5h11v17l-2.2-1.5-2.2 1.5-2.2-1.5-2.2 1.5-2.2-1.5Z" />
+                <line x1="9.5" y1="8.5" x2="14.5" y2="8.5" />
+                <line x1="9.5" y1="12" x2="14.5" y2="12" />
+              </template>
+              <template v-else-if="item.label === 'Reports'">
+                <path d="M6.5 3.5H13L17.5 8V20.5H6.5Z" />
+                <polyline points="13 3.5 13 8 17.5 8" />
+                <line x1="9" y1="13" x2="15" y2="13" />
+                <line x1="9" y1="16.5" x2="15" y2="16.5" />
+              </template>
+              <template v-else-if="item.label === 'Users'">
+                <circle cx="9" cy="8.5" r="3.3" />
+                <path d="M3.5 20c0-3.2 2.5-5.3 5.5-5.3s5.5 2.1 5.5 5.3" />
+                <path d="M15.5 5.7a3.3 3.3 0 0 1 0 5.6" />
+                <path d="M16.8 15c2.1.5 3.7 2.3 3.7 5" />
+              </template>
+            </svg>
             <span>{{ item.label }}</span>
           </RouterLink>
         </div>

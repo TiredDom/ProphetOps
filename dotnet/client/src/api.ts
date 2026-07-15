@@ -141,11 +141,13 @@ export interface ForecastBaselines {
 
 export interface ForecastPoint {
   label: string;
+  month: string;
   value: number;
 }
 
 export interface ForecastStepView {
   step: number;
+  month: string;
   value: number;
   lower: number;
   upper: number;

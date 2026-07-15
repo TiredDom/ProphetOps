@@ -23,9 +23,8 @@
         </div>
       </section>
 
-      <div v-if="showForm" class="expense-form-panel">
-        <h2>New expense</h2>
-        <p v-if="formError" class="expense-form-error" role="alert">{{ formError }}</p>
+      <Drawer :open="showForm" title="New expense" @close="showForm = false">
+        <p v-if="formError" class="drawer-form-error" role="alert">{{ formError }}</p>
         <div class="form-grid">
           <label class="account-field">
             <span>Date</span>
@@ -45,24 +44,24 @@
             <input v-model.number="form.amount" type="number" min="0" />
           </label>
           <label class="account-field">
-            <span>Related package or operation</span>
-            <input v-model.trim="form.relatedPackage" maxlength="120" />
-          </label>
-          <label class="account-field">
             <span>Payment status</span>
             <select v-model="form.paymentStatus">
               <option>Paid</option>
               <option>Pending</option>
             </select>
           </label>
+          <label class="account-field field-wide">
+            <span>Related package or operation</span>
+            <input v-model.trim="form.relatedPackage" maxlength="120" />
+          </label>
         </div>
-        <div class="expense-form-actions">
+        <template #footer>
           <button class="secondary-button" type="button" :disabled="saving" @click="showForm = false">Cancel</button>
           <button class="primary-button" type="button" :disabled="saving" @click="save">
             {{ saving ? 'Saving…' : 'Save expense' }}
           </button>
-        </div>
-      </div>
+        </template>
+      </Drawer>
 
       <div class="dss-table-frame">
         <table class="dss-table">
@@ -95,6 +94,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import AppShell from '../components/AppShell.vue';
+import Drawer from '../components/Drawer.vue';
 import { api, ApiError, type ExpenseRow, type ExpenseInput } from '../api';
 
 const expenses = ref<ExpenseRow[]>([]);
@@ -157,31 +157,9 @@ onMounted(load);
 </script>
 
 <style scoped>
-.expense-form-panel {
-  margin: 1.5rem 0;
-  padding: 1.5rem 1.75rem;
-  background: var(--color-surface, #FFFFFF);
-  border: 1px solid rgba(21, 34, 27, 0.14);
-  border-radius: 10px;
-}
-.expense-form-panel h2 {
-  margin: 0 0 1rem;
-  font-family: 'Fraunces Variable', Georgia, serif;
-  font-size: 1.3rem;
-}
-.form-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1rem;
-}
-.expense-form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  margin-top: 1.25rem;
-}
-.expense-form-error {
-  margin: 0 0 1rem;
-  color: #B42318;
+.drawer-form-error {
+  margin-bottom: var(--space-4);
+  color: var(--color-danger-ink);
+  font-size: 13px;
 }
 </style>
