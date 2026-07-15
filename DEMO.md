@@ -4,17 +4,15 @@ Use this guide for the Information Assurance and Security demo and the test case
 
 ## Demo URL
 
-Open the local website:
+Build the SPA once, then run the single-process app and open it:
 
-```text
-http://127.0.0.1:8000/login
+```powershell
+cd dotnet\client ; npm run build ; cd ..
+dotnet run --project ProphetOps.Api --urls http://localhost:5099
 ```
 
-Use the built/demo mode for ZAP and presentation:
-
-```bash
-npm run build
-php artisan serve
+```text
+http://localhost:5099/login
 ```
 
 ## Demo Accounts
@@ -44,18 +42,18 @@ wrong@example.com / wrongpass
 2. Show invalid login rejection.
 3. Log in as Owner.
 4. Open Dashboard.
-5. Open Bookings and show search/filter.
+5. Open Bookings and show the records table.
 6. Add or edit one booking.
 7. Open Package Catalog.
-8. Add one package and show invalid score validation.
+8. Add one package and show field validation.
 9. Open Expenses.
 10. Add or edit one expense.
 11. Open Analytics.
-12. Open Package Decision Guide and run the comparison.
+12. Open Forecast and review the Demand Forecast outlook, chart, and accuracy.
 13. Open Reports.
 14. Open Users.
 15. Log out.
-16. Log in as Staff and show restricted access.
+16. Log in as Staff and show restricted access (only Bookings and Package Catalog).
 17. Run or show ZAP results.
 
 ## Test Case Inputs
@@ -70,9 +68,6 @@ Passenger count: 4
 Revenue: 48000
 Payment: Pending
 Status: Reserved
-Staff: Staff User
-Source: Messenger
-Notes: Demo booking for IAS test case.
 ```
 
 Expected result:
@@ -90,10 +85,6 @@ Destination: Bohol
 Duration: 2D1N
 Base price: 12000
 Available slots: 10
-Travel type: Cultural
-Supplier reliability: 88
-Business value: 84
-Risk: 20
 Status: Normal
 ```
 
@@ -103,16 +94,17 @@ Expected result:
 Package is saved and appears in the package catalog.
 ```
 
-### Invalid Package Score
+### Invalid Package
 
 ```text
-Supplier reliability: 120
+Name: (leave blank)
+Destination: (leave blank)
 ```
 
 Expected result:
 
 ```text
-Validation rejects the value because scores must be 0 to 100.
+Validation rejects the package because the name and destination are required.
 ```
 
 ### Expense Add
@@ -133,49 +125,31 @@ Expected result:
 Expense is saved and appears in the expenses table.
 ```
 
-### Package Decision Guide
+### Demand Forecast
 
 ```text
-Budget: 12000
-Destination: Bohol
-Duration: 2D1N
-Travel Type: Cultural
+Open /forecast as Owner.
+Read the demand outlook summary.
+Review the forecast chart.
+Check the accuracy figure.
 ```
 
 Expected result:
 
 ```text
-The page compares package options and shows the best-ranked package using TOPSIS.
+The page shows the Holt-Winters demand forecast: an outlook summary, a forecast chart over the sample monthly-revenue history, and an accuracy figure (about 95% in-sample fit, MAPE about 4.8%).
 ```
 
-## Tracker Row To Fix
-
-The only outdated row in the earlier submitted tracker is `ID-026`.
-
-Replace `ID-026 Trajectory Insights` with:
+## Role Restriction Check
 
 ```text
-Module: Legacy Route Compatibility
-Test Case Scenario: Old forecasting link redirects to the Package Decision Guide.
-Action:
-1. Open /forecasting with a query string.
-2. Confirm redirect keeps the query.
-Actual Input: /forecasting?duration=3D2N
-Pass: PASSED
-Product Quality Component: Compatibility
-Comments/Suggestion: Legacy links still land on the current owner-facing page.
-```
-
-Test URL:
-
-```text
-http://127.0.0.1:8000/forecasting?duration=3D2N
+Log in as Staff (staff@prophetops.local / staff123).
 ```
 
 Expected result:
 
 ```text
-Redirects to /decision-guide?duration=3D2N
+The sidebar shows only Bookings and Package Catalog. Directly requesting a restricted API (for example /api/expenses) returns HTTP 403 Forbidden.
 ```
 
 ## ZAP Scan Notes
@@ -183,25 +157,25 @@ Redirects to /decision-guide?duration=3D2N
 Scan only:
 
 ```text
-http://127.0.0.1:8000/login
+http://localhost:5099/login
 ```
 
-Do not scan:
+Do not scan the Vite development addresses (only present when running `npm run dev`):
 
 ```text
 http://localhost:5173
 http://[::1]:5173
 ```
 
-Those are Vite development addresses and can create noisy CSP findings.
-
 ## Expected ZAP Explanation
 
-Fixable alerts should be handled:
+The .NET build already applies a hardened security posture, so these are handled at the source:
 
 ```text
-Cookie No HttpOnly Flag: fixed for XSRF-TOKEN and session cookies.
-X-Powered-By response leak: fixed for Laravel and local static assets.
+Antiforgery / CSRF: unsafe API requests require the XSRF-TOKEN cookie echoed in the X-XSRF-TOKEN header.
+Security headers: Content-Security-Policy, X-Content-Type-Options, X-Frame-Options: DENY, Referrer-Policy: no-referrer.
+Server banner: the Kestrel "Server" response header is disabled, so the stack is not advertised.
+Auth cookie: HttpOnly and SameSite=Strict.
 ```
 
 Informational alerts may remain:
@@ -218,5 +192,5 @@ These are informational observations and can be marked as accepted or noted in t
 - Use the Owner account for most screens.
 - Use the Staff account only when proving role restrictions.
 - Do not improvise random data during the demo.
-- Keep ZAP pointed at `http://127.0.0.1:8000/login`.
-- If the page looks blank, stop the server, run `npm run build`, then restart `php artisan serve`.
+- Keep ZAP pointed at `http://localhost:5099/login`.
+- Run the built single-process app (`dotnet run` after `npm run build`) rather than the two-terminal dev setup, so there is no Vite dev-server scan noise.

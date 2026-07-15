@@ -1,343 +1,97 @@
-# ProphetOps Complete Setup Guide
+# ProphetOps Setup Guide
 
-This file is the single source of truth for setting up ProphetOps on another laptop or for an AI assistant preparing the project. Follow the commands in order and do not switch to XAMPP/MySQL unless the team intentionally changes the database plan.
+Setup for ProphetOps, an internal Decision Support System for Renan-Tina Travels &
+Tours built on **ASP.NET Core 8 (C#) + Vue 3 + TypeScript**, with an in-house
+**Holt-Winters** demand forecast. The whole system runs as one process on one port:
+the .NET API serves the built Vue SPA.
 
-## Project Summary
+The application and its detailed guide live in `dotnet/` — see **`dotnet/README.md`**.
+This file is the quick top-level reference.
 
-ProphetOps is a Laravel + Inertia + Vue capstone prototype for an internal travel-operations Decision Support System. The current research-facing decision method is TOPSIS, shown in the UI as the owner-friendly **Package Decision Guide**.
-
-The project is meant to run locally for the IAS demo and ZAP testing.
-
-## Correct Branch
-
-Use this branch:
+## Required tools
 
 ```text
-codex/simplified-pages
-```
-
-Fresh clone:
-
-```powershell
-git clone https://github.com/TiredDom/ProphetOps.git
-cd ProphetOps
-git checkout codex/simplified-pages
-```
-
-Existing clone:
-
-```powershell
-cd C:\Users\User\Desktop\ProphetOps
-git checkout codex/simplified-pages
-git pull
-```
-
-## Required Tools
-
-Install these before running the app:
-
-```text
-PHP 8.2 or newer
-Composer
-Node.js and npm
+.NET 8 SDK        (dotnet --version prints 8.x)
+Node.js 18+ and npm   (to build the SPA)
 Git
 ```
 
-XAMPP is optional. The current project uses SQLite, so MySQL/MariaDB is not needed for the normal demo.
+No PHP, Composer, Laravel, or XAMPP — those belonged to the earlier prototype and have
+been removed.
 
-## One-Pass Setup
+## One-pass setup
 
-Run these from the project root in PowerShell:
+From the repository root in PowerShell:
 
 ```powershell
-composer install
+cd dotnet\client
 npm install
-
-if (!(Test-Path .env)) { Copy-Item .env.example .env }
-php artisan key:generate
-
-New-Item -ItemType File database\database.sqlite -Force
-php artisan migrate:fresh --seed
-
 npm run build
-php artisan serve --host=127.0.0.1 --port=8000
-```
-
-Then open:
-
-```text
-http://127.0.0.1:8000/login
-```
-
-## Environment Values
-
-The `.env` file should use SQLite:
-
-```env
-APP_NAME=ProphetOps
-APP_ENV=local
-APP_DEBUG=true
-APP_URL=http://127.0.0.1:8000
-
-DB_CONNECTION=sqlite
-
-SESSION_DRIVER=file
-CACHE_STORE=file
-QUEUE_CONNECTION=sync
-```
-
-If `.env` was edited, clear cached config:
-
-```powershell
-php artisan config:clear
-```
-
-## Database
-
-The local database file is:
-
-```text
-database/database.sqlite
-```
-
-This file is ignored by Git. Recreate it on a new laptop with:
-
-```powershell
-New-Item -ItemType File database\database.sqlite -Force
-php artisan migrate:fresh --seed
-```
-
-Do not open XAMPP just for this setup. Use XAMPP only if the project is intentionally migrated to MySQL later.
-
-## Demo Accounts
-
-Use Owner for the main demo:
-
-```text
-owner@prophetops.local / owner123
-```
-
-Other seeded accounts:
-
-```text
-admin@prophetops.local / admin123
-staff@prophetops.local / staff123
-```
-
-Invalid login test:
-
-```text
-wrong@example.com / wrongpass
-```
-
-## Main Routes
-
-```text
-/login
-/dashboard
-/bookings
-/inventory
-/expenses
-/analytics
-/decision-guide
-/reports
-/users
-```
-
-Legacy route:
-
-```text
-/forecasting
-```
-
-Expected behavior:
-
-```text
-/forecasting?duration=3D2N redirects to /decision-guide?duration=3D2N
-```
-
-## Demo Mode
-
-For the IAS presentation, use built assets:
-
-```powershell
-npm run build
-php artisan serve --host=127.0.0.1 --port=8000
-```
-
-Do not run `npm run dev` during the ZAP scan unless you are actively developing frontend code. Built mode is cleaner and avoids Vite-related scan noise.
-
-## Development Mode
-
-Use two terminals only when editing frontend code live.
-
-Terminal 1:
-
-```powershell
-npm run dev
-```
-
-Terminal 2:
-
-```powershell
-php artisan serve --host=127.0.0.1 --port=8000
-```
-
-If you later return to demo/ZAP mode, stop Vite and remove the hot file:
-
-```powershell
-Remove-Item public\hot -ErrorAction SilentlyContinue
-npm run build
-php artisan serve --host=127.0.0.1 --port=8000
-```
-
-## Verification
-
-Run these before demo, before pushing, or after pulling on a teammate laptop:
-
-```powershell
-php artisan test
-npm run build
-```
-
-Expected current result:
-
-```text
-24 tests passing
-Vite build succeeds
-```
-
-## IAS Demo Guide
-
-Use this file for the exact presentation flow and test inputs:
-
-```text
-DEMO.md
-```
-
-It includes booking, package, expense, Package Decision Guide, and ZAP test values.
-
-## ZAP Scan
-
-Scan only:
-
-```text
-http://127.0.0.1:8000/login
-```
-
-Do not scan:
-
-```text
-http://localhost:5173
-http://[::1]:5173
-```
-
-Those are Vite development server addresses and can create noisy Content Security Policy findings.
-
-Expected fixed items:
-
-```text
-Cookie No HttpOnly Flag: fixed for XSRF-TOKEN and session cookies.
-X-Powered-By response leak: fixed for Laravel responses and local static assets.
-```
-
-Informational alerts may remain:
-
-```text
-Modern Web Application
-Session Management Response Identified
-```
-
-Those are informational observations, not necessarily vulnerabilities.
-
-## Common Problems
-
-### Blank Page
-
-Use built assets and remove any stale Vite hot file:
-
-```powershell
-Remove-Item public\hot -ErrorAction SilentlyContinue
-npm run build
-php artisan serve --host=127.0.0.1 --port=8000
-```
-
-### Login Does Not Work
-
-Reset seeded users and data:
-
-```powershell
-php artisan migrate:fresh --seed
-php artisan config:clear
-```
-
-Then use:
-
-```text
-owner@prophetops.local / owner123
-```
-
-### Database Error
-
-Make sure SQLite exists:
-
-```powershell
-New-Item -ItemType File database\database.sqlite -Force
-php artisan migrate:fresh --seed
-```
-
-### Port 8000 Already In Use
-
-Run on another port:
-
-```powershell
-php artisan serve --host=127.0.0.1 --port=8001
-```
-
-Then open:
-
-```text
-http://127.0.0.1:8001/login
-```
-
-### ZAP Still Shows Old Alerts
-
-Start a new ZAP session or delete old alerts, then rescan:
-
-```text
-http://127.0.0.1:8000/login
-```
-
-Restart Laravel after security/header changes:
-
-```powershell
-php artisan serve --host=127.0.0.1 --port=8000
-```
-
-## AI Assistant Notes
-
-If an AI assistant is setting this up, do not ask whether to use MySQL, XAMPP, Docker, Vite dev mode, or a cloud database. Use this local SQLite flow unless the user explicitly changes the deployment target.
-
-Default action sequence:
-
-```powershell
-git checkout codex/simplified-pages
-git pull
-composer install
-npm install
-if (!(Test-Path .env)) { Copy-Item .env.example .env }
-php artisan key:generate
-New-Item -ItemType File database\database.sqlite -Force
-php artisan migrate:fresh --seed
-npm run build
-php artisan test
-php artisan serve --host=127.0.0.1 --port=8000
+cd ..
+dotnet run --project ProphetOps.Api --urls http://localhost:5099
 ```
 
 Open:
 
 ```text
-http://127.0.0.1:8000/login
+http://localhost:5099/login
 ```
 
-Project rule: keep ProphetOps as an internal business Decision Support System. Do not turn it into a public booking website, payment gateway, customer portal, or marketing site.
+The SQLite database (`prophetops.db`) is created next to the running app on first launch
+and seeded automatically — there is no manual migration step.
+
+## Development (live reload)
+
+Two terminals, only when editing the front end:
+
+```powershell
+# Terminal 1 — API
+dotnet run --project dotnet\ProphetOps.Api --urls http://localhost:5099
+
+# Terminal 2 — SPA with hot reload (proxies /api to 5099)
+cd dotnet\client ; npm run dev
+```
+
+Open http://localhost:5173.
+
+## Test
+
+```powershell
+cd dotnet
+dotnet test
+```
+
+Expected: all suites pass — forecasting parity, data layer, and API + security.
+
+## Publish / deploy
+
+```powershell
+cd dotnet
+.\publish.ps1
+.\publish\ProphetOps.Api.exe
+```
+
+Produces a self-contained win-x64 build (no .NET install needed on the target). See
+`dotnet/README.md` for Windows Service installation and LAN / HTTPS / VPN notes.
+
+## Demo accounts (seeded)
+
+```text
+owner@prophetops.local / owner123      Owner / Management — full access
+admin@prophetops.local / admin123      Admin — all modules except Users
+staff@prophetops.local / staff123      Staff — Bookings + Package Catalog only
+```
+
+Invalid-login test: `wrong@example.com / wrongpass`.
+
+## Main routes
+
+```text
+/login  /dashboard  /forecast  /analytics
+/bookings  /inventory  /expenses  /reports  /users
+```
+
+## Project rule
+
+Keep ProphetOps an internal business Decision Support System. Do not turn it into a
+public booking website, payment gateway, customer portal, or marketing site.
