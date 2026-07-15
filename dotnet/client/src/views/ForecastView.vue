@@ -13,6 +13,16 @@
           </p>
         </section>
 
+        <section
+          v-if="data.ok"
+          class="decision-signal"
+          :class="`signal-${data.insight.direction}`"
+          role="note"
+        >
+          <span class="signal-mark" aria-hidden="true">{{ signalIcon }}</span>
+          <p class="signal-text">{{ insightText }}</p>
+        </section>
+
         <template v-if="data.ok">
           <section class="stat-band" aria-label="Forecast summary">
             <div class="stat-cell">
@@ -107,6 +117,25 @@ function peso(value: number): string {
 
 const nextValue = computed(() => data.value?.steps[0]?.value ?? 0);
 
+const insightText = computed(() => {
+  const d = data.value;
+  if (!d || !d.ok) return '';
+  const ins = d.insight;
+  const trend =
+    ins.direction === 'up' ? 'trending upward' :
+    ins.direction === 'down' ? 'trending downward' : 'holding steady';
+  const magnitude =
+    ins.direction === 'flat'
+      ? 'projected to stay roughly flat over the next six months'
+      : `projected ${ins.changePercent > 0 ? '+' : ''}${ins.changePercent}% over the next six months`;
+  return `Demand is ${trend} — ${magnitude}, peaking in ${ins.peakMonth} (${peso(ins.peakValue)}), at about ${d.accuracy}% in-sample accuracy.`;
+});
+
+const signalIcon = computed(() => {
+  const dir = data.value?.insight.direction;
+  return dir === 'up' ? '▲' : dir === 'down' ? '▼' : '▬';
+});
+
 const chart = computed(() => {
   const d = data.value;
   if (!d || !d.ok || d.history.length === 0 || d.steps.length === 0) return null;
@@ -176,6 +205,44 @@ onMounted(async () => {
   margin: 0;
   color: rgba(233, 237, 233, 0.8);
   font-size: 0.95rem;
+}
+.decision-signal {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid rgba(21, 34, 27, 0.14);
+  border-left-width: 4px;
+  border-radius: 10px;
+  background: var(--color-surface, #FFFFFF);
+}
+.signal-mark {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+.signal-text {
+  margin: 0;
+  font-size: 1rem;
+  color: rgba(21, 34, 27, 0.88);
+}
+.signal-up {
+  border-left-color: #1E6B4F;
+}
+.signal-up .signal-mark {
+  color: #1E6B4F;
+}
+.signal-down {
+  border-left-color: #B42318;
+}
+.signal-down .signal-mark {
+  color: #B42318;
+}
+.signal-flat {
+  border-left-color: #9A6700;
+}
+.signal-flat .signal-mark {
+  color: #9A6700;
 }
 .forecast-chart {
   margin: 1.5rem 0;
