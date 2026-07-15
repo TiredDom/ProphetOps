@@ -5,13 +5,13 @@ using Microsoft.EntityFrameworkCore;
 using ProphetOps.Data;
 using ProphetOps.Domain;
 
-var standalone = Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? "")
-    .Equals("ProphetOps.Api", StringComparison.OrdinalIgnoreCase);
+var baseDir = AppContext.BaseDirectory;
+var standalone = Directory.Exists(Path.Combine(baseDir, "wwwroot"));
 
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 {
     Args = args,
-    ContentRootPath = standalone ? AppContext.BaseDirectory : null,
+    ContentRootPath = standalone ? baseDir : null,
 });
 
 builder.Host.UseWindowsService();
