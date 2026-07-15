@@ -7,7 +7,7 @@
       <template v-else-if="data">
         <section class="forecast-panel">
           <p class="forecast-label">Demand forecast · {{ data.method }}</p>
-          <p class="forecast-headline">{{ data.accuracy }}% in-sample fit</p>
+          <p class="forecast-headline">{{ data.accuracy }}% accuracy on recorded months</p>
           <p class="forecast-detail">
             MAPE {{ data.metrics.mape }}% · {{ data.method }} · {{ data.horizon }}-month horizon
           </p>
@@ -26,19 +26,19 @@
         <template v-if="data.ok">
           <section class="stat-band" aria-label="Forecast summary">
             <div class="stat-cell">
-              <span class="stat-label">In-sample MAPE</span>
+              <span class="stat-label">Average monthly error</span>
               <strong class="stat-value">{{ data.metrics.mape }}%</strong>
-              <span class="stat-note">Average percent error</span>
+              <span class="stat-note">Typical error</span>
             </div>
             <div class="stat-cell">
               <span class="stat-label">Next month</span>
               <strong class="stat-value">{{ peso(nextValue) }}</strong>
-              <span class="stat-note">Step 1 projection</span>
+              <span class="stat-note">Next month</span>
             </div>
             <div class="stat-cell">
-              <span class="stat-label">Horizon</span>
+              <span class="stat-label">Outlook</span>
               <strong class="stat-value">{{ data.horizon }} mo</strong>
-              <span class="stat-note">Months projected</span>
+              <span class="stat-note">Months ahead</span>
             </div>
           </section>
 
@@ -110,13 +110,13 @@
                 <tr>
                   <th>Step</th>
                   <th class="num">Forecast</th>
-                  <th class="num">Lower</th>
-                  <th class="num">Upper</th>
+                  <th class="num">Low estimate</th>
+                  <th class="num">High estimate</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="s in data.steps" :key="s.step">
-                  <td><strong>M+{{ s.step }}</strong></td>
+                  <td><strong>Month {{ s.step }}</strong></td>
                   <td class="num"><strong>{{ peso(s.value) }}</strong></td>
                   <td class="num">{{ peso(s.lower) }}</td>
                   <td class="num">{{ peso(s.upper) }}</td>

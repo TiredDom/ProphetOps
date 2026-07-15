@@ -7,19 +7,19 @@
     <section class="dss-page">
       <section class="stat-band" aria-label="Booking totals">
         <div class="stat-cell">
-          <span class="stat-label">Records</span>
+          <span class="stat-label">Bookings</span>
           <strong class="stat-value">{{ bookings.length }}</strong>
           <span class="stat-note">Saved bookings</span>
         </div>
         <div class="stat-cell">
           <span class="stat-label">Passengers</span>
           <strong class="stat-value">{{ totalPassengers }}</strong>
-          <span class="stat-note">Across all records</span>
+          <span class="stat-note">Across all bookings</span>
         </div>
         <div class="stat-cell">
           <span class="stat-label">Booked revenue</span>
           <strong class="stat-value">{{ peso(totalRevenue) }}</strong>
-          <span class="stat-note">Gross, all records</span>
+          <span class="stat-note">Total revenue</span>
         </div>
       </section>
 
@@ -81,7 +81,7 @@
               <th>Client / Partner</th>
               <th>Package</th>
               <th class="num">Passengers</th>
-              <th class="num">Gross revenue</th>
+              <th class="num">Revenue</th>
               <th>Payment</th>
               <th>Status</th>
             </tr>

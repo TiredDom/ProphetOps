@@ -7,7 +7,7 @@
     <section class="dss-page">
       <section class="stat-band" aria-label="Expense totals">
         <div class="stat-cell">
-          <span class="stat-label">Records</span>
+          <span class="stat-label">Expenses</span>
           <strong class="stat-value">{{ expenses.length }}</strong>
           <span class="stat-note">Saved expenses</span>
         </div>
@@ -67,7 +67,7 @@
         <table class="dss-table">
           <thead>
             <tr>
-              <th>Code</th>
+              <th>Expense ID</th>
               <th>Date</th>
               <th>Category</th>
               <th>Related package</th>

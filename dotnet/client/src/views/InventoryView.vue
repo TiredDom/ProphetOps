@@ -23,7 +23,7 @@
         </div>
       </section>
 
-      <Drawer :open="showForm" title="New package" @close="showForm = false">
+      <Drawer :open="showForm" :title="editingCode ? 'Edit package' : 'New package'" @close="showForm = false">
         <p v-if="formError" class="drawer-form-error" role="alert">{{ formError }}</p>
         <div class="form-grid">
           <label class="account-field field-wide">
@@ -74,36 +74,57 @@
         <template #footer>
           <button class="secondary-button" type="button" :disabled="saving" @click="showForm = false">Cancel</button>
           <button class="primary-button" type="button" :disabled="saving" @click="save">
-            {{ saving ? 'Saving…' : 'Save package' }}
+            {{ saving ? 'Saving…' : editingCode ? 'Save changes' : 'Save package' }}
           </button>
         </template>
       </Drawer>
 
-      <div class="dss-table-frame">
-        <table class="dss-table">
-          <thead>
-            <tr>
-              <th>Code</th>
-              <th>Package</th>
-              <th>Destination</th>
-              <th class="num">Base price</th>
-              <th class="num">Slots</th>
-              <th class="num">Sold</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="p in packages" :key="p.id">
-              <td><strong>{{ p.id }}</strong></td>
-              <td><strong>{{ p.packageName }}</strong><span class="row-subtext">{{ p.duration }}</span></td>
-              <td>{{ p.destination }}</td>
-              <td class="num"><strong>{{ peso(p.basePrice) }}</strong></td>
-              <td class="num">{{ p.availableSlots }}</td>
-              <td class="num">{{ p.soldCount }}</td>
-              <td><span class="record-badge" :class="badge(p.status)">{{ p.status }}</span></td>
-            </tr>
-          </tbody>
-        </table>
+      <div v-if="packages.length === 0" class="empty-state">
+        <h4>No packages yet</h4>
+        <p>Add your first travel package to start tracking available slots and sales.</p>
+        <button class="empty-state-action" type="button" @click="openForm">Add package</button>
+      </div>
+
+      <div v-else class="package-grid">
+        <button
+          v-for="p in packages"
+          :key="p.id"
+          type="button"
+          class="package-card"
+          @click="openEdit(p)"
+        >
+          <div class="package-head">
+            <span class="package-title">
+              <span class="package-name">{{ p.packageName }}</span>
+              <span class="package-code">{{ p.id }}</span>
+            </span>
+            <span class="record-badge" :class="badge(p.status)">{{ p.status }}</span>
+          </div>
+
+          <div class="package-meta">
+            <span class="package-dest">
+              <svg class="package-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 21s7-5.686 7-11a7 7 0 1 0-14 0c0 5.314 7 11 7 11z" />
+                <circle cx="12" cy="10" r="2.5" />
+              </svg>
+              {{ p.destination }}
+            </span>
+            <span v-if="p.duration" class="package-duration">{{ p.duration }}</span>
+          </div>
+
+          <strong class="package-price">{{ peso(p.basePrice) }}</strong>
+
+          <div class="package-slots">
+            <span class="slots-meter">
+              <span
+                class="slots-meter-fill"
+                :class="fillModifier(p.status)"
+                :style="{ width: slotsPercent(p) + '%' }"
+              ></span>
+            </span>
+            <span class="slots-caption">{{ p.availableSlots }} slots left · {{ p.soldCount }} sold</span>
+          </div>
+        </button>
       </div>
     </section>
   </AppShell>
@@ -119,6 +140,7 @@ const packages = ref<PackageRow[]>([]);
 const showForm = ref(false);
 const saving = ref(false);
 const formError = ref('');
+const editingCode = ref<string | null>(null);
 
 const form = reactive<PackageInput>(blank());
 
@@ -131,6 +153,19 @@ function peso(value: number): string {
 
 function badge(value: string): string {
   return 'status-' + value.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+}
+
+function fillModifier(status: string): string {
+  const key = status.toLowerCase();
+  if (key === 'critical') return 'is-critical';
+  if (key === 'low') return 'is-low';
+  return '';
+}
+
+function slotsPercent(p: PackageRow): number {
+  const total = Math.max(p.availableSlots + p.soldCount + p.reservedCount, 1);
+  const ratio = p.availableSlots / total;
+  return Math.min(100, Math.max(0, Math.round(ratio * 100)));
 }
 
 function blank(): PackageInput {
@@ -151,6 +186,25 @@ function blank(): PackageInput {
 function openForm() {
   Object.assign(form, blank());
   form.id = 'PKG-' + (100 + packages.value.length + 1);
+  editingCode.value = null;
+  formError.value = '';
+  showForm.value = true;
+}
+
+function openEdit(p: PackageRow) {
+  Object.assign(form, {
+    id: p.id,
+    packageName: p.packageName,
+    destination: p.destination,
+    duration: p.duration,
+    basePrice: p.basePrice,
+    inclusions: p.inclusions,
+    availableSlots: p.availableSlots,
+    soldCount: p.soldCount,
+    reservedCount: p.reservedCount,
+    status: p.status,
+  });
+  editingCode.value = p.id;
   formError.value = '';
   showForm.value = true;
 }
@@ -164,7 +218,11 @@ async function save() {
   formError.value = '';
   saving.value = true;
   try {
-    await api.createPackage({ ...form });
+    if (editingCode.value) {
+      await api.updatePackage(editingCode.value, { ...form });
+    } else {
+      await api.createPackage({ ...form });
+    }
     await load();
     showForm.value = false;
   } catch (e) {
@@ -182,5 +240,162 @@ onMounted(load);
   margin-bottom: var(--space-4);
   color: var(--color-danger-ink);
   font-size: 13px;
+}
+
+.package-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-4);
+}
+
+.package-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+  text-align: left;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+}
+
+.package-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--color-border-strong);
+}
+
+.package-card:focus-visible {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: var(--focus-ring);
+}
+
+.package-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.package-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.package-name {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-size: 1.1rem;
+  font-weight: 560;
+  letter-spacing: -0.005em;
+  line-height: 1.25;
+  color: var(--color-text-primary);
+}
+
+.package-code {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.package-head .record-badge {
+  flex: none;
+}
+
+.package-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.package-dest {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.package-pin {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  color: var(--color-text-muted);
+}
+
+.package-duration::before {
+  content: '·';
+  margin: 0 6px 0 0;
+  color: var(--color-text-faint);
+}
+
+.package-price {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-size: 1.25rem;
+  font-weight: 560;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  color: var(--color-text-primary);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.package-slots {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: auto;
+}
+
+.slots-meter {
+  display: block;
+  width: 100%;
+  height: 6px;
+  background: var(--color-surface-sunken);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.slots-meter-fill {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary);
+}
+
+.slots-meter-fill.is-low {
+  background: var(--color-warning);
+}
+
+.slots-meter-fill.is-critical {
+  background: var(--color-danger);
+}
+
+.slots-caption {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .package-card {
+    transition: none;
+  }
+
+  .package-card:hover {
+    transform: none;
+  }
 }
 </style>

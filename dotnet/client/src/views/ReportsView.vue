@@ -32,7 +32,7 @@
           <div class="stat-cell">
             <span class="stat-label">Packages</span>
             <strong class="stat-value">{{ data.counts.packages }}</strong>
-            <span class="stat-note">Catalog presets</span>
+            <span class="stat-note">In the catalog</span>
           </div>
           <div class="stat-cell">
             <span class="stat-label">Expenses</span>
