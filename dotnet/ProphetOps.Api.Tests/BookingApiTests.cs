@@ -16,7 +16,19 @@ public class BookingApiTests : IDisposable
         var client = _factory.CreateClient();
         var response = await client.PostAsJsonAsync("/api/auth/login", new { email, password });
         response.EnsureSuccessStatusCode();
+        await ArmAntiforgery(client);
         return client;
+    }
+
+    private static async Task ArmAntiforgery(HttpClient client)
+    {
+        var probe = await client.GetAsync("/api/auth/me");
+        if (!probe.Headers.TryGetValues("Set-Cookie", out var cookies)) return;
+        var xsrf = cookies.FirstOrDefault(c => c.StartsWith("XSRF-TOKEN="));
+        if (xsrf is null) return;
+        var value = xsrf.Split(';')[0]["XSRF-TOKEN=".Length..];
+        client.DefaultRequestHeaders.Remove("X-XSRF-TOKEN");
+        client.DefaultRequestHeaders.Add("X-XSRF-TOKEN", Uri.UnescapeDataString(value));
     }
 
     private static async Task<JsonElement> Body(HttpResponseMessage response) =>
