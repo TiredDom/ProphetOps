@@ -5,24 +5,6 @@
     </template>
 
     <section class="dss-page">
-      <section class="stat-band" aria-label="Package catalog totals">
-        <div class="stat-cell">
-          <span class="stat-label">Total packages</span>
-          <strong class="stat-value">{{ packages.length }}</strong>
-          <span class="stat-note">In catalog</span>
-        </div>
-        <div class="stat-cell">
-          <span class="stat-label">Available slots</span>
-          <strong class="stat-value">{{ totalAvailable }}</strong>
-          <span class="stat-note">Open across packages</span>
-        </div>
-        <div class="stat-cell">
-          <span class="stat-label">Sold slots</span>
-          <strong class="stat-value">{{ totalSold }}</strong>
-          <span class="stat-note">Booked to date</span>
-        </div>
-      </section>
-
       <Drawer :open="showForm" :title="editingCode ? 'Edit package' : 'New package'" @close="showForm = false">
         <p v-if="formError" class="drawer-form-error" role="alert">{{ formError }}</p>
         <div class="form-grid">
@@ -79,53 +61,105 @@
         </template>
       </Drawer>
 
-      <div v-if="packages.length === 0" class="empty-state">
-        <h4>No packages yet</h4>
-        <p>Add your first travel package to start tracking available slots and sales.</p>
-        <button class="empty-state-action" type="button" @click="openForm">Add package</button>
+      <div v-if="loading" class="content-panel">
+        <div class="panel-header">
+          <div class="panel-title-group">
+            <h2>Package catalog</h2>
+          </div>
+          <span class="panel-meta">Loading…</span>
+        </div>
+        <Skeleton :rows="6" />
       </div>
 
-      <div v-else class="package-grid">
-        <button
-          v-for="p in packages"
-          :key="p.id"
-          type="button"
-          class="package-card"
-          @click="openEdit(p)"
+      <EmptyState
+        v-else-if="packages.length === 0"
+        title="No packages yet"
+        message="Add your first travel package to start tracking available slots and sales."
+      >
+        <template #action>
+          <button class="primary-button" type="button" @click="openForm">Add package</button>
+        </template>
+      </EmptyState>
+
+      <template v-else>
+        <section class="stat-band" aria-label="Package catalog totals">
+          <div class="stat-cell">
+            <span class="stat-label">Total packages</span>
+            <strong class="stat-value">{{ packages.length }}</strong>
+            <span class="stat-note">In catalog</span>
+          </div>
+          <div class="stat-cell">
+            <span class="stat-label">Available slots</span>
+            <strong class="stat-value">{{ totalAvailable }}</strong>
+            <span class="stat-note">Open across packages</span>
+          </div>
+          <div class="stat-cell">
+            <span class="stat-label">Sold slots</span>
+            <strong class="stat-value">{{ totalSold }}</strong>
+            <span class="stat-note">Booked to date</span>
+          </div>
+        </section>
+
+        <div class="catalog-toolbar">
+          <div class="catalog-toolbar-heading">
+            <span class="catalog-toolbar-title">Every package</span>
+            <span class="catalog-toolbar-count">{{ resultLabel }}</span>
+          </div>
+          <SearchField v-model="query" placeholder="Search packages or destinations" />
+        </div>
+
+        <div v-if="filtered.length > 0" class="package-grid">
+          <button
+            v-for="p in filtered"
+            :key="p.id"
+            type="button"
+            class="package-card"
+            @click="openEdit(p)"
+          >
+            <div class="package-head">
+              <span class="package-title">
+                <span class="package-name">{{ p.packageName }}</span>
+                <span class="package-code">{{ p.id }}</span>
+              </span>
+              <span class="record-badge" :class="badge(p.status)">{{ p.status }}</span>
+            </div>
+
+            <div class="package-meta">
+              <span class="package-dest">
+                <svg class="package-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 21s7-5.686 7-11a7 7 0 1 0-14 0c0 5.314 7 11 7 11z" />
+                  <circle cx="12" cy="10" r="2.5" />
+                </svg>
+                {{ p.destination }}
+              </span>
+              <span v-if="p.duration" class="package-duration">{{ p.duration }}</span>
+            </div>
+
+            <strong class="package-price">{{ peso(p.basePrice) }}</strong>
+
+            <div class="package-slots">
+              <span class="slots-meter">
+                <span
+                  class="slots-meter-fill"
+                  :class="fillModifier(p.status)"
+                  :style="{ width: slotsPercent(p) + '%' }"
+                ></span>
+              </span>
+              <span class="slots-caption">{{ p.availableSlots }} slots left · {{ p.soldCount }} sold</span>
+            </div>
+          </button>
+        </div>
+
+        <EmptyState
+          v-else
+          title="No matches"
+          :message="`No packages match “${query.trim()}”. Try a different name, code, or destination.`"
         >
-          <div class="package-head">
-            <span class="package-title">
-              <span class="package-name">{{ p.packageName }}</span>
-              <span class="package-code">{{ p.id }}</span>
-            </span>
-            <span class="record-badge" :class="badge(p.status)">{{ p.status }}</span>
-          </div>
-
-          <div class="package-meta">
-            <span class="package-dest">
-              <svg class="package-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M12 21s7-5.686 7-11a7 7 0 1 0-14 0c0 5.314 7 11 7 11z" />
-                <circle cx="12" cy="10" r="2.5" />
-              </svg>
-              {{ p.destination }}
-            </span>
-            <span v-if="p.duration" class="package-duration">{{ p.duration }}</span>
-          </div>
-
-          <strong class="package-price">{{ peso(p.basePrice) }}</strong>
-
-          <div class="package-slots">
-            <span class="slots-meter">
-              <span
-                class="slots-meter-fill"
-                :class="fillModifier(p.status)"
-                :style="{ width: slotsPercent(p) + '%' }"
-              ></span>
-            </span>
-            <span class="slots-caption">{{ p.availableSlots }} slots left · {{ p.soldCount }} sold</span>
-          </div>
-        </button>
-      </div>
+          <template #action>
+            <button class="secondary-button" type="button" @click="query = ''">Clear search</button>
+          </template>
+        </EmptyState>
+      </template>
     </section>
   </AppShell>
 </template>
@@ -134,9 +168,17 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import AppShell from '../components/AppShell.vue';
 import Drawer from '../components/Drawer.vue';
+import Skeleton from '../components/Skeleton.vue';
+import EmptyState from '../components/EmptyState.vue';
+import SearchField from '../components/SearchField.vue';
+import { useToast } from '../composables/useToast';
 import { api, ApiError, type PackageRow, type PackageInput } from '../api';
 
+const toast = useToast();
+
 const packages = ref<PackageRow[]>([]);
+const loading = ref(true);
+const query = ref('');
 const showForm = ref(false);
 const saving = ref(false);
 const formError = ref('');
@@ -146,6 +188,22 @@ const form = reactive<PackageInput>(blank());
 
 const totalAvailable = computed(() => packages.value.reduce((sum, p) => sum + p.availableSlots, 0));
 const totalSold = computed(() => packages.value.reduce((sum, p) => sum + p.soldCount, 0));
+
+const filtered = computed(() => {
+  const q = query.value.trim().toLowerCase();
+  if (!q) return packages.value;
+  return packages.value.filter((p) =>
+    p.packageName.toLowerCase().includes(q) ||
+    p.id.toLowerCase().includes(q) ||
+    (p.destination ?? '').toLowerCase().includes(q)
+  );
+});
+
+const resultLabel = computed(() => {
+  const total = packages.value.length;
+  if (query.value.trim()) return `${filtered.value.length} of ${total} shown`;
+  return total === 1 ? '1 package' : `${total} packages`;
+});
 
 function peso(value: number): string {
   return '₱' + Math.round(value).toLocaleString('en-PH');
@@ -210,13 +268,20 @@ function openEdit(p: PackageRow) {
 }
 
 async function load() {
-  packages.value = await api.packages();
+  loading.value = true;
+  try {
+    packages.value = await api.packages();
+  } finally {
+    loading.value = false;
+  }
 }
 
 async function save() {
   if (saving.value) return;
   formError.value = '';
   saving.value = true;
+  const wasEditing = editingCode.value !== null;
+  const name = form.packageName || 'Package';
   try {
     if (editingCode.value) {
       await api.updatePackage(editingCode.value, { ...form });
@@ -225,8 +290,11 @@ async function save() {
     }
     await load();
     showForm.value = false;
+    toast.success(wasEditing ? `${name} updated` : `Package ${name} added`);
   } catch (e) {
-    formError.value = e instanceof ApiError ? Object.values(e.fields)[0] ?? e.message : 'Could not save the package.';
+    const message = e instanceof ApiError ? Object.values(e.fields)[0] ?? e.message : 'Could not save the package.';
+    formError.value = message;
+    toast.error(message);
   } finally {
     saving.value = false;
   }
@@ -240,6 +308,37 @@ onMounted(load);
   margin-bottom: var(--space-4);
   color: var(--color-danger-ink);
   font-size: 13px;
+}
+
+.catalog-toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-4);
+}
+
+.catalog-toolbar-heading {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.catalog-toolbar-title {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-size: 18px;
+  font-weight: 560;
+  letter-spacing: -0.005em;
+  color: var(--color-text-primary);
+}
+
+.catalog-toolbar-count {
+  color: var(--color-text-muted);
+  font-size: 12.5px;
+  font-variant-numeric: lining-nums tabular-nums;
+  white-space: nowrap;
 }
 
 .package-grid {
@@ -387,6 +486,16 @@ onMounted(load);
   color: var(--color-text-muted);
   font-size: 12px;
   font-variant-numeric: lining-nums tabular-nums;
+}
+
+@media (max-width: 640px) {
+  .catalog-toolbar {
+    align-items: stretch;
+  }
+
+  .catalog-toolbar :deep(.search-field) {
+    width: 100%;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
