@@ -118,6 +118,8 @@
 
       <slot />
     </main>
+
+    <ToastHost />
   </div>
 </template>
 
@@ -126,6 +128,7 @@ import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuth } from '../stores/auth';
 import { navFor } from '../nav';
+import ToastHost from './ToastHost.vue';
 
 defineProps<{ title: string; description?: string }>();
 
