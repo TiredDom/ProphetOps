@@ -1,6 +1,8 @@
 # TOPSIS Decision Support Plan
 
-This is the active algorithm direction for the capstone pivot.
+> **HISTORICAL / SUPERSEDED — TOPSIS was explored but NOT adopted.** The shipped algorithm is Holt-Winters (additive triple exponential smoothing), served at `GET /forecast`. See `information/forecasting-holt-winters.md` for the current methodology. This document is retained as a record of the earlier TOPSIS exploration; the plan below was not carried through to the shipped app.
+
+This document records an earlier proposed algorithm direction for the capstone pivot. It was not the direction ultimately shipped.
 
 ## Locked Research Direction
 
@@ -105,6 +107,8 @@ Example explanation:
 
 ## Implementation Roadmap
 
+> NOTE: The "Done" markers below reflect the earlier TOPSIS exploration only. None of these steps carried through to the shipped app — the TOPSIS service, UI page, migration, and tests were all removed. The shipped forecasting work is Holt-Winters at `GET /forecast` (see `information/forecasting-holt-winters.md`).
+
 1. Done: Add TOPSIS service/helper in the backend.
 2. Done: Add seed/sample package fields needed for scoring.
 3. Done: Add request validation for decision criteria.
@@ -114,13 +118,13 @@ Example explanation:
 7. Done: Update dashboard/trajectory wording from forecast/AI language to TOPSIS decision support.
 8. Next: Update capstone paper sections to match TOPSIS.
 
-Implemented files:
+Implemented files (REMOVED / never shipped — these TOPSIS artifacts have since been deleted from the repo and were never part of the shipped app):
 
-- `app/Support/TopsisDecisionSupport.php`
-- `app/Http/Controllers/ForecastingController.php`
-- `resources/js/Pages/ForecastingPreview.vue`
-- `database/migrations/2026_06_19_000050_add_topsis_fields_to_travel_packages_table.php`
-- `tests/Feature/TopsisDecisionSupportTest.php`
+- ~~`app/Support/TopsisDecisionSupport.php`~~ (removed)
+- ~~`app/Http/Controllers/ForecastingController.php`~~ (removed)
+- ~~`resources/js/Pages/ForecastingPreview.vue`~~ (removed)
+- ~~`database/migrations/2026_06_19_000050_add_topsis_fields_to_travel_packages_table.php`~~ (removed)
+- ~~`tests/Feature/TopsisDecisionSupportTest.php`~~ (removed)
 
 ## Paper Sections To Update
 

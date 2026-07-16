@@ -5,7 +5,7 @@ Read this before changing code or documentation.
 Current source of truth:
 
 1. `information/README.md`
-2. `information/topsis-decision-support-plan.md`
+2. `information/forecasting-holt-winters.md`
 3. `information/module-map.md`
 4. `information/api-map.md`
 5. `information/database-map.md`
@@ -30,8 +30,8 @@ Current system state:
 - SQLite database at `database/database.sqlite`.
 - Backend Laravel session login and role access are active.
 - Bookings, package catalog, expenses, analytics, reports, and dashboard use saved records.
-- TOPSIS is the active algorithm direction.
-- Meta Prophet is historical unless the user explicitly restores forecasting.
+- Holt-Winters (additive triple exponential smoothing) is the active algorithm direction.
+- TOPSIS and Meta Prophet are historical unless the user explicitly restores those directions.
 
 Current pages:
 
@@ -41,10 +41,9 @@ Current pages:
 4. Inventory
 5. Expenses / Operational Costs
 6. Sales Analytics
-7. TOPSIS Ranking
-8. Trajectory Insights
-9. Reports
-10. Users / Access Management
+7. Forecast
+8. Reports
+9. Users / Access Management
 
 Before implementing a specific task, read only the related map:
 
@@ -52,7 +51,7 @@ Before implementing a specific task, read only the related map:
 2. Routes/controllers: `information/api-map.md`
 3. Database/data transforms: `information/database-map.md`
 4. UI components: `information/ui-components.md`
-5. Algorithm planning: `information/topsis-decision-support-plan.md`
+5. Algorithm methodology: `information/forecasting-holt-winters.md`
 
 ## Current Scope Rules
 
@@ -65,7 +64,7 @@ Do build:
 - reusable UI components
 - skeleton and empty states
 - clear DSS insight cards
-- TOPSIS-ready package and decision-support data
+- explainable Holt-Winters forecasting and decision-support data
 
 Do not build unless explicitly requested:
 
@@ -102,25 +101,25 @@ Observed data -> Business meaning -> Suggested action
 Visible app UI should use polished labels such as:
 
 - Decision Support
-- TOPSIS Ranking
+- Forecast
 - Business Priority
 - Recommended Review
 
 Do not imply Meta Prophet, AI analysis, or external API automation is already running.
 
-## TOPSIS DSS Rule
+## Forecast DSS Rule
 
-The active paper feature is a TOPSIS-supported Business Decision Support System.
+The active paper feature is a Holt-Winters-supported Business Decision Support System.
 
-Before changing the Dashboard, TOPSIS Ranking, or Trajectory Insights pages, read:
+Before changing the Dashboard or Forecast (`resources/js/Pages/Forecast.vue`, served at `/forecast`) pages, read:
 
-- `information/topsis-decision-support-plan.md`
+- `information/forecasting-holt-winters.md`
 
-Planning direction:
+Methodology direction:
 
-- TOPSIS ranks package or travel-operation alternatives.
-- Criteria should be explainable to owners, admins, and staff.
-- Output should include ranking, score/closeness coefficient, recommended review action, and plain-language reason.
+- Holt-Winters (additive triple exponential smoothing) forecasts monthly revenue from the sample sales history.
+- The algorithm is implemented from first principles so it stays explainable to owners, admins, and staff.
+- Output should include the forecast series, level/trend/seasonal components, recommended review action, and plain-language reason.
 - Fragmented source data from Google Sheets, messages, posters, and manual communication is valid for the study.
 
 ## Git Rule
@@ -160,7 +159,7 @@ git commit -m "fix: correct dashboard route guard"
 - Use backend records and `app/Support/ProphetOpsData.php` for shared page data.
 - Use business language instead of technical jargon in the UI.
 - Keep the dashboard glanceable within 5 seconds.
-- Keep TOPSIS and DSS output explainable, not black-box.
-- Treat old forecasting and AI notes as historical unless restored.
+- Keep Holt-Winters forecasting and DSS output explainable, not black-box.
+- Treat old TOPSIS, Meta Prophet, and AI notes as historical unless restored.
 
 Last updated: June 19, 2026

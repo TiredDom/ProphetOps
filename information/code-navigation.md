@@ -16,7 +16,7 @@ Use this file when you need to know which code files to open first. It is a quic
 | Package catalog | `app/Http/Controllers/InventoryController.php`, `app/Models/TravelPackage.php`, `resources/js/Pages/Inventory.vue` | Manages travel packages, slots, package status, and availability. |
 | Expenses | `app/Http/Controllers/ExpenseController.php`, `app/Models/Expense.php`, `resources/js/Pages/Expenses.vue` | Manages operational cost records and expense summaries. |
 | Analytics | `app/Http/Controllers/AnalyticsController.php`, `resources/js/Pages/SalesAnalytics.vue` | Builds sales, demand, revenue, and cost summaries. |
-| Package Decision Guide | `app/Support/TopsisDecisionSupport.php`, `app/Http/Controllers/ForecastingController.php`, `resources/js/Pages/ForecastingPreview.vue` | Compares package alternatives from saved criteria data using TOPSIS. |
+| Forecast | `app/Http/Controllers/ForecastController.php`, `app/Support/HoltWintersForecaster.php`, `app/Support/ForecastInsight.php`, `resources/js/Pages/Forecast.vue` | Projects future monthly revenue from sample sales history using Holt-Winters and explains the result. |
 | DSS review signals | `app/Support/ProphetOpsData.php`, `resources/js/Pages/Welcome.vue`, `resources/js/Pages/Reports.vue` | Builds explainable dashboard/report action cards from saved records. |
 | Reports | `app/Http/Controllers/ReportController.php`, `resources/js/Pages/Reports.vue` | Shows internal report cards and report summaries. |
 | Users | `app/Http/Controllers/UserAccessController.php`, `resources/js/Pages/Users.vue` | Displays internal users and access state. |
@@ -30,23 +30,20 @@ Use this file when you need to know which code files to open first. It is a quic
 
 ## Current Algorithm Direction
 
-For algorithm work, open `information/topsis-decision-support-plan.md` before touching code.
+For algorithm work, open `information/forecasting-holt-winters.md` before touching code.
 
 Implemented areas:
 
-- backend TOPSIS service/helper
-- package criteria fields
-- default criteria weights
-- ranking output
+- Holt-Winters additive triple exponential smoothing service/helper
+- level, trend, and seasonal component tracking
+- monthly revenue projection output
 - plain-language explanation
 
 Likely future areas:
 
-- persisted decision-guide run history
-- editable weight sets
+- persisted forecast run history
+- tunable smoothing parameters
 - deeper dashboard or report summaries
-
-Do not start from old Meta Prophet docs unless the user explicitly restores forecasting.
 
 ## Clean Reading Rule
 

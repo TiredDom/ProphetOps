@@ -1,5 +1,7 @@
 # Sprint 1 Legacy Removal Plan
 
+> **HISTORICAL / COMPLETED** — This removal plan predates the current forecasting direction. It references an in-progress "Forecasting Preview" and "Trajectory Insights" pages and `/forecasting` / `/trajectory-insights` routes that are no longer part of the shipped app. The shipped forecasting feature is the Holt-Winters `/forecast` page (`resources/js/Pages/Forecast.vue`); TOPSIS / the Package Decision Guide were **not** adopted. See `information/forecasting-holt-winters.md`. Active-page and route lists below have been corrected to match the shipped app.
+
 This plan records the completed removal of old project direction from the active ProphetOps routes and files.
 
 Current status:
@@ -21,7 +23,7 @@ Legacy direction:
 Active replacements:
 
 - Operational Records -> Bookings / Transactions
-- Data Validation -> data-quality behavior inside Bookings, Inventory, Expenses, Analytics, Forecasting Preview, and Reports
+- Data Validation -> data-quality behavior inside Bookings, Inventory, Expenses, Analytics, Forecast, and Reports
 - Old inventory URL -> `/inventory`
 - Package references as a separate planning requirement -> Inventory and Bookings package context
 
@@ -35,8 +37,7 @@ Active pages now exist:
 - Inventory
 - Expenses
 - Analytics
-- Forecasting
-- Trajectory Insights
+- Forecast
 - Reports
 - Users
 
@@ -91,8 +92,7 @@ Do not remove yet:
 - `resources/js/Pages/Inventory.vue`
 - `resources/js/Pages/Expenses.vue`
 - `resources/js/Pages/SalesAnalytics.vue`
-- `resources/js/Pages/ForecastingPreview.vue`
-- `resources/js/Pages/TrajectoryInsights.vue`
+- `resources/js/Pages/Forecast.vue`
 - `resources/js/Pages/Reports.vue`
 - `resources/js/Pages/Users.vue`
 
@@ -196,7 +196,7 @@ Move those ideas into active Sprint 1 pages:
 - Inventory
 - Expenses
 - Reports
-- Forecasting Preview
+- Forecast
 
 Do not preserve:
 
@@ -223,8 +223,7 @@ Do not preserve:
    - `/inventory`
    - `/expenses`
    - `/analytics`
-   - `/forecasting`
-   - `/trajectory-insights`
+   - `/forecast`
    - `/reports`
    - `/users`
 10. Confirm removed legacy URLs are no longer part of active route list.

@@ -2,6 +2,22 @@
 
 Newest decisions override older planning notes unless the user explicitly asks to restore an older direction.
 
+## 2026-07-02 - Adopt Holt-Winters Demand Forecasting And Remove TOPSIS
+
+Decision:
+Drop TOPSIS and the `Package Decision Guide`, and adopt Holt-Winters demand forecasting as the active named algorithm for the capstone, surfaced at `/forecast`.
+
+Reason:
+The adviser asked for an algorithm-centered direction, and Holt-Winters (additive triple exponential smoothing) is an explainable forecasting algorithm implemented from first principles rather than a black-box model. Framing it as "an algorithm, not a model" satisfies that requirement while keeping the study defensible.
+
+Impact:
+
+- Active owner-facing route: `/forecast` (`App\Http\Controllers\ForecastController` rendering `resources/js/Pages/Forecast.vue`, guarded by `role.access:Forecast`).
+- TOPSIS was removed: `app/Support/TopsisDecisionSupport.php`, `app/Http/Controllers/ForecastingController.php`, `resources/js/Pages/ForecastingPreview.vue`, the standalone Trajectory Insights page, and `tests/Feature/TopsisDecisionSupportTest.php` are deleted. There is no longer a `Package Decision Guide`, `/decision-guide` page, or TOPSIS ranking view.
+- `/forecasting` and `/decision-guide` are now both compatibility redirects to `/forecast`.
+- `information/forecasting-holt-winters.md` is the source of truth for the algorithm methodology; supporting classes are `app/Support/HoltWintersForecaster.php` and `app/Support/ForecastInsight.php`, driven by `ProphetOpsData::salesHistory()`.
+- The two 2026-06-19 TOPSIS entries below are superseded by this decision.
+
 ## 2026-06-19 - Present TOPSIS Through An Owner-Friendly Guide
 
 Decision:

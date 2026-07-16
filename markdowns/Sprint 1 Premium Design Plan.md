@@ -2,7 +2,7 @@
 
 Status: historical UI planning reference.
 
-This is no longer the active source of truth for product direction, backend state, or algorithm direction. Read `information/README.md` first. The current system is backend-backed, and TOPSIS is the active capstone algorithm direction.
+This is no longer the active source of truth for product direction, backend state, or algorithm direction. Read `information/README.md` first. The current system is backend-backed, and Holt-Winters (additive triple exponential smoothing) is the active capstone algorithm direction, shipped at /forecast.
 
 ## Project Context
 
@@ -18,7 +18,7 @@ Build the front-end shell and main pages using mock/sample data.
 
 Forecasting and AI insights can be placeholders, but the app must already feel like a DSS.
 
-The main future research feature is Meta Prophet forecasting with a prescriptive DSS layer. Use `meta-prophet-prescriptive-dss-plan.md` before changing forecasting, dashboard forecast cards, or trajectory/prescriptive insight behavior.
+The shipped research feature is Holt-Winters (additive triple exponential smoothing) forecasting at /forecast (see `information/forecasting-holt-winters.md`). Meta Prophet was not adopted; references to it and to `meta-prophet-prescriptive-dss-plan.md` below are historical planning notes.
 
 The app should communicate immediately:
 

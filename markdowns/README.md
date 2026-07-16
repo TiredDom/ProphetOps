@@ -6,14 +6,14 @@ Before reading this folder, start with `../information/README.md`.
 
 Active capstone direction:
 
-- `ProphetOps: A Business Decision Support System Using TOPSIS for Travel Operations Management`
-- TOPSIS is the active algorithm direction.
-- Older Meta Prophet planning docs are historical unless the team explicitly restores Prophet forecasting.
+- `ProphetOps: A Business Decision Support System Using Holt-Winters Forecasting for Travel Operations Management`
+- Holt-Winters forecasting (additive triple exponential smoothing) is the active algorithm direction, shipped at `/forecast`.
+- Older TOPSIS and Meta Prophet planning docs are historical unless the team explicitly restores them.
 
 Read in this order:
 
 1. `../information/README.md`
-2. `../information/topsis-decision-support-plan.md`
+2. `../information/forecasting-holt-winters.md`
 3. `../information/module-map.md`
 4. `../information/api-map.md`
 5. `../information/database-map.md`
@@ -33,8 +33,8 @@ Current Sprint 1 direction:
 - Laravel session login with seeded demo accounts.
 - Role-aware navigation.
 - Stripe + Attio inspired premium business UI.
-- TOPSIS decision support is the active algorithm direction.
-- Forecasting and Meta Prophet docs are historical unless explicitly restored.
+- Holt-Winters forecasting is the active algorithm direction, shipped at `/forecast` (see `../information/forecasting-holt-winters.md`).
+- TOPSIS and Meta Prophet docs are historical unless explicitly restored.
 - Graphs should be contained and reusable according to `modular-graph-system-plan.md`.
 - Modal and drawer behavior for clickable Sprint 1 actions should follow `sprint-1-modal-interaction-plan.md`.
 - Legacy Operational Records and standalone Data Validation cleanup is recorded in `legacy-removal-plan.md`.

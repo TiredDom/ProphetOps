@@ -135,28 +135,26 @@ Response:
 Permissions:
 Requires Laravel auth and `role.access:Analytics`.
 
-### Package Decision Guide
+### Forecast
 
-Route: `GET /decision-guide`
+Route: `GET /forecast`
 
 Purpose:
-Render the owner-facing Package Decision Guide for package alternatives.
+Render the owner-facing Forecast page with the demand forecast.
 
 Response:
-`Inertia::render('ForecastingPreview')`
+`Inertia::render('Forecast')` via `App\Http\Controllers\ForecastController`.
 
 Permissions:
-Requires Laravel auth and `role.access:Package Decision Guide`.
+Requires Laravel auth and `role.access:Forecast`.
 
 Important:
-This route uses saved package records and TOPSIS criteria to compare package alternatives. Meta Prophet is not integrated. Keep TOPSIS visible as the method, not as the main page label.
+This route uses a Holt-Winters additive triple exponential smoothing model, implemented from first principles, to project the monthly-revenue series. The forecast reads `ProphetOpsData::salesHistory()` (a deterministic 36-month sample series). Meta Prophet is not integrated. See `information/forecasting-holt-winters.md` for the methodology.
 
-Accepted query inputs:
+Legacy compatibility redirects:
 
-- `budget`
-- `destination`
-- `duration`
-- `travelType`
+- `GET /decision-guide` redirects to `/forecast`.
+- `GET /forecasting` redirects to `/forecast`.
 
 ### Reports
 
@@ -196,15 +194,15 @@ These routes are implemented as Inertia page routes.
 | Inventory | `/inventory` | `Inventory.vue` |
 | Expenses / Operational Costs | `/expenses` | `Expenses.vue` |
 | Sales Analytics | `/analytics` | `SalesAnalytics.vue` |
-| Package Decision Guide | `/decision-guide` | `ForecastingPreview.vue` |
+| Forecast | `/forecast` | `Forecast.vue` |
 | Reports | `/reports` | `Reports.vue` |
 | Users / Access Management | `/users` | `Users.vue` |
 
 Route naming guidance:
 
 - Prefer short business labels over technical labels.
-- Keep `/forecasting` only as a compatibility redirect to `/decision-guide`.
-- Put DSS interpretation inside Dashboard summaries, Reports, and the Package Decision Guide instead of a separate Trajectory Insights page.
+- Keep `/forecasting` and `/decision-guide` only as compatibility redirects to `/forecast`.
+- Put DSS interpretation inside Dashboard summaries, Reports, and the Forecast page instead of a separate Trajectory Insights page.
 
 ## Current Authentication Routes
 
@@ -251,19 +249,20 @@ Reports:
 - `GET /reports/{type}`
 - `POST /reports/{type}/export`
 
-TOPSIS decision support:
+Forecast decision support:
 
-- Future backend work may add dedicated TOPSIS API endpoints when run history or external consumption is needed.
-- Possible future endpoints include `GET /topsis`, `POST /topsis/rank`, `GET /topsis/runs/{id}`, and `GET /topsis/runs/{id}/results`.
-- Do not add these unless persisted TOPSIS runs or a separate API surface become necessary.
+- The shipped research algorithm is Holt-Winters (additive triple exponential smoothing); TOPSIS was not adopted. See `information/forecasting-holt-winters.md`.
+- Future backend work may add dedicated forecast API endpoints when run history or external consumption is needed.
+- Possible future endpoints include `GET /forecast`, `POST /forecast/run`, `GET /forecast/runs/{id}`, and `GET /forecast/runs/{id}/results`.
+- Do not add these unless persisted forecast runs or a separate API surface become necessary.
 
 Prescriptive DSS:
 
-- Future backend work may add endpoints for stored recommendation cards after TOPSIS output exists.
+- Future backend work may add endpoints for stored recommendation cards after forecast output exists.
 - Possible future endpoints include `GET /prescriptive-insights`, `PATCH /prescriptive-insights/{id}/status`, and `POST /prescriptive-insights/generate`.
-- Recommendations should come from TOPSIS criteria, inventory/capacity status, cost movement, and package/business value.
+- Recommendations should come from forecast output, inventory/capacity status, cost movement, and package/business value.
 
 Important:
 
 - Do not imply these future endpoints exist.
-- Do not build them until TOPSIS or prescriptive DSS integration is explicitly in scope.
+- Do not build them until forecast or prescriptive DSS integration is explicitly in scope.
