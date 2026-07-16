@@ -233,6 +233,20 @@ export interface UserRow {
   email: string;
   role: string;
   status: string;
+  lastLoginAt: string | null;
+}
+
+export interface UserInput {
+  name: string;
+  email: string;
+  role: string;
+  password: string;
+  status: string;
+}
+
+export interface RoleOption {
+  name: string;
+  access: string;
 }
 
 export class ApiError extends Error {
@@ -290,6 +304,8 @@ export const api = {
   dashboard: () => request<DashboardData>('GET', '/api/dashboard'),
   bookings: () => request<BookingsPayload>('GET', '/api/bookings'),
   createBooking: (input: BookingInput) => request<Booking>('POST', '/api/bookings', input),
+  updateBooking: (code: string, input: BookingInput) =>
+    request<Booking>('PUT', `/api/bookings/${code}`, input),
   bulkBookings: (ids: string[], action: 'confirm' | 'paid') =>
     request<{ updated: number }>('POST', '/api/bookings/bulk', { ids, action }),
   packages: () => request<PackageRow[]>('GET', '/api/inventory'),
@@ -304,4 +320,8 @@ export const api = {
   forecast: () => request<ForecastData>('GET', '/api/forecast'),
   reports: () => request<ReportsData>('GET', '/api/reports'),
   users: () => request<UserRow[]>('GET', '/api/users'),
+  userRoles: () => request<RoleOption[]>('GET', '/api/users/roles'),
+  createUser: (input: UserInput) => request<UserRow>('POST', '/api/users', input),
+  updateUser: (email: string, input: UserInput) =>
+    request<UserRow>('PUT', `/api/users/${encodeURIComponent(email)}`, input),
 };

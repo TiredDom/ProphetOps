@@ -21,3 +21,10 @@ public record BookingRequest(
     string? Notes);
 
 public record BulkRequest(string[]? Ids, string? Action);
+
+public record UserRequest(
+    string? Name,
+    string? Email,
+    string? Role,
+    string? Password,
+    string? Status);

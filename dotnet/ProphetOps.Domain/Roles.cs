@@ -22,9 +22,19 @@ public static class Roles
         [Staff] = "/bookings",
     };
 
+    private static readonly Dictionary<string, string> Summaries = new()
+    {
+        [OwnerManagement] = "Full access, including managing accounts.",
+        [Admin] = "Everything except managing accounts.",
+        [Staff] = "Bookings and package catalog only.",
+    };
+
     public static bool CanAccess(string? role, string label) =>
         role is not null && Permissions.TryGetValue(role, out var labels) && labels.Contains(label);
 
     public static string DefaultPathForRole(string? role) =>
         role is not null && DefaultPaths.TryGetValue(role, out var path) ? path : "/login";
+
+    public static string AccessSummary(string? role) =>
+        role is not null && Summaries.TryGetValue(role, out var summary) ? summary : "";
 }
