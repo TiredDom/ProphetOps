@@ -52,20 +52,14 @@ public class BookingsController : ControllerBase
         if (_db.Bookings.Any(b => b.Code == request.Id))
             return BadRequest(new Dictionary<string, string> { ["id"] = "Booking ID already exists." });
 
+        var stock = ValidateAvailability(request, null);
+        if (stock.Count > 0) return BadRequest(stock);
+
         var booking = new Booking();
         Apply(booking, request);
         _db.Bookings.Add(booking);
 
-        if (booking.TravelPackageId is int packageId)
-        {
-            var package = _db.TravelPackages.Find(packageId);
-            if (package is not null)
-            {
-                package.AvailableSlots = Math.Max(0, package.AvailableSlots - booking.PassengerCount);
-                package.SoldCount += booking.PassengerCount;
-                package.LastUpdatedAt = DateOnly.FromDateTime(DateTime.UtcNow);
-            }
-        }
+        ReserveSlots(booking.TravelPackageId, booking.PassengerCount);
 
         _db.SaveChanges();
 
@@ -81,10 +75,63 @@ public class BookingsController : ControllerBase
         var errors = Validate(request);
         if (errors.Count > 0) return BadRequest(errors);
 
+        var stock = ValidateAvailability(request, booking);
+        if (stock.Count > 0) return BadRequest(stock);
+
+        var previousPackageId = booking.TravelPackageId;
+        var previousPassengers = booking.PassengerCount;
+
         Apply(booking, request);
+
+        ReleaseSlots(previousPackageId, previousPassengers);
+        ReserveSlots(booking.TravelPackageId, booking.PassengerCount);
+
         _db.SaveChanges();
 
         return Ok(Dto(booking));
+    }
+
+    private Dictionary<string, string> ValidateAvailability(BookingRequest request, Booking? existing)
+    {
+        var errors = new Dictionary<string, string>();
+        if (request.PackageId is null) return errors;
+
+        var package = _db.TravelPackages.FirstOrDefault(p => p.Code == request.PackageId);
+        if (package is null) return errors;
+
+        var alreadyHeld = existing is not null && existing.TravelPackageId == package.Id
+            ? existing.PassengerCount
+            : 0;
+        var capacity = package.AvailableSlots + alreadyHeld;
+
+        if (request.Y > capacity)
+            errors["y"] = capacity == 1
+                ? "Only 1 slot is left for this package."
+                : $"Only {capacity} slots are left for this package.";
+
+        return errors;
+    }
+
+    private void ReserveSlots(int? packageId, int passengers)
+    {
+        if (packageId is not int id) return;
+        var package = _db.TravelPackages.Find(id);
+        if (package is null) return;
+
+        package.AvailableSlots = Math.Max(0, package.AvailableSlots - passengers);
+        package.SoldCount += passengers;
+        package.LastUpdatedAt = DateOnly.FromDateTime(DateTime.UtcNow);
+    }
+
+    private void ReleaseSlots(int? packageId, int passengers)
+    {
+        if (packageId is not int id) return;
+        var package = _db.TravelPackages.Find(id);
+        if (package is null) return;
+
+        package.AvailableSlots += passengers;
+        package.SoldCount = Math.Max(0, package.SoldCount - passengers);
+        package.LastUpdatedAt = DateOnly.FromDateTime(DateTime.UtcNow);
     }
 
     [HttpPost("bulk")]
