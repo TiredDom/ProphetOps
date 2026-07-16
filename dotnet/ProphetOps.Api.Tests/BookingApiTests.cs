@@ -144,6 +144,112 @@ public class BookingApiTests : IDisposable
         Assert.Equal(soldBefore + 4, pkgAfter.GetProperty("soldCount").GetInt32());
     }
 
+    private static async Task<JsonElement> Package(HttpClient client, string code)
+    {
+        var body = await Body(await client.GetAsync("/api/bookings"));
+        return body.GetProperty("packages").EnumerateArray()
+            .First(p => p.GetProperty("id").GetString() == code);
+    }
+
+    private static object BookingPayload(string id, string packageId, int passengers) => new
+    {
+        id,
+        ds = "2026-07-14",
+        y = passengers,
+        client = "Edit Test Co.",
+        packageId,
+        entryType = packageId is null ? "Custom quotation" : "Package preset",
+        package = packageId is null ? "Custom island hop" : "Boracay Group Package",
+        destination = "Boracay",
+        grossRevenue = 12000 * passengers,
+        paymentStatus = "Pending",
+        bookingStatus = "Pending",
+        staffAssigned = "Staff User",
+        source = packageId is null ? "Manual quotation" : "Package preset",
+        notes = "",
+    };
+
+    [Fact]
+    public async Task Editing_passenger_count_reconciles_the_package_slots()
+    {
+        var client = await LoginAs("owner@prophetops.local", "owner123");
+        var before = await Package(client, "PKG-102");
+        var slots = before.GetProperty("availableSlots").GetInt32();
+        var sold = before.GetProperty("soldCount").GetInt32();
+
+        await client.PostAsJsonAsync("/api/bookings", BookingPayload("BKG-EDIT1", "PKG-102", 4));
+        var edit = await client.PutAsJsonAsync("/api/bookings/BKG-EDIT1", BookingPayload("BKG-EDIT1", "PKG-102", 6));
+        Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
+
+        var after = await Package(client, "PKG-102");
+        Assert.Equal(slots - 6, after.GetProperty("availableSlots").GetInt32());
+        Assert.Equal(sold + 6, after.GetProperty("soldCount").GetInt32());
+    }
+
+    [Fact]
+    public async Task Moving_a_booking_to_another_package_moves_the_slots()
+    {
+        var client = await LoginAs("owner@prophetops.local", "owner123");
+        var a0 = await Package(client, "PKG-101");
+        var b0 = await Package(client, "PKG-102");
+        var aSlots = a0.GetProperty("availableSlots").GetInt32();
+        var bSlots = b0.GetProperty("availableSlots").GetInt32();
+
+        await client.PostAsJsonAsync("/api/bookings", BookingPayload("BKG-EDIT2", "PKG-101", 3));
+        await client.PutAsJsonAsync("/api/bookings/BKG-EDIT2", BookingPayload("BKG-EDIT2", "PKG-102", 3));
+
+        var a1 = await Package(client, "PKG-101");
+        var b1 = await Package(client, "PKG-102");
+        Assert.Equal(aSlots, a1.GetProperty("availableSlots").GetInt32());
+        Assert.Equal(bSlots - 3, b1.GetProperty("availableSlots").GetInt32());
+    }
+
+    [Fact]
+    public async Task Converting_a_booking_to_a_tailored_quotation_releases_the_slots()
+    {
+        var client = await LoginAs("owner@prophetops.local", "owner123");
+        var before = await Package(client, "PKG-102");
+        var slots = before.GetProperty("availableSlots").GetInt32();
+
+        await client.PostAsJsonAsync("/api/bookings", BookingPayload("BKG-EDIT3", "PKG-102", 5));
+        await client.PutAsJsonAsync("/api/bookings/BKG-EDIT3", BookingPayload("BKG-EDIT3", null, 5));
+
+        var after = await Package(client, "PKG-102");
+        Assert.Equal(slots, after.GetProperty("availableSlots").GetInt32());
+    }
+
+    [Fact]
+    public async Task Overbooking_a_package_is_rejected()
+    {
+        var client = await LoginAs("owner@prophetops.local", "owner123");
+        var pkg = await Package(client, "PKG-101");
+        var slots = pkg.GetProperty("availableSlots").GetInt32();
+
+        var response = await client.PostAsJsonAsync("/api/bookings",
+            BookingPayload("BKG-OVER1", "PKG-101", slots + 2));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.True((await Body(response)).TryGetProperty("y", out _));
+
+        var after = await Package(client, "PKG-101");
+        Assert.Equal(slots, after.GetProperty("availableSlots").GetInt32());
+    }
+
+    [Fact]
+    public async Task Editing_a_booking_beyond_remaining_slots_is_rejected()
+    {
+        var client = await LoginAs("owner@prophetops.local", "owner123");
+        var slots = (await Package(client, "PKG-105")).GetProperty("availableSlots").GetInt32();
+
+        await client.PostAsJsonAsync("/api/bookings", BookingPayload("BKG-OVER2", "PKG-105", 2));
+        var edit = await client.PutAsJsonAsync("/api/bookings/BKG-OVER2",
+            BookingPayload("BKG-OVER2", "PKG-105", slots + 1));
+
+        Assert.Equal(HttpStatusCode.BadRequest, edit.StatusCode);
+        var after = await Package(client, "PKG-105");
+        Assert.Equal(slots - 2, after.GetProperty("availableSlots").GetInt32());
+    }
+
     [Fact]
     public async Task Bulk_confirm_updates_booking_status()
     {
