@@ -9,6 +9,7 @@ import ForecastView from './views/ForecastView.vue';
 import ReportsView from './views/ReportsView.vue';
 import UsersView from './views/UsersView.vue';
 import { useAuth } from './stores/auth';
+import { canAccess } from './nav';
 
 const router = createRouter({
   history: createWebHistory(),
@@ -32,6 +33,7 @@ router.beforeEach(async (to) => {
 
   if (!to.meta.public && !state.user) return '/login';
   if (to.path === '/login' && state.user) return state.user.defaultPath;
+  if (!to.meta.public && state.user && !canAccess(state.user.role, to.path)) return state.user.defaultPath;
   return true;
 });
 
