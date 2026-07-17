@@ -40,7 +40,13 @@
                 :type="show ? 'text' : 'password'"
                 autocomplete="current-password"
               />
-              <button class="password-toggle" type="button" @click="show = !show">
+              <button
+                class="password-toggle"
+                type="button"
+                :aria-pressed="show"
+                :aria-label="show ? 'Hide password' : 'Show password'"
+                @click="show = !show"
+              >
                 {{ show ? 'Hide' : 'Show' }}
               </button>
             </div>

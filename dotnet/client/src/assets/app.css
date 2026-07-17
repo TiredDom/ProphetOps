@@ -2577,22 +2577,32 @@ meter::-webkit-meter-even-less-good-value {
 
 .account-input .password-toggle {
     position: absolute;
-    right: 6px;
-    width: 30px;
-    height: 30px;
+    right: 5px;
+    height: 32px;
+    padding: 0 10px;
     border: none;
     border-radius: var(--radius-sm);
     background: transparent;
-    color: var(--color-text-faint);
+    color: var(--color-text-muted);
+    font-size: 12.5px;
+    font-weight: 600;
     cursor: pointer;
+    transition: color var(--transition-fast), background var(--transition-fast);
 }
 
 .account-input .password-toggle:hover {
-    color: var(--color-text-secondary);
+    color: var(--color-primary);
+    background: var(--color-surface-sunken);
+}
+
+.account-input .password-toggle:focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 1px;
+    color: var(--color-primary);
 }
 
 .login-form .account-input input {
-    padding-right: 40px;
+    padding-right: 68px;
 }
 
 .login-status {
