@@ -1,6 +1,7 @@
 <template>
   <AppShell title="Bookings" description="Booking and transaction records.">
     <template #actions>
+      <a class="secondary-button" href="/api/export/bookings.csv">Export CSV</a>
       <button class="secondary-button" type="button" @click="openImport">Import from file</button>
       <button class="primary-button" type="button" @click="openForm">Add booking</button>
     </template>

@@ -1,6 +1,8 @@
 <template>
   <AppShell title="Package Catalog" description="Travel packages and available slots.">
     <template #actions>
+      <a class="secondary-button" href="/api/export/packages.csv">Export CSV</a>
+      <button class="secondary-button" type="button" @click="openImport">Import from file</button>
       <button class="primary-button" type="button" @click="openForm">Add package</button>
     </template>
 
@@ -104,6 +106,98 @@
           <button class="secondary-button" type="button" :disabled="saving" @click="showForm = false">Cancel</button>
           <button class="primary-button" type="button" :disabled="saving" @click="save">
             {{ saving ? 'Saving…' : editingCode ? 'Save changes' : 'Save package' }}
+          </button>
+        </template>
+      </Drawer>
+
+      <Drawer :open="showImport" title="Import packages from a file" @close="showImport = false">
+        <p class="import-hint">
+          Export the sheet as a CSV file with the columns package, destination, and price.
+          Code, duration, inclusions, slots, and status are optional, and extra columns
+          are ignored.
+        </p>
+
+        <p v-if="importError" class="drawer-form-error" role="alert">{{ importError }}</p>
+
+        <div class="import-pick">
+          <input
+            ref="importFileInput"
+            class="visually-hidden"
+            type="file"
+            accept=".csv,text/csv"
+            @change="pickImportFile"
+          />
+          <button class="secondary-button" type="button" :disabled="importBusy" @click="importFileInput?.click()">
+            {{ importFile ? 'Choose a different file' : 'Choose CSV file' }}
+          </button>
+          <span v-if="importFile" class="import-filename">{{ importFile.name }}</span>
+        </div>
+
+        <template v-if="importPreviewData">
+          <dl class="import-summary">
+            <div>
+              <dt>Will be imported</dt>
+              <dd>{{ count(importable) }}</dd>
+            </div>
+            <div v-if="importPreviewData.duplicates">
+              <dt>Already in the catalog</dt>
+              <dd>{{ count(importPreviewData.duplicates) }}</dd>
+            </div>
+            <div v-if="importPreviewData.skipped">
+              <dt>Rows that could not be read</dt>
+              <dd>{{ count(importPreviewData.skipped) }}</dd>
+            </div>
+            <div>
+              <dt>Destinations</dt>
+              <dd>{{ count(importPreviewData.destinations) }}</dd>
+            </div>
+            <div>
+              <dt>Total open slots</dt>
+              <dd>{{ count(importPreviewData.totalSlots) }}</dd>
+            </div>
+          </dl>
+
+          <p v-if="importPreviewData.duplicateNames.length" class="import-hint">
+            Already in the catalog: {{ importPreviewData.duplicateNames.slice(0, 5).join(', ') }}<template v-if="importPreviewData.duplicateNames.length > 5"> and {{ importPreviewData.duplicateNames.length - 5 }} more</template>.
+          </p>
+
+          <div v-if="importPreviewData.warnings.length" class="import-notes import-warnings">
+            <p class="import-notes-title">Read with a caution</p>
+            <p v-for="w in importPreviewData.warnings.slice(0, 8)" :key="'w' + w.line">
+              Line {{ w.line }}: {{ w.reason }}
+            </p>
+            <p v-if="importPreviewData.warnings.length > 8">
+              and {{ importPreviewData.warnings.length - 8 }} more.
+            </p>
+          </div>
+
+          <div v-if="importPreviewData.problems.length" class="import-notes import-problems">
+            <p class="import-notes-title">Rows that will be skipped</p>
+            <p v-for="p in importPreviewData.problems.slice(0, 8)" :key="'p' + p.line">
+              Line {{ p.line }}: {{ p.reason }}
+            </p>
+            <p v-if="importPreviewData.problems.length > 8">
+              and {{ importPreviewData.problems.length - 8 }} more.
+            </p>
+          </div>
+
+          <p class="import-hint">
+            Nothing is saved until you press import. Imported packages start with the slots
+            the file gives them and can be edited afterwards like any other package.
+          </p>
+        </template>
+
+        <template #footer>
+          <button class="secondary-button" type="button" :disabled="importBusy" @click="showImport = false">Cancel</button>
+          <button
+            class="primary-button"
+            type="button"
+            :disabled="importBusy || importable === 0"
+            @click="commitImport"
+          >
+            {{ importBusy ? 'Working…' : importable > 0
+              ? 'Import ' + count(importable) + ' package' + (importable === 1 ? '' : 's')
+              : 'Nothing to import' }}
           </button>
         </template>
       </Drawer>
@@ -250,8 +344,8 @@ import SearchField from '../components/SearchField.vue';
 import ListFooter from '../components/ListFooter.vue';
 import { usePaged } from '../composables/usePaged';
 import { useToast } from '../composables/useToast';
-import { api, ApiError, type PackageRow, type PackageInput } from '../api';
-import { peso } from '../format';
+import { api, ApiError, type PackageImportPreview, type PackageRow, type PackageInput } from '../api';
+import { count, peso } from '../format';
 import MoneyField from '../components/MoneyField.vue';
 
 const toast = useToast();
@@ -265,6 +359,18 @@ const formError = ref('');
 const editingCode = ref<string | null>(null);
 
 const form = reactive<PackageInput>(blank());
+
+const showImport = ref(false);
+const importFileInput = ref<HTMLInputElement | null>(null);
+const importFile = ref<File | null>(null);
+const importPreviewData = ref<PackageImportPreview | null>(null);
+const importBusy = ref(false);
+const importError = ref('');
+
+const importable = computed(() => {
+  const p = importPreviewData.value;
+  return p ? Math.max(0, p.valid - p.duplicates) : 0;
+});
 
 const totalAvailable = computed(() => packages.value.reduce((sum, p) => sum + p.availableSlots, 0));
 const totalSold = computed(() => packages.value.reduce((sum, p) => sum + p.soldCount, 0));
@@ -397,6 +503,49 @@ function openEdit(p: PackageRow) {
   formError.value = '';
   imageError.value = '';
   showForm.value = true;
+}
+
+function openImport() {
+  importFile.value = null;
+  importPreviewData.value = null;
+  importError.value = '';
+  showImport.value = true;
+}
+
+async function pickImportFile(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0] ?? null;
+  input.value = '';
+  if (!file) return;
+  importFile.value = file;
+  importPreviewData.value = null;
+  importError.value = '';
+  importBusy.value = true;
+  try {
+    importPreviewData.value = await api.importPackagesPreview(file);
+  } catch (e) {
+    importError.value = e instanceof ApiError ? Object.values(e.fields)[0] ?? e.message : 'Could not read that file.';
+    importFile.value = null;
+  } finally {
+    importBusy.value = false;
+  }
+}
+
+async function commitImport() {
+  const file = importFile.value;
+  if (!file || importBusy.value) return;
+  importBusy.value = true;
+  importError.value = '';
+  try {
+    const result = await api.importPackagesCommit(file);
+    await load();
+    showImport.value = false;
+    toast.success(result.imported + ' package' + (result.imported === 1 ? '' : 's') + ' imported');
+  } catch (e) {
+    importError.value = e instanceof ApiError ? Object.values(e.fields)[0] ?? e.message : 'Could not import the file.';
+  } finally {
+    importBusy.value = false;
+  }
 }
 
 async function load() {
@@ -709,5 +858,85 @@ onMounted(load);
   .package-card:hover {
     transform: none;
   }
+}
+
+.import-hint {
+  margin: 0 0 var(--space-4);
+  color: var(--color-text-muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.import-pick {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.import-filename {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  word-break: break-all;
+}
+
+.import-summary {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+}
+
+.import-summary > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.import-summary dt {
+  color: var(--color-text-muted);
+  font-size: 12.5px;
+}
+
+.import-summary dd {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: lining-nums tabular-nums;
+  text-align: right;
+}
+
+.import-notes {
+  margin: 0 0 var(--space-4);
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.import-notes p {
+  margin: 0;
+}
+
+.import-notes-title {
+  margin: 0 0 2px;
+  font-weight: 700;
+}
+
+.import-warnings {
+  border: 1px solid var(--tone-warning-border);
+  background: var(--tone-warning-surface);
+  color: var(--tone-warning-ink);
+}
+
+.import-problems {
+  border: 1px solid var(--tone-danger-border);
+  background: var(--tone-danger-surface);
+  color: var(--tone-danger-ink);
 }
 </style>

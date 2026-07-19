@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text;
 
 namespace ProphetOps.Api;
 
@@ -17,12 +16,10 @@ public record BookingCsvRow(
     string? Staff,
     string? Notes);
 
-public record BookingCsvProblem(int Line, string Reason);
-
 public record BookingCsvResult(
     IReadOnlyList<BookingCsvRow> Rows,
-    IReadOnlyList<BookingCsvProblem> Problems,
-    IReadOnlyList<BookingCsvProblem> Warnings);
+    IReadOnlyList<CsvProblem> Problems,
+    IReadOnlyList<CsvProblem> Warnings);
 
 /// Reads the agency's booking history out of a spreadsheet export.
 ///
@@ -47,13 +44,13 @@ public static class BookingCsv
     public static BookingCsvResult Parse(string? content)
     {
         var rows = new List<BookingCsvRow>();
-        var problems = new List<BookingCsvProblem>();
-        var warnings = new List<BookingCsvProblem>();
+        var problems = new List<CsvProblem>();
+        var warnings = new List<CsvProblem>();
 
-        var records = Split(WithoutBom(content));
+        var records = Csv.Records(content);
         if (records.Count == 0)
         {
-            problems.Add(new BookingCsvProblem(1, "The file is empty."));
+            problems.Add(new CsvProblem(1, "The file is empty."));
             return new BookingCsvResult(rows, problems, warnings);
         }
 
@@ -69,20 +66,20 @@ public static class BookingCsv
         if (missing.Count > 0)
         {
             foreach (var column in missing)
-                problems.Add(new BookingCsvProblem(header.Line, $"The file has no '{column}' column."));
+                problems.Add(new CsvProblem(header.Line, $"The file has no '{column}' column."));
             return new BookingCsvResult(rows, problems, warnings);
         }
 
         var body = records.Skip(1).ToList();
         if (body.Count == 0)
         {
-            problems.Add(new BookingCsvProblem(header.Line, "The file has column headings but no bookings under them."));
+            problems.Add(new CsvProblem(header.Line, "The file has column headings but no bookings under them."));
             return new BookingCsvResult(rows, problems, warnings);
         }
 
         if (body.Count > MaxRows)
         {
-            problems.Add(new BookingCsvProblem(header.Line,
+            problems.Add(new CsvProblem(header.Line,
                 $"This file has {body.Count} rows and {MaxRows} is the most that can be imported at once. Split it and import the parts separately."));
             return new BookingCsvResult(rows, problems, warnings);
         }
@@ -99,7 +96,7 @@ public static class BookingCsv
 
             if (fields.Count > header.Fields.Count)
             {
-                problems.Add(new BookingCsvProblem(line,
+                problems.Add(new CsvProblem(line,
                     $"This row has {fields.Count} values but the headings only cover {header.Fields.Count}. Check for a comma inside a field that is not wrapped in quotes."));
                 continue;
             }
@@ -135,7 +132,7 @@ public static class BookingCsv
             var passengers = 0;
             if (passengersText.Length == 0)
                 reasons.Add("The passenger count is missing.");
-            else if (!TryCount(passengersText, out passengers))
+            else if (!Csv.TryCount(passengersText, out passengers))
                 reasons.Add($"'{passengersText}' is not a whole number of passengers.");
             else if (passengers < 1)
                 reasons.Add("The passenger count must be at least 1.");
@@ -144,7 +141,7 @@ public static class BookingCsv
             var revenue = 0;
             if (revenueText.Length == 0)
                 reasons.Add("The revenue is missing.");
-            else if (!TryMoney(revenueText, out var amount))
+            else if (!Csv.TryMoney(revenueText, out var amount))
                 reasons.Add($"'{revenueText}' is not an amount.");
             else if (amount < 0)
                 reasons.Add($"The revenue '{revenueText}' is negative.");
@@ -162,7 +159,7 @@ public static class BookingCsv
             if (payment.Length > 0)
             {
                 var match = PaymentStatuses.FirstOrDefault(s => s.Equals(payment, StringComparison.OrdinalIgnoreCase));
-                if (match is null) reasons.Add($"'{payment}' is not a payment status. Use {Or(PaymentStatuses)}.");
+                if (match is null) reasons.Add($"'{payment}' is not a payment status. Use {Csv.Or(PaymentStatuses)}.");
                 else paymentStatus = match;
             }
 
@@ -171,18 +168,18 @@ public static class BookingCsv
             if (status.Length > 0)
             {
                 var match = BookingStatuses.FirstOrDefault(s => s.Equals(status, StringComparison.OrdinalIgnoreCase));
-                if (match is null) reasons.Add($"'{status}' is not a booking status. Use {Or(BookingStatuses)}.");
+                if (match is null) reasons.Add($"'{status}' is not a booking status. Use {Csv.Or(BookingStatuses)}.");
                 else bookingStatus = match;
             }
 
             if (reasons.Count > 0)
             {
-                problems.Add(new BookingCsvProblem(line, string.Join(" ", reasons)));
+                problems.Add(new CsvProblem(line, string.Join(" ", reasons)));
                 continue;
             }
 
             if (code.Length > 0) used[code] = line;
-            if (warning is not null) warnings.Add(new BookingCsvProblem(line, warning));
+            if (warning is not null) warnings.Add(new CsvProblem(line, warning));
 
             rows.Add(new BookingCsvRow(
                 line,
@@ -195,106 +192,12 @@ public static class BookingCsv
                 code.Length > 0 ? code : null,
                 paymentStatus,
                 bookingStatus,
-                Optional(Value("staff")),
-                Optional(Value("notes"))));
+                Csv.Optional(Value("staff")),
+                Csv.Optional(Value("notes"))));
         }
 
         return new BookingCsvResult(rows, problems, warnings);
     }
-
-    private static string? Optional(string value) => value.Length == 0 ? null : value;
-
-    private static string WithoutBom(string? content)
-    {
-        if (string.IsNullOrEmpty(content)) return "";
-        return content[0] == '\uFEFF' ? content[1..] : content;
-    }
-
-    private static string Or(string[] values) =>
-        string.Join(", ", values[..^1]) + ", or " + values[^1];
-
-    /// Line numbers are the physical line the record starts on, so a reported problem is the
-    /// line the person opens in their spreadsheet, even when a quoted field spans several.
-    private static List<(int Line, List<string> Fields)> Split(string content)
-    {
-        var records = new List<(int, List<string>)>();
-        var fields = new List<string>();
-        var field = new StringBuilder();
-        var quoted = false;
-        var line = 1;
-        var start = 1;
-        var i = 0;
-
-        while (i < content.Length)
-        {
-            var c = content[i];
-
-            if (quoted)
-            {
-                if (c == '"' && i + 1 < content.Length && content[i + 1] == '"')
-                {
-                    field.Append('"');
-                    i += 2;
-                    continue;
-                }
-
-                if (c == '"')
-                {
-                    quoted = false;
-                    i++;
-                    continue;
-                }
-
-                if (c == '\n') line++;
-                field.Append(c);
-                i++;
-                continue;
-            }
-
-            if (c == '"')
-            {
-                quoted = true;
-                i++;
-                continue;
-            }
-
-            if (c == ',')
-            {
-                fields.Add(field.ToString());
-                field.Clear();
-                i++;
-                continue;
-            }
-
-            if (c == '\r' || c == '\n')
-            {
-                if (c == '\r' && i + 1 < content.Length && content[i + 1] == '\n') i++;
-                i++;
-
-                fields.Add(field.ToString());
-                field.Clear();
-                if (!IsBlank(fields)) records.Add((start, fields));
-                fields = new List<string>();
-                line++;
-                start = line;
-                continue;
-            }
-
-            field.Append(c);
-            i++;
-        }
-
-        if (field.Length > 0 || fields.Count > 0)
-        {
-            fields.Add(field.ToString());
-            if (!IsBlank(fields)) records.Add((start, fields));
-        }
-
-        return records;
-    }
-
-    private static bool IsBlank(List<string> fields) =>
-        fields.Count == 1 && string.IsNullOrWhiteSpace(fields[0]);
 
     private static bool TryDate(string text, out DateOnly date, out bool eitherWayRound)
     {
@@ -338,28 +241,4 @@ public static class BookingCsv
 
     private static bool Real(int year, int month, int day) =>
         year >= 1 && year <= 9999 && month >= 1 && month <= 12 && day >= 1 && day <= DateTime.DaysInMonth(year, month);
-
-    private static bool TryMoney(string text, out decimal amount)
-    {
-        var cleaned = new StringBuilder(text.Length);
-        foreach (var c in text.Replace("PHP", "", StringComparison.OrdinalIgnoreCase))
-        {
-            if (c is '₱' or 'P' or 'p' or ',' or '_' || char.IsWhiteSpace(c)) continue;
-            cleaned.Append(c);
-        }
-
-        return decimal.TryParse(cleaned.ToString(), NumberStyles.Number, CultureInfo.InvariantCulture, out amount);
-    }
-
-    private static bool TryCount(string text, out int count)
-    {
-        var cleaned = new StringBuilder(text.Length);
-        foreach (var c in text)
-        {
-            if (c == ',' || char.IsWhiteSpace(c)) continue;
-            cleaned.Append(c);
-        }
-
-        return int.TryParse(cleaned.ToString(), NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out count);
-    }
 }
