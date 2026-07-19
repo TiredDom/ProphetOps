@@ -125,14 +125,128 @@ public class ImportController : ControllerBase
         });
     }
 
+    /// The catalog policy, not the controller's booking one: whoever may edit packages by
+    /// hand may load them from a sheet, and nobody else.
+    [HttpPost("packages/preview")]
+    [RequestSizeLimit(MaxBytes)]
+    [Authorize(Policy = "Package Catalog")]
+    public async Task<IActionResult> PreviewPackages(IFormFile? file)
+    {
+        var (content, failure) = await Read(file);
+        if (failure is not null) return failure;
+
+        var result = PackageCsv.Parse(content);
+        var (codes, names) = ExistingPackages();
+        var duplicates = result.Rows
+            .Where(r => (r.Code is not null && codes.Contains(r.Code)) || names.Contains(r.Package))
+            .Select(r => r.Package)
+            .ToList();
+
+        return Ok(new
+        {
+            valid = result.Rows.Count,
+            skipped = result.Problems.Count,
+            duplicates = duplicates.Count,
+            duplicateNames = duplicates.Take(20),
+            destinations = result.Rows.Select(r => r.Destination).Distinct(StringComparer.OrdinalIgnoreCase).Count(),
+            totalSlots = result.Rows.Sum(r => r.Slots),
+            problems = result.Problems.Select(Note),
+            warnings = result.Warnings.Select(Note),
+        });
+    }
+
+    [HttpPost("packages/commit")]
+    [RequestSizeLimit(MaxBytes)]
+    [Authorize(Policy = "Package Catalog")]
+    public async Task<IActionResult> CommitPackages(IFormFile? file, [FromForm] string? confirm)
+    {
+        if (!IsYes(confirm))
+            return Bad("confirm", "Preview the file and confirm before it is saved.");
+
+        var (content, failure) = await Read(file);
+        if (failure is not null) return failure;
+
+        var result = PackageCsv.Parse(content);
+        if (result.Rows.Count == 0)
+            return Bad("file", "Nothing in this file could be imported. Preview it to see why.");
+
+        var (codes, names) = ExistingPackages();
+        var imported = new List<TravelPackage>();
+        var alreadyHeld = new List<string>();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        foreach (var row in result.Rows)
+        {
+            if ((row.Code is not null && codes.Contains(row.Code)) || names.Contains(row.Package))
+            {
+                alreadyHeld.Add(row.Package);
+                continue;
+            }
+
+            var code = row.Code ?? NewPackageCode(codes);
+            codes.Add(code);
+            names.Add(row.Package);
+
+            var package = new TravelPackage
+            {
+                Code = code,
+                PackageName = row.Package,
+                Destination = row.Destination,
+                Duration = row.Duration,
+                BasePrice = row.Price,
+                Inclusions = row.Inclusions,
+                AvailableSlots = row.Slots,
+                Status = row.Status,
+                LastUpdatedAt = today,
+            };
+
+            _db.TravelPackages.Add(package);
+            imported.Add(package);
+        }
+
+        var batch = $"IMP-PKG-{DateTime.UtcNow:yyyyMMdd-HHmmss}";
+        AuditLog.Record(_db, User, AuditLog.Imported, "TravelPackage", batch,
+            PackageSummary(imported, result.Problems.Count, alreadyHeld.Count, file!.FileName));
+        _db.SaveChanges();
+
+        return Ok(new
+        {
+            batch,
+            imported = imported.Count,
+            skipped = result.Problems.Count + alreadyHeld.Count,
+            duplicates = alreadyHeld.Count,
+            duplicateNames = alreadyHeld.Take(20),
+            totalSlots = imported.Sum(p => p.AvailableSlots),
+            problems = result.Problems.Select(Note),
+            warnings = result.Warnings.Select(Note),
+        });
+    }
+
     private HashSet<string> ExistingCodes() =>
         _db.Bookings.Select(b => b.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    private (HashSet<string> Codes, HashSet<string> Names) ExistingPackages()
+    {
+        var known = _db.TravelPackages.Select(p => new { p.Code, p.PackageName }).ToList();
+        return (
+            known.Select(p => p.Code).ToHashSet(StringComparer.OrdinalIgnoreCase),
+            known.Select(p => p.PackageName.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase));
+    }
 
     private static string NewCode(HashSet<string> taken)
     {
         while (true)
         {
             var code = "IMP-" + Guid.NewGuid().ToString("N")[..6].ToUpperInvariant();
+            if (taken.Add(code)) return code;
+        }
+    }
+
+    private static string NewPackageCode(HashSet<string> taken)
+    {
+        while (true)
+        {
+            var code = "PKG-" + Guid.NewGuid().ToString("N")[..6].ToUpperInvariant();
             if (taken.Add(code)) return code;
         }
     }
@@ -155,6 +269,25 @@ public class ImportController : ControllerBase
 
         if (skipped > 0) parts.Add($"{skipped} rows could not be read");
         if (duplicates > 0) parts.Add($"{duplicates} already in the system");
+
+        return string.Join("; ", parts);
+    }
+
+    private static string PackageSummary(List<TravelPackage> imported, int skipped, int duplicates, string fileName)
+    {
+        var parts = new List<string>();
+        var name = Path.GetFileName(fileName ?? "");
+        var source = string.IsNullOrWhiteSpace(name) ? "an uploaded file" : Clean(name);
+
+        parts.Add(imported.Count == 1
+            ? $"1 package imported from {source}"
+            : $"{imported.Count} packages imported from {source}");
+
+        if (imported.Count > 0)
+            parts.Add($"{imported.Sum(p => p.AvailableSlots):N0} slots opened");
+
+        if (skipped > 0) parts.Add($"{skipped} rows could not be read");
+        if (duplicates > 0) parts.Add($"{duplicates} already in the catalog");
 
         return string.Join("; ", parts);
     }
@@ -220,7 +353,7 @@ public class ImportController : ControllerBase
     private static BadRequestObjectResult Bad(string field, string message) =>
         new(new Dictionary<string, string> { [field] = message });
 
-    private static object Note(BookingCsvProblem problem) => new
+    private static object Note(CsvProblem problem) => new
     {
         line = problem.Line,
         reason = problem.Reason,

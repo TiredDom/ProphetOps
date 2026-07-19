@@ -107,6 +107,28 @@ export interface ImportResult {
   warnings: ImportNote[];
 }
 
+export interface PackageImportPreview {
+  valid: number;
+  skipped: number;
+  duplicates: number;
+  duplicateNames: string[];
+  destinations: number;
+  totalSlots: number;
+  problems: ImportNote[];
+  warnings: ImportNote[];
+}
+
+export interface PackageImportResult {
+  batch: string;
+  imported: number;
+  skipped: number;
+  duplicates: number;
+  duplicateNames: string[];
+  totalSlots: number;
+  problems: ImportNote[];
+  warnings: ImportNote[];
+}
+
 export interface ActivityEntry {
   at: string;
   actor: string;
@@ -406,6 +428,10 @@ export const api = {
     upload<ImportPreview>('/api/import/bookings/preview', file),
   importBookingsCommit: (file: File) =>
     upload<ImportResult>('/api/import/bookings/commit', file, { confirm: 'true' }),
+  importPackagesPreview: (file: File) =>
+    upload<PackageImportPreview>('/api/import/packages/preview', file),
+  importPackagesCommit: (file: File) =>
+    upload<PackageImportResult>('/api/import/packages/commit', file, { confirm: 'true' }),
   bulkBookings: (ids: string[], action: 'confirm' | 'paid') =>
     request<{ updated: number }>('POST', '/api/bookings/bulk', { ids, action }),
   packages: () => request<PackageRow[]>('GET', '/api/inventory'),
