@@ -242,6 +242,52 @@ public class TrajectoryInsightsTests
         Assert.Empty(TrajectoryInsights.Build(Input(new List<TrajectoryStep>())));
     }
 
+    [Theory]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    [InlineData(double.NegativeInfinity)]
+    public void Says_nothing_rather_than_printing_an_unusable_figure(double broken)
+    {
+        var withBrokenValue = new List<TrajectoryStep>
+        {
+            new("August 2026", broken, 900_000, 1_100_000),
+            new("September 2026", 1_200_000, 1_100_000, 1_300_000),
+            new("October 2026", 1_400_000, 1_280_000, 1_520_000),
+        };
+
+        Assert.Empty(TrajectoryInsights.Build(Input(withBrokenValue)));
+        Assert.Empty(TrajectoryInsights.Build(Input(mape: broken)));
+    }
+
+    [Fact]
+    public void Says_nothing_when_a_month_has_no_name_to_report()
+    {
+        var unlabelled = new List<TrajectoryStep>
+        {
+            new("", 1_000_000, 900_000, 1_100_000),
+            new("September 2026", 1_200_000, 1_100_000, 1_300_000),
+            new("October 2026", 1_400_000, 1_280_000, 1_520_000),
+        };
+
+        Assert.Empty(TrajectoryInsights.Build(Input(unlabelled)));
+    }
+
+    [Fact]
+    public void Writes_a_negative_figure_with_the_sign_before_the_currency()
+    {
+        var falling = new List<TrajectoryStep>
+        {
+            new("August 2026", -50_000, -60_000, -40_000),
+            new("September 2026", 200_000, 180_000, 220_000),
+            new("October 2026", 900_000, 820_000, 980_000),
+        };
+
+        var text = Text(Input(falling), "trough");
+
+        Assert.Contains("-₱50,000", text);
+        Assert.DoesNotContain("₱-", text);
+    }
+
     [Fact]
     public void Every_note_reads_as_a_finished_sentence()
     {

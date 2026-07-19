@@ -37,7 +37,7 @@ public static class TrajectoryInsights
     {
         var notes = new List<TrajectoryNote>();
         var steps = input.Steps;
-        if (steps.Count == 0) return notes;
+        if (steps.Count == 0 || !Usable(input)) return notes;
 
         var peak = steps.MaxBy(s => s.Value)!;
         var trough = steps.MinBy(s => s.Value)!;
@@ -200,8 +200,26 @@ public static class TrajectoryInsights
         return $"Typical monthly error is {typical} — close enough to plan around, loose enough to leave room.";
     }
 
-    private static string Money(double value) =>
-        "₱" + Math.Round(value).ToString("N0", CultureInfo.InvariantCulture);
+    // A statement built from an unusable figure is worse than no statement, so the whole set is
+    // withheld rather than printing "NaN" or an unlabelled month into a sentence.
+    private static bool Usable(TrajectoryInput input) =>
+        double.IsFinite(input.Mape)
+        && double.IsFinite(input.Mae)
+        && double.IsFinite(input.SeasonalNaiveMae)
+        && double.IsFinite(input.ChangePercent)
+        && double.IsFinite(input.LastRecordedValue)
+        && input.Steps.All(s =>
+            double.IsFinite(s.Value)
+            && double.IsFinite(s.Lower)
+            && double.IsFinite(s.Upper)
+            && !string.IsNullOrWhiteSpace(s.MonthLabel));
+
+    private static string Money(double value)
+    {
+        var rounded = Math.Round(value);
+        var sign = rounded < 0 ? "-" : "";
+        return sign + "₱" + Math.Abs(rounded).ToString("N0", CultureInfo.InvariantCulture);
+    }
 
     private static string Percent(double value, bool signed = false)
     {
