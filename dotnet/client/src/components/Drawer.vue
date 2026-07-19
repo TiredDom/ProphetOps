@@ -1,12 +1,11 @@
 <template>
   <Transition name="scrim">
-    <button
+    <div
       v-if="open"
       class="slide-drawer-backdrop"
-      type="button"
-      aria-label="Close panel"
+      aria-hidden="true"
       @click="emit('close')"
-    ></button>
+    ></div>
   </Transition>
 
   <Transition name="panel">
@@ -40,27 +39,21 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
+import { useModalFocus } from '../composables/useModalFocus';
 
 const props = defineProps<{ open: boolean; title: string }>();
 const emit = defineEmits<{ close: [] }>();
 
 const panel = ref<HTMLElement | null>(null);
 
+useModalFocus(panel, () => props.open);
+
 function onKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape' && props.open) {
     emit('close');
   }
 }
-
-watch(
-  () => props.open,
-  (isOpen) => {
-    if (isOpen) {
-      nextTick(() => panel.value?.focus());
-    }
-  },
-);
 
 onMounted(() => document.addEventListener('keydown', onKeydown));
 onUnmounted(() => document.removeEventListener('keydown', onKeydown));

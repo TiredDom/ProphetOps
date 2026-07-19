@@ -1,5 +1,5 @@
 <template>
-  <div class="toast-host" role="status" aria-live="polite">
+  <div class="toast-host" role="status" aria-live="polite" aria-atomic="false">
     <TransitionGroup name="toast">
       <div v-for="t in toasts" :key="t.id" class="toast" :class="`toast-${t.tone}`">
         <span class="toast-icon" aria-hidden="true">
@@ -98,12 +98,12 @@ const { toasts, dismiss } = useToastList();
   flex: none;
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   padding: 0;
   border: none;
   background: none;
-  color: var(--color-text-faint);
+  color: var(--color-text-muted);
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: color var(--transition-fast);

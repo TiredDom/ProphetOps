@@ -1150,7 +1150,7 @@ textarea {
 
 input::placeholder,
 textarea::placeholder {
-    color: #6F776F;
+    color: var(--color-text-muted);
     opacity: 1;
 }
 
@@ -1249,6 +1249,32 @@ textarea[aria-invalid='true'] {
 .form-helper {
     color: var(--color-text-muted);
     font-size: 12.5px;
+}
+
+/* Ten navigation links sit before the content on every page; this gives a keyboard or
+   screen-reader user one stop to get past them. Off-screen until focused. */
+.skip-link {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    z-index: var(--z-tooltip);
+    padding: 10px 16px;
+    border: 1px solid var(--color-primary);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-primary);
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    transform: translateY(calc(-100% - 16px));
+}
+
+.skip-link:focus {
+    transform: translateY(0);
+}
+
+#main-content:focus {
+    outline: none;
 }
 
 .visually-hidden {
@@ -2751,6 +2777,20 @@ input[type='checkbox']:focus-visible {
 }
 
 @media (max-width: 860px) {
+    /* iOS Safari zooms the page when a field under 16px takes focus, which leaves the layout
+       shifted afterwards. Touch targets also grow to the 44px the platform guidelines ask for. */
+    input[type='text'],
+    input[type='email'],
+    input[type='password'],
+    input[type='number'],
+    input[type='date'],
+    input[type='search'],
+    select,
+    textarea {
+        min-height: 44px;
+        font-size: 16px;
+    }
+
     .dss-table {
         min-width: 720px;
     }

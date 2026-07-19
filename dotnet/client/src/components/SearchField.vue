@@ -74,23 +74,29 @@ function clear() {
   font-size: 13.5px;
 }
 
+@media (max-width: 860px) {
+  .search-field input {
+    font-size: 16px;
+  }
+}
+
 .search-field input:focus {
   outline: none;
 }
 
 .search-field input::placeholder {
-  color: var(--color-text-faint);
+  color: var(--color-text-muted);
 }
 
 .search-field-clear {
   display: grid;
   place-items: center;
-  width: 20px;
-  height: 20px;
+  width: 26px;
+  height: 26px;
   padding: 0;
   border: none;
   background: none;
-  color: var(--color-text-faint);
+  color: var(--color-text-muted);
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: color var(--transition-fast);

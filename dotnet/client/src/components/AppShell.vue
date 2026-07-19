@@ -1,8 +1,10 @@
 <template>
-  <div class="dashboard-shell" :class="{ 'sidebar-open': open }">
-    <button class="sidebar-overlay" type="button" aria-label="Close navigation" @click="open = false"></button>
+  <div class="dashboard-shell" :class="{ 'sidebar-open': open }" @keydown="onShellKeydown">
+    <a class="skip-link" href="#main-content">Skip to content</a>
 
-    <aside id="app-sidebar" class="sidebar" :class="{ open }">
+    <div class="sidebar-overlay" aria-hidden="true" @click="open = false"></div>
+
+    <aside id="app-sidebar" ref="sidebar" class="sidebar" :class="{ open }" tabindex="-1">
       <div class="brand">
         <p class="brand-name">ProphetOps</p>
         <p class="brand-subtitle">Renan-Tina Travels &amp; Tours</p>
@@ -80,7 +82,7 @@
       </nav>
     </aside>
 
-    <main class="main-panel">
+    <main id="main-content" class="main-panel" tabindex="-1">
       <header class="topbar">
         <div class="topbar-row">
           <div class="topbar-heading">
@@ -130,6 +132,7 @@ import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuth } from '../stores/auth';
 import { navFor } from '../nav';
+import { useModalFocus } from '../composables/useModalFocus';
 import ToastHost from './ToastHost.vue';
 
 defineProps<{ title: string; description?: string }>();
@@ -137,6 +140,14 @@ defineProps<{ title: string; description?: string }>();
 const router = useRouter();
 const { state, logout } = useAuth();
 const open = ref(false);
+const sidebar = ref<HTMLElement | null>(null);
+
+// Only ever true on the narrow layout, where the sidebar covers the page as a drawer.
+useModalFocus(sidebar, () => open.value);
+
+function onShellKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && open.value) open.value = false;
+}
 
 const groups = computed(() => navFor(state.user?.role));
 
