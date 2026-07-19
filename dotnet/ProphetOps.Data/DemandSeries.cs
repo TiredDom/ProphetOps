@@ -21,6 +21,10 @@ public class DemandSeries
     /// Months inside the live range that carried no bookings and were filled with zero.
     public required int FilledMonths { get; init; }
 
+    /// Months that actually carried bookings. This, not the span, is what the forecaster has
+    /// to learn from.
+    public int RecordedMonths => LiveMonthsAvailable - FilledMonths;
+
     public required int MinimumMonths { get; init; }
 
     public bool UsingLiveRecords => Source == DemandSeriesSource.LiveRecords;
@@ -84,7 +88,11 @@ public static class DemandSeriesBuilder
             liveMonths = live.Count;
         }
 
-        if (liveMonths >= MinimumMonths)
+        // Two full seasons of *observations*, not two seasons of calendar. A handful of records
+        // scattered across three years spans far more than the minimum while carrying almost no
+        // signal, and the gaps between them are zeros the model would read as collapsed demand.
+        // Counting the span alone let four imported rows pass a gate meant to guarantee history.
+        if (liveMonths - filled >= MinimumMonths)
         {
             return new DemandSeries
             {
@@ -105,7 +113,9 @@ public static class DemandSeriesBuilder
             LastMonth = SampleAnchor,
             Source = DemandSeriesSource.SampleSeries,
             LiveMonthsAvailable = liveMonths,
-            FilledMonths = 0,
+            // Reported even though the live range was not used, so a caller can still say how
+            // much real history exists and how far off the threshold it is.
+            FilledMonths = filled,
             MinimumMonths = MinimumMonths,
         };
     }

@@ -125,6 +125,7 @@ public class ForecastController : ControllerBase
             {
                 usingLiveRecords = demand.UsingLiveRecords,
                 liveMonthsAvailable = demand.LiveMonthsAvailable,
+                recordedMonths = demand.RecordedMonths,
                 minimumMonths = demand.MinimumMonths,
                 filledMonths = demand.FilledMonths,
             },

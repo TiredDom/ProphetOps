@@ -216,6 +216,7 @@ export interface ForecastInsight {
 export interface ForecastDataSource {
   usingLiveRecords: boolean;
   liveMonthsAvailable: number;
+  recordedMonths: number;
   minimumMonths: number;
   filledMonths: number;
 }

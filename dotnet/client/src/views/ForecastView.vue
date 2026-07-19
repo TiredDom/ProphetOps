@@ -206,9 +206,9 @@ const sourceNote = computed(() => {
       : '';
     return `Based on your booking history — ${s.liveMonthsAvailable} months recorded.${gaps}`;
   }
-  const have = s.liveMonthsAvailable;
-  const need = s.minimumMonths - have;
-  return `Based on a reference seasonal pattern, not your own bookings yet. ${need} more month${need === 1 ? '' : 's'} of recorded bookings will switch this to your own history.`;
+  const need = Math.max(1, s.minimumMonths - s.recordedMonths);
+  const have = s.recordedMonths === 1 ? '1 month' : `${s.recordedMonths} months`;
+  return `Based on a reference seasonal pattern, not your own bookings yet. You have ${have} with bookings on record; ${need} more will switch this to your own history.`;
 });
 
 const signalIcon = computed(() => {
