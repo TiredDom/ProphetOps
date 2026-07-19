@@ -87,7 +87,7 @@ export interface BookingsPayload {
   packages: PackageOption[];
 }
 
-export type BookingInput = Omit<Booking, 'backendId'>;
+export type BookingInput = Omit<Booking, 'backendId'> & { confirmUnusual?: boolean };
 
 export interface PackageRow {
   id: string;
