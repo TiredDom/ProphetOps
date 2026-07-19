@@ -61,6 +61,27 @@ public class ForecastController : ControllerBase
             : "";
         var peakValue = peak?.Value ?? 0;
 
+        var notes = forecast.Ok
+            ? TrajectoryInsights.Build(new TrajectoryInput
+            {
+                Steps = forecastSteps
+                    .Select(s => new TrajectoryStep(
+                        anchor.AddMonths(s.Step).ToString("MMMM yyyy", CultureInfo.InvariantCulture),
+                        s.Value,
+                        s.Lower,
+                        s.Upper))
+                    .ToList(),
+                Direction = direction,
+                ChangePercent = changePercent,
+                LastRecordedLabel = anchor.ToString("MMMM yyyy", CultureInfo.InvariantCulture),
+                LastRecordedValue = series.Count > 0 ? series[^1] : 0,
+                Mape = mape,
+                Accuracy = accuracy,
+                Mae = metrics?.Mae ?? 0,
+                SeasonalNaiveMae = forecast.Baselines?.SeasonalNaiveMae ?? 0,
+            })
+            : new List<TrajectoryNote>();
+
         return Ok(new
         {
             method = "Holt-Winters",
@@ -92,6 +113,7 @@ public class ForecastController : ControllerBase
                 changePercent,
                 peakMonth,
                 peakValue,
+                notes = notes.Select(n => new { kind = n.Kind, text = n.Text }),
             },
             dataSource = new
             {

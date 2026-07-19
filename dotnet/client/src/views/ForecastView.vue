@@ -8,13 +8,21 @@
         <section class="forecast-brief" :class="`brief-${data.insight.direction}`">
           <p class="brief-label">Demand forecast · {{ data.method }} · {{ data.horizon }}-month outlook</p>
 
-          <p v-if="data.ok" class="brief-answer">
-            <span class="brief-mark" aria-hidden="true">{{ signalIcon }}</span>
-            <span>{{ insightText }}</span>
+          <p class="brief-answer">
+            <span v-if="data.ok" class="brief-mark" aria-hidden="true">{{ signalIcon }}</span>
+            <span>{{ headline }}</span>
           </p>
-          <p v-else class="brief-answer">
-            <span>Not enough history to compute a Holt-Winters forecast yet.</span>
-          </p>
+
+          <ul v-if="supporting.length" class="brief-notes">
+            <li v-for="note in supporting" :key="note.kind">{{ note.text }}</li>
+          </ul>
+
+          <details v-if="furtherDetail.length" class="brief-more">
+            <summary>{{ furtherDetail.length }} more observations</summary>
+            <ul class="brief-notes">
+              <li v-for="note in furtherDetail" :key="note.kind">{{ note.text }}</li>
+            </ul>
+          </details>
 
           <div v-if="data.ok" class="brief-figures">
             <span class="brief-figure">
@@ -105,8 +113,8 @@
               <span class="step-bar" aria-hidden="true">
                 <span class="step-bar-fill" :style="{ width: barWidth(s) }"></span>
               </span>
-              <span class="step-margin" :title="`${peso(s.lower)} to ${peso(s.upper)}`">
-                give or take {{ peso(margin(s)) }}
+              <span class="step-margin">
+                likely {{ peso(s.lower) }} – {{ peso(s.upper) }}
               </span>
             </li>
           </ul>
@@ -162,19 +170,14 @@ function niceNum(range: number, round: boolean): number {
 
 const nextValue = computed(() => data.value?.steps[0]?.value ?? 0);
 
-const insightText = computed(() => {
+const headline = computed(() => {
   const d = data.value;
-  if (!d || !d.ok) return '';
-  const ins = d.insight;
-  const trend =
-    ins.direction === 'up' ? 'trending upward' :
-    ins.direction === 'down' ? 'trending downward' : 'holding steady';
-  const magnitude =
-    ins.direction === 'flat'
-      ? 'projected to stay roughly flat over the next six months'
-      : `projected ${ins.changePercent > 0 ? '+' : ''}${ins.changePercent}% over the next six months`;
-  return `Demand is ${trend} — ${magnitude}, peaking in ${ins.peakMonth} at ${peso(ins.peakValue)}.`;
+  if (!d?.ok) return 'Not enough history to compute a Holt-Winters forecast yet.';
+  return d.insight.notes[0]?.text ?? '';
 });
+
+const supporting = computed(() => (data.value?.insight.notes ?? []).slice(1, 4));
+const furtherDetail = computed(() => (data.value?.insight.notes ?? []).slice(4));
 
 const peakValue = computed(() => {
   const steps = data.value?.steps ?? [];
@@ -330,6 +333,61 @@ onMounted(async () => {
 
 .brief-flat .brief-mark {
   color: #F2CB7B;
+}
+
+.brief-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding: 0 0 0 20px;
+  list-style: none;
+  color: rgba(234, 240, 251, 0.82);
+  font-size: 13.5px;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.brief-notes li {
+  position: relative;
+}
+
+.brief-notes li::before {
+  content: '';
+  position: absolute;
+  left: -14px;
+  top: 8px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--color-shell-muted);
+}
+
+.brief-more {
+  margin-top: 10px;
+}
+
+.brief-more summary {
+  display: inline-block;
+  color: var(--color-shell-text);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.brief-more summary:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.brief-more summary:focus-visible {
+  outline: 2px solid var(--color-shell-text);
+  outline-offset: 2px;
+}
+
+.brief-more .brief-notes {
+  margin-top: 8px;
 }
 
 .brief-figures {
