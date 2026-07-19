@@ -45,7 +45,7 @@
           </label>
           <label class="account-field">
             <span>Amount</span>
-            <input v-model.number="form.amount" type="number" min="0" />
+            <MoneyField v-model="form.amount" />
           </label>
           <label class="account-field">
             <span>Payment status</span>
@@ -189,6 +189,8 @@ import EmptyState from '../components/EmptyState.vue';
 import SearchField from '../components/SearchField.vue';
 import { useToast } from '../composables/useToast';
 import { api, ApiError, type ExpenseRow, type ExpenseInput } from '../api';
+import { peso } from '../format';
+import MoneyField from '../components/MoneyField.vue';
 
 const toast = useToast();
 
@@ -262,9 +264,6 @@ function share(total: number): number {
   return Math.round((total / totalAmount.value) * 100);
 }
 
-function peso(value: number): string {
-  return '₱' + Math.round(value).toLocaleString('en-PH');
-}
 
 function badge(value: string): string {
   return 'status-' + value.toLowerCase().replace(/[^a-z0-9]+/g, '-');

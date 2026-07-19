@@ -34,7 +34,7 @@
           </label>
           <label class="account-field">
             <span>Base price</span>
-            <input v-model.number="form.basePrice" type="number" min="0" />
+            <MoneyField v-model="form.basePrice" />
           </label>
           <label class="account-field">
             <span>Available slots</span>
@@ -173,6 +173,8 @@ import EmptyState from '../components/EmptyState.vue';
 import SearchField from '../components/SearchField.vue';
 import { useToast } from '../composables/useToast';
 import { api, ApiError, type PackageRow, type PackageInput } from '../api';
+import { peso } from '../format';
+import MoneyField from '../components/MoneyField.vue';
 
 const toast = useToast();
 
@@ -205,9 +207,6 @@ const resultLabel = computed(() => {
   return total === 1 ? '1 package' : `${total} packages`;
 });
 
-function peso(value: number): string {
-  return '₱' + Math.round(value).toLocaleString('en-PH');
-}
 
 function badge(value: string): string {
   return 'status-' + value.toLowerCase().replace(/[^a-z0-9]+/g, '-');
