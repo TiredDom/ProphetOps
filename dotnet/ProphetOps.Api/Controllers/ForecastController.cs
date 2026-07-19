@@ -43,6 +43,7 @@ public class ForecastController : ControllerBase
             {
                 step = s.Step,
                 month = anchor.AddMonths(s.Step).ToString("MMM", CultureInfo.InvariantCulture),
+                monthLabel = anchor.AddMonths(s.Step).ToString("MMMM yyyy", CultureInfo.InvariantCulture),
                 value = s.Value,
                 lower = s.Lower,
                 upper = s.Upper,

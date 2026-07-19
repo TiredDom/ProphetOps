@@ -179,6 +179,7 @@ export interface ForecastPoint {
 export interface ForecastStepView {
   step: number;
   month: string;
+  monthLabel: string;
   value: number;
   lower: number;
   upper: number;
