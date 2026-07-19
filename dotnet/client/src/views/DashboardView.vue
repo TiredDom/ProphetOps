@@ -287,7 +287,7 @@ onMounted(async () => {
   color: var(--color-danger-ink);
 }
 .dash-foot {
-  font-size: 0.8rem;
-  color: var(--color-text-faint);
+  font-size: 12.5px;
+  color: var(--color-text-muted);
 }
 </style>

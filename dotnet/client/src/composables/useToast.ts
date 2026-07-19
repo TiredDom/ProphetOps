@@ -19,7 +19,10 @@ function dismiss(id: number) {
 function push(tone: ToastTone, message: string) {
   const id = (seq += 1);
   toasts.push({ id, tone, message });
-  window.setTimeout(() => dismiss(id), 4000);
+
+  // Confirmations can time out; errors stay until dismissed. Something went wrong is not
+  // a message to snatch away from someone still reading it.
+  if (tone !== 'error') window.setTimeout(() => dismiss(id), 5000);
 }
 
 export function useToast() {
