@@ -33,7 +33,7 @@
         </p>
 
         <template v-if="data.ok">
-          <div v-if="chart" class="forecast-chart">
+          <div v-if="chart" ref="chartBox" class="forecast-chart">
             <svg
               :viewBox="`0 0 ${chartWidth} ${chartHeight}`"
               class="forecast-svg"
@@ -114,18 +114,24 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, ref } from 'vue';
 import AppShell from '../components/AppShell.vue';
+import { useContentWidth } from '../composables/useContentWidth';
 import { api, type ForecastData, type ForecastStepView } from '../api';
 import { peso, pesoCompact } from '../format';
 
-const chartWidth = 720;
-const chartHeight = 258;
+// The viewBox tracks the rendered width so the chart draws at 1:1. Left to scale, a fixed
+// viewBox magnifies every label and stroke inside it on a wide screen and grows the chart
+// taller the wider the window gets.
+const chartHeight = 226;
 const plotLeft = 58;
-const plotRight = chartWidth - 20;
 const plotTop = 16;
-const plotBottom = chartHeight - 32;
-const labelY = plotBottom + 18;
+const plotBottom = chartHeight - 30;
+const labelY = plotBottom + 17;
+
+const chartBox = ref<HTMLElement | null>(null);
+const { width: chartWidth, attach: attachChart } = useContentWidth(chartBox, 760);
+const plotRight = computed(() => chartWidth.value - 16);
 
 const data = ref<ForecastData | null>(null);
 const loading = ref(true);
@@ -229,7 +235,7 @@ const chart = computed(() => {
   const span = niceMax - niceMin || 1;
 
   const total = history.length + forecast.length;
-  const stepX = (plotRight - plotLeft) / Math.max(total - 1, 1);
+  const stepX = (plotRight.value - plotLeft) / Math.max(total - 1, 1);
   const x = (i: number) => plotLeft + stepX * i;
   const y = (v: number) => plotTop + ((niceMax - v) / span) * (plotBottom - plotTop);
 
@@ -277,6 +283,8 @@ onMounted(async () => {
     error.value = 'Could not load the forecast.';
   } finally {
     loading.value = false;
+    await nextTick();
+    attachChart();
   }
 });
 </script>
