@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
+using ProphetOps.Api;
 using ProphetOps.Data;
 using ProphetOps.Domain;
 
@@ -62,6 +63,9 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddControllers();
 builder.Services.AddAntiforgery(options => options.HeaderName = "X-XSRF-TOKEN");
+
+builder.Services.AddSingleton(new SignInThrottle());
+builder.Services.AddHostedService<BackupService>();
 
 var app = builder.Build();
 

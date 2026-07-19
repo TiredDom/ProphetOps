@@ -189,6 +189,38 @@ public class DemandSeriesTests
     }
 
     [Fact]
+    public void A_thin_scattering_of_months_does_not_pass_for_two_seasons_of_history()
+    {
+        using var db = NewDb();
+
+        // What a partial import looks like: a few real months spread across three years. The
+        // span clears 24 easily; the substance does not come close.
+        AddBooking(db, 2024, 1, 120000);
+        AddBooking(db, 2024, 2, 45000);
+        AddBooking(db, 2024, 3, 180000);
+        AddBooking(db, 2024, 4, 96500);
+        AddBooking(db, 2026, 6, 130000);
+        db.SaveChanges();
+
+        var series = DemandSeriesBuilder.Build(db, new DateOnly(2026, 7, 19));
+
+        Assert.False(series.UsingLiveRecords);
+        Assert.Equal(5, series.RecordedMonths);
+    }
+
+    [Fact]
+    public void Two_seasons_of_real_months_are_still_accepted_with_a_few_quiet_ones_among_them()
+    {
+        using var db = NewDb();
+        FillMonths(db, new DateOnly(2024, 1, 1), 26);
+
+        var series = DemandSeriesBuilder.Build(db, new DateOnly(2026, 3, 5));
+
+        Assert.True(series.UsingLiveRecords);
+        Assert.Equal(26, series.RecordedMonths);
+    }
+
+    [Fact]
     public void Sums_every_booking_inside_a_month()
     {
         using var db = NewDb();
