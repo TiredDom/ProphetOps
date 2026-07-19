@@ -82,6 +82,25 @@ public class TrajectoryInsightsTests
     }
 
     [Fact]
+    public void Refuses_to_name_a_peak_when_no_month_stands_out()
+    {
+        var level = Enumerable.Range(0, 6)
+            .Select(i => new TrajectoryStep($"Month {i}", 1_000_000, 950_000, 1_050_000))
+            .ToList();
+
+        var text = Text(Input(level, direction: "flat", changePercent: 0), "direction");
+
+        Assert.Contains("no single month standing out", text);
+        Assert.DoesNotContain("peaking in", text);
+    }
+
+    [Fact]
+    public void Still_names_the_peak_when_one_month_genuinely_leads()
+    {
+        Assert.Contains("peaking in December 2026", Text(Input(), "direction"));
+    }
+
+    [Fact]
     public void Stays_quiet_about_a_trough_when_every_month_is_identical()
     {
         var flat = Enumerable.Range(0, 6)
