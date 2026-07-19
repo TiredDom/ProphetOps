@@ -7,7 +7,7 @@
     </template>
 
     <section class="dss-page">
-      <Drawer :open="showForm" :title="editingCode ? 'Edit package' : 'New package'" @close="showForm = false">
+      <Drawer :open="showForm" :title="editingCode ? 'Edit package' : 'New package'" @close="onDrawerClose">
         <p v-if="formError" class="drawer-form-error" role="alert">{{ formError }}</p>
         <div class="form-grid">
           <label class="account-field field-wide">
@@ -64,9 +64,17 @@
 
             <template v-else>
               <div class="image-row">
-                <span class="image-preview">
-                  <img v-if="editingImage" :src="editingImage" alt="" />
-                  <span v-else class="image-preview-empty">No photo</span>
+                <button
+                  v-if="editingImage"
+                  type="button"
+                  class="image-preview image-preview-zoom"
+                  :aria-label="'View photo of ' + form.packageName"
+                  @click="openPreviewLightbox"
+                >
+                  <img :src="editingImage" alt="" />
+                </button>
+                <span v-else class="image-preview">
+                  <span class="image-preview-empty">No photo</span>
                 </span>
 
                 <div class="image-actions">
@@ -251,17 +259,18 @@
 
         <template v-if="filtered.length > 0">
           <div class="package-grid">
-            <button
-              v-for="p in visiblePackages"
-              :key="p.id"
-              type="button"
-              class="package-card"
-              @click="openEdit(p)"
-            >
-              <span class="package-figure">
-                <img v-if="p.imageUrl" :src="p.imageUrl" alt="" loading="lazy" decoding="async" />
+            <article v-for="p in visiblePackages" :key="p.id" class="package-card">
+              <button
+                v-if="p.imageUrl"
+                type="button"
+                class="package-figure package-figure-zoom"
+                :aria-label="'View photo of ' + p.packageName"
+                @click="openLightbox(p)"
+              >
+                <img :src="p.imageUrl" alt="" loading="lazy" decoding="async" />
+              </button>
+              <span v-else class="package-figure">
                 <svg
-                  v-else
                   class="package-figure-mark"
                   viewBox="0 0 24 24"
                   fill="none"
@@ -277,6 +286,7 @@
                 </svg>
               </span>
 
+              <button type="button" class="package-body" @click="openEdit(p)">
               <span class="package-head">
                 <span class="package-title">
                   <span class="package-name">{{ p.packageName }}</span>
@@ -308,7 +318,8 @@
                 </span>
                 <span class="slots-caption">{{ p.availableSlots }} slots left · {{ p.soldCount }} sold</span>
               </span>
-            </button>
+              </button>
+            </article>
           </div>
 
           <ListFooter
@@ -330,6 +341,7 @@
           </template>
         </EmptyState>
       </template>
+      <Lightbox :url="lightboxUrl" :caption="lightboxName" @close="lightboxUrl = null" />
     </section>
   </AppShell>
 </template>
@@ -342,6 +354,7 @@ import Skeleton from '../components/Skeleton.vue';
 import EmptyState from '../components/EmptyState.vue';
 import SearchField from '../components/SearchField.vue';
 import ListFooter from '../components/ListFooter.vue';
+import Lightbox from '../components/Lightbox.vue';
 import { usePaged } from '../composables/usePaged';
 import { useToast } from '../composables/useToast';
 import { api, ApiError, type PackageImportPreview, type PackageRow, type PackageInput } from '../api';
@@ -359,6 +372,9 @@ const formError = ref('');
 const editingCode = ref<string | null>(null);
 
 const form = reactive<PackageInput>(blank());
+
+const lightboxUrl = ref<string | null>(null);
+const lightboxName = ref('');
 
 const showImport = ref(false);
 const importFileInput = ref<HTMLInputElement | null>(null);
@@ -503,6 +519,21 @@ function openEdit(p: PackageRow) {
   formError.value = '';
   imageError.value = '';
   showForm.value = true;
+}
+
+function openLightbox(p: PackageRow) {
+  lightboxUrl.value = p.imageUrl;
+  lightboxName.value = p.packageName;
+}
+
+function openPreviewLightbox() {
+  lightboxUrl.value = editingImage.value;
+  lightboxName.value = form.packageName;
+}
+
+function onDrawerClose() {
+  if (lightboxUrl.value) return;
+  showForm.value = false;
 }
 
 function openImport() {
@@ -938,5 +969,52 @@ onMounted(load);
   border: 1px solid var(--tone-danger-border);
   background: var(--tone-danger-surface);
   color: var(--tone-danger-ink);
+}
+
+.package-figure-zoom {
+  border: none;
+  border-bottom: 1px solid var(--color-ticket-border);
+  padding: 0;
+  font: inherit;
+  cursor: zoom-in;
+}
+
+.package-figure-zoom img {
+  transition: transform var(--transition-normal);
+}
+
+.package-figure-zoom:hover img {
+  transform: scale(1.04);
+}
+
+.package-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.image-preview-zoom {
+  font: inherit;
+  padding: 0;
+  cursor: zoom-in;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .package-figure-zoom img {
+    transition: none;
+  }
+
+  .package-figure-zoom:hover img {
+    transform: none;
+  }
 }
 </style>

@@ -1,5 +1,9 @@
 import { nextTick, onBeforeUnmount, onMounted, watch, type Ref } from 'vue';
 
+// Shared across instances: a lightbox can open over a drawer, and whichever closes first must
+// not hand scrolling back to the page while the other overlay is still up.
+let scrollLocks = 0;
+
 const FOCUSABLE = [
   'a[href]',
   'button:not([disabled])',
@@ -54,14 +58,16 @@ export function useModalFocus(container: Ref<HTMLElement | null>, isOpen: () => 
 
   function lockScroll() {
     if (locked) return;
-    document.body.style.overflow = 'hidden';
     locked = true;
+    scrollLocks += 1;
+    document.body.style.overflow = 'hidden';
   }
 
   function releaseScroll() {
     if (!locked) return;
-    document.body.style.overflow = '';
     locked = false;
+    scrollLocks = Math.max(0, scrollLocks - 1);
+    if (scrollLocks === 0) document.body.style.overflow = '';
   }
 
   watch(isOpen, async (open) => {
