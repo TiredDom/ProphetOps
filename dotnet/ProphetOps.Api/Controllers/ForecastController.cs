@@ -11,12 +11,17 @@ namespace ProphetOps.Api.Controllers;
 [Authorize(Policy = "Forecast")]
 public class ForecastController : ControllerBase
 {
+    private readonly AppDbContext _db;
+
+    public ForecastController(AppDbContext db) => _db = db;
+
     [HttpGet]
     public IActionResult Get()
     {
-        var anchor = new DateOnly(2026, 7, 1);
-        var series = SampleSalesHistory.MonthlyRevenue(anchor.Year, anchor.Month).Select(v => (double)v).ToList();
-        var forecast = HoltWintersForecaster.Forecast(series, 12, 6);
+        var demand = DemandSeriesBuilder.Build(_db, DateOnly.FromDateTime(DateTime.Today));
+        var anchor = demand.LastMonth;
+        var series = demand.Values.ToList();
+        var forecast = HoltWintersForecaster.Forecast(series, DemandSeriesBuilder.SeasonLength, 6);
 
         var metrics = forecast.Metrics;
         var mape = metrics?.Mape ?? 0;
@@ -86,6 +91,13 @@ public class ForecastController : ControllerBase
                 changePercent,
                 peakMonth,
                 peakValue,
+            },
+            dataSource = new
+            {
+                usingLiveRecords = demand.UsingLiveRecords,
+                liveMonthsAvailable = demand.LiveMonthsAvailable,
+                minimumMonths = demand.MinimumMonths,
+                filledMonths = demand.FilledMonths,
             },
             history,
             steps,

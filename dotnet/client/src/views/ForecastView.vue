@@ -13,6 +13,10 @@
           </p>
         </section>
 
+        <p class="source-note" :class="{ 'source-live': data.dataSource.usingLiveRecords }" role="note">
+          {{ sourceNote }}
+        </p>
+
         <section
           v-if="data.ok"
           class="decision-signal"
@@ -188,6 +192,20 @@ const insightText = computed(() => {
   return `Demand is ${trend} — ${magnitude}, peaking in ${ins.peakMonth} (${peso(ins.peakValue)}), at about ${d.accuracy}% in-sample accuracy.`;
 });
 
+const sourceNote = computed(() => {
+  const d = data.value;
+  if (!d) return '';
+  const s = d.dataSource;
+  if (s.usingLiveRecords) {
+    const gaps = s.filledMonths > 0
+      ? ` ${s.filledMonths} month${s.filledMonths === 1 ? '' : 's'} had no bookings and counted as zero.`
+      : '';
+    return `Forecasting from your own booking records — ${s.liveMonthsAvailable} complete months.${gaps}`;
+  }
+  const have = s.liveMonthsAvailable;
+  return `Showing the built-in sample series. Forecasting from your own records needs ${s.minimumMonths} complete months of bookings; you have ${have}.`;
+});
+
 const signalIcon = computed(() => {
   const dir = data.value?.insight.direction;
   return dir === 'up' ? '▲' : dir === 'down' ? '▼' : '▬';
@@ -292,6 +310,23 @@ onMounted(async () => {
   color: rgba(233, 237, 233, 0.8);
   font-size: 0.95rem;
 }
+.source-note {
+  margin: calc(var(--space-4) * -1) 0 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--tone-warning-border);
+  border-radius: var(--radius-md);
+  background: var(--tone-warning-surface);
+  color: var(--tone-warning-ink);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.source-note.source-live {
+  border-color: var(--tone-primary-border);
+  background: var(--tone-primary-surface);
+  color: var(--tone-primary-ink);
+}
+
 .decision-signal {
   display: flex;
   align-items: center;
