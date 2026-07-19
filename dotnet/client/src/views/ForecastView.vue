@@ -108,26 +108,18 @@
             </p>
           </div>
 
-          <div class="dss-table-frame">
-            <table class="dss-table">
-              <thead>
-                <tr>
-                  <th>Step</th>
-                  <th class="num">Forecast</th>
-                  <th class="num">Low estimate</th>
-                  <th class="num">High estimate</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="s in data.steps" :key="s.step">
-                  <td><strong>Month {{ s.step }}</strong></td>
-                  <td class="num"><strong>{{ peso(s.value) }}</strong></td>
-                  <td class="num">{{ peso(s.lower) }}</td>
-                  <td class="num">{{ peso(s.upper) }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <ul class="step-rows">
+            <li v-for="s in data.steps" :key="s.step" class="step-row">
+              <span class="step-month">{{ s.monthLabel }}</span>
+              <span class="step-figure">{{ peso(s.value) }}</span>
+              <span class="step-range" :title="`${peso(s.lower)} to ${peso(s.upper)}`">
+                <span class="step-range-band" :style="bandStyle(s)">
+                  <span class="step-range-point" :style="pointStyle(s)"></span>
+                </span>
+              </span>
+              <span class="step-spread">{{ peso(s.lower) }} – {{ peso(s.upper) }}</span>
+            </li>
+          </ul>
         </template>
 
         <p v-else class="dash-note">
@@ -141,7 +133,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import AppShell from '../components/AppShell.vue';
-import { api, type ForecastData } from '../api';
+import { api, type ForecastData, type ForecastStepView } from '../api';
 import { peso, pesoCompact } from '../format';
 
 const chartWidth = 720;
@@ -192,6 +184,27 @@ const insightText = computed(() => {
   return `Demand is ${trend} — ${magnitude}, peaking in ${ins.peakMonth} (${peso(ins.peakValue)}), at about ${d.accuracy}% in-sample accuracy.`;
 });
 
+const stepScale = computed(() => {
+  const steps = data.value?.steps ?? [];
+  if (!steps.length) return { min: 0, span: 1 };
+  const min = Math.min(...steps.map((s) => s.lower));
+  const max = Math.max(...steps.map((s) => s.upper));
+  return { min, span: Math.max(1, max - min) };
+});
+
+function bandStyle(s: ForecastStepView) {
+  const { min, span } = stepScale.value;
+  return {
+    left: ((s.lower - min) / span) * 100 + '%',
+    width: Math.max(2, ((s.upper - s.lower) / span) * 100) + '%',
+  };
+}
+
+function pointStyle(s: ForecastStepView) {
+  const width = Math.max(s.upper - s.lower, 1);
+  return { left: ((s.value - s.lower) / width) * 100 + '%' };
+}
+
 const sourceNote = computed(() => {
   const d = data.value;
   if (!d) return '';
@@ -200,10 +213,11 @@ const sourceNote = computed(() => {
     const gaps = s.filledMonths > 0
       ? ` ${s.filledMonths} month${s.filledMonths === 1 ? '' : 's'} had no bookings and counted as zero.`
       : '';
-    return `Forecasting from your own booking records — ${s.liveMonthsAvailable} complete months.${gaps}`;
+    return `Based on your booking history — ${s.liveMonthsAvailable} months recorded.${gaps}`;
   }
   const have = s.liveMonthsAvailable;
-  return `Showing the built-in sample series. Forecasting from your own records needs ${s.minimumMonths} complete months of bookings; you have ${have}.`;
+  const need = s.minimumMonths - have;
+  return `Based on a reference seasonal pattern, not your own bookings yet. ${need} more month${need === 1 ? '' : 's'} of recorded bookings will switch this to your own history.`;
 });
 
 const signalIcon = computed(() => {
@@ -310,21 +324,96 @@ onMounted(async () => {
   color: rgba(233, 237, 233, 0.8);
   font-size: 0.95rem;
 }
-.source-note {
-  margin: calc(var(--space-4) * -1) 0 0;
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--tone-warning-border);
-  border-radius: var(--radius-md);
-  background: var(--tone-warning-surface);
-  color: var(--tone-warning-ink);
-  font-size: 12.5px;
-  line-height: 1.5;
+.step-rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.source-note.source-live {
-  border-color: var(--tone-primary-border);
-  background: var(--tone-primary-surface);
-  color: var(--tone-primary-ink);
+.step-row {
+  display: grid;
+  grid-template-columns: 132px 132px minmax(120px, 1fr) auto;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.step-row:last-child {
+  border-bottom: none;
+}
+
+.step-month {
+  color: var(--color-text-primary);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.step-figure {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-size: 19px;
+  font-weight: 560;
+  color: var(--color-text-primary);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.step-range {
+  position: relative;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-sunken);
+}
+
+.step-range-band {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--tone-primary-border);
+}
+
+.step-range-point {
+  position: absolute;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  margin-left: -4.5px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  transform: translateY(-50%);
+}
+
+.step-spread {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  white-space: nowrap;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+@media (max-width: 760px) {
+  .step-row {
+    grid-template-columns: 1fr auto;
+    row-gap: var(--space-2);
+  }
+
+  .step-range {
+    grid-column: 1 / -1;
+  }
+
+  .step-spread {
+    grid-column: 1 / -1;
+  }
+}
+
+.source-note {
+  margin: calc(var(--space-4) * -1) 0 0;
+  padding: 0;
+  color: var(--color-text-muted);
+  font-size: 12.5px;
+  line-height: 1.5;
 }
 
 .decision-signal {
