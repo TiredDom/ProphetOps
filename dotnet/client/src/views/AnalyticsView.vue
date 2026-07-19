@@ -23,19 +23,19 @@
           </div>
         </section>
 
-        <section class="analytics-panel">
+        <section ref="chartBox" class="analytics-panel">
           <div class="analytics-panel-head">
             <p class="analytics-panel-label">Sales history</p>
             <p class="analytics-panel-meta">Last {{ data.salesHistory.length }} months of revenue</p>
           </div>
-          <svg class="sales-chart" viewBox="0 0 640 208" preserveAspectRatio="xMidYMid meet" role="img" :aria-label="chartAriaLabel">
+          <svg class="sales-chart" :viewBox="`0 0 ${chartWidth} ${chartHeight}`" preserveAspectRatio="xMidYMid meet" role="img" :aria-label="chartAriaLabel">
             <line class="sales-axis-line" x1="56" y1="18" x2="56" y2="180" />
             <g v-for="line in gridLines" :key="'grid-' + line.value">
               <line
                 :class="['sales-gridline', { 'sales-gridline-base': line.value === 0 }]"
                 x1="56"
                 :y1="line.y"
-                x2="624"
+                :x2="plotRight"
                 :y2="line.y"
               />
               <text class="sales-ylabel" x="48" :y="line.y" text-anchor="end" dominant-baseline="middle">{{ line.label }}</text>
@@ -81,23 +81,12 @@
           <div class="analytics-panel-head">
             <p class="analytics-panel-label">Revenue by destination</p>
           </div>
-          <div class="dss-table-frame">
-            <table class="dss-table">
-              <thead>
-                <tr>
-                  <th>Destination</th>
-                  <th class="num">Revenue</th>
-                  <th>Share</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="row in destinationBars" :key="row.label">
-                  <td><strong>{{ row.label }}</strong></td>
-                  <td class="num">{{ peso(row.value) }}</td>
-                  <td><span class="bar-row-track"><span class="bar-row-fill" :style="{ width: row.pct + '%' }"></span></span></td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="bar-rows">
+            <div v-for="row in destinationBars" :key="row.label" class="bar-row">
+              <span class="bar-row-label">{{ row.label }}</span>
+              <span class="bar-row-track"><span class="bar-row-fill" :style="{ width: row.pct + '%' }"></span></span>
+              <strong class="bar-row-value">{{ peso(row.value) }}</strong>
+            </div>
           </div>
         </section>
       </template>
@@ -106,8 +95,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, ref } from 'vue';
 import AppShell from '../components/AppShell.vue';
+import { useContentWidth } from '../composables/useContentWidth';
 import { api, type AnalyticsData, type AnalyticsPoint } from '../api';
 import { peso, pesoCompact } from '../format';
 
@@ -115,10 +105,16 @@ const data = ref<AnalyticsData | null>(null);
 const loading = ref(true);
 const error = ref('');
 
+// The viewBox tracks the rendered width so the chart draws at 1:1. A fixed viewBox stretched
+// to full width magnifies every label and bar inside it and grows taller as the window widens.
+const chartHeight = 208;
 const plotLeft = 56;
-const plotRight = 624;
 const plotTop = 18;
 const plotBottom = 180;
+
+const chartBox = ref<HTMLElement | null>(null);
+const { width: chartWidth, attach: attachChart } = useContentWidth(chartBox, 640);
+const plotRight = computed(() => chartWidth.value - 16);
 
 
 function trimNumber(value: number): string {
@@ -172,7 +168,7 @@ const salesBars = computed(() => {
   const count = points.length;
   const { max } = salesScale.value;
   const span = plotBottom - plotTop;
-  const band = count ? (plotRight - plotLeft) / count : 0;
+  const band = count ? (plotRight.value - plotLeft) / count : 0;
   const barWidth = Math.min(38, band * 0.56);
   const stride = band > 0 && band < 40 ? 2 : 1;
   return points.map((p, i) => {
@@ -205,6 +201,8 @@ onMounted(async () => {
     error.value = 'Could not load the analytics.';
   } finally {
     loading.value = false;
+    await nextTick();
+    attachChart();
   }
 });
 </script>
