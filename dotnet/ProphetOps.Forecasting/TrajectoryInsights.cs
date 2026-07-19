@@ -27,6 +27,7 @@ public record TrajectoryInput
 public static class TrajectoryInsights
 {
     private const double PeakAboveAverage = 0.08;
+    private const double PeakStandsOut = 0.02;
     private const double MeaningfulChange = 1.0;
     private const double WideningRatio = 1.4;
     private const double ReliableMape = 6.0;
@@ -45,7 +46,11 @@ public static class TrajectoryInsights
 
         // Ordered by what the owner has to decide, not by how the rules were written: what is
         // happening, what to do about it, what is imminent, then the analytical detail.
-        notes.Add(new TrajectoryNote("direction", Headline(input, peak, horizon)));
+        // On a level series the highest month is whichever one sorted first, not a peak. Naming
+        // it would state an accident of ordering as a finding.
+        var peakStandsOut = average > 0 && (peak.Value - average) / average >= PeakStandsOut;
+
+        notes.Add(new TrajectoryNote("direction", Headline(input, peak, horizon, peakStandsOut)));
 
         if (average > 0 && (peak.Value - average) / average >= PeakAboveAverage)
         {
@@ -84,7 +89,7 @@ public static class TrajectoryInsights
         return notes;
     }
 
-    private static string Headline(TrajectoryInput input, TrajectoryStep peak, int horizon)
+    private static string Headline(TrajectoryInput input, TrajectoryStep peak, int horizon, bool peakStandsOut)
     {
         var movement = input.Direction switch
         {
@@ -93,7 +98,9 @@ public static class TrajectoryInsights
             _ => $"holding steady, projected to stay roughly flat over the next {horizon} months",
         };
 
-        return $"Demand is {movement}, peaking in {peak.MonthLabel} at {Money(peak.Value)}.";
+        return peakStandsOut
+            ? $"Demand is {movement}, peaking in {peak.MonthLabel} at {Money(peak.Value)}."
+            : $"Demand is {movement}, with no single month standing out.";
     }
 
     private static TrajectoryNote? NextMonthNote(TrajectoryInput input, TrajectoryStep first)
