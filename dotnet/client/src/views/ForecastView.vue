@@ -97,14 +97,17 @@
 
           <ul class="step-rows">
             <li v-for="s in data.steps" :key="s.step" class="step-row">
-              <span class="step-month">{{ s.monthLabel }}</span>
-              <span class="step-figure">{{ peso(s.value) }}</span>
-              <span class="step-range" :title="`${peso(s.lower)} to ${peso(s.upper)}`">
-                <span class="step-range-band" :style="bandStyle(s)">
-                  <span class="step-range-point" :style="pointStyle(s)"></span>
-                </span>
+              <span class="step-month">
+                {{ s.monthLabel }}
+                <span v-if="s.value === peakValue" class="step-peak">Busiest</span>
               </span>
-              <span class="step-spread">{{ peso(s.lower) }} – {{ peso(s.upper) }}</span>
+              <span class="step-figure">{{ peso(s.value) }}</span>
+              <span class="step-bar" aria-hidden="true">
+                <span class="step-bar-fill" :style="{ width: barWidth(s) }"></span>
+              </span>
+              <span class="step-margin" :title="`${peso(s.lower)} to ${peso(s.upper)}`">
+                give or take {{ peso(margin(s)) }}
+              </span>
             </li>
           </ul>
         </template>
@@ -173,25 +176,21 @@ const insightText = computed(() => {
   return `Demand is ${trend} — ${magnitude}, peaking in ${ins.peakMonth} at ${peso(ins.peakValue)}.`;
 });
 
-const stepScale = computed(() => {
+const peakValue = computed(() => {
   const steps = data.value?.steps ?? [];
-  if (!steps.length) return { min: 0, span: 1 };
-  const min = Math.min(...steps.map((s) => s.lower));
-  const max = Math.max(...steps.map((s) => s.upper));
-  return { min, span: Math.max(1, max - min) };
+  return steps.length ? Math.max(...steps.map((s) => s.value)) : 0;
 });
 
-function bandStyle(s: ForecastStepView) {
-  const { min, span } = stepScale.value;
-  return {
-    left: ((s.lower - min) / span) * 100 + '%',
-    width: Math.max(2, ((s.upper - s.lower) / span) * 100) + '%',
-  };
+// Measured from zero, so bar length stays proportional to the figure beside it. Starting the
+// scale at the smallest month would stretch a modest spread into a dramatic one.
+function barWidth(s: ForecastStepView) {
+  return peakValue.value > 0 ? (s.value / peakValue.value) * 100 + '%' : '0%';
 }
 
-function pointStyle(s: ForecastStepView) {
-  const width = Math.max(s.upper - s.lower, 1);
-  return { left: ((s.value - s.lower) / width) * 100 + '%' };
+// The interval is symmetrical around the forecast, so half its width is the whole story and
+// reads as one figure rather than two the reader has to subtract.
+function margin(s: ForecastStepView) {
+  return Math.round((s.upper - s.lower) / 2);
 }
 
 const sourceNote = computed(() => {
@@ -382,7 +381,7 @@ onMounted(async () => {
 
 .step-row {
   display: grid;
-  grid-template-columns: 126px 118px minmax(120px, 1fr) auto;
+  grid-template-columns: 186px 126px minmax(100px, 1fr) auto;
   align-items: center;
   gap: var(--space-4);
   padding: 8px 0;
@@ -394,9 +393,20 @@ onMounted(async () => {
 }
 
 .step-month {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
   color: var(--color-text-primary);
   font-size: 13.5px;
   font-weight: 600;
+}
+
+.step-peak {
+  color: var(--color-accent-ink);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .step-figure {
@@ -408,33 +418,23 @@ onMounted(async () => {
   font-variant-numeric: lining-nums tabular-nums;
 }
 
-.step-range {
-  position: relative;
+.step-bar {
+  display: block;
   height: 8px;
   border-radius: var(--radius-pill);
   background: var(--color-surface-sunken);
+  overflow: hidden;
 }
 
-.step-range-band {
-  position: absolute;
-  top: 0;
+.step-bar-fill {
+  display: block;
   height: 100%;
+  min-width: 2px;
   border-radius: var(--radius-pill);
-  background: var(--tone-primary-border);
-}
-
-.step-range-point {
-  position: absolute;
-  top: 50%;
-  width: 9px;
-  height: 9px;
-  margin-left: -4.5px;
-  border-radius: 50%;
   background: var(--color-primary);
-  transform: translateY(-50%);
 }
 
-.step-spread {
+.step-margin {
   color: var(--color-text-muted);
   font-size: 12px;
   white-space: nowrap;
@@ -447,11 +447,11 @@ onMounted(async () => {
     row-gap: var(--space-2);
   }
 
-  .step-range {
+  .step-bar {
     grid-column: 1 / -1;
   }
 
-  .step-spread {
+  .step-margin {
     grid-column: 1 / -1;
   }
 }
