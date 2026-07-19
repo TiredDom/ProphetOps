@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ProphetOps.Data;
@@ -64,6 +65,8 @@ public class BookingsController : ControllerBase
 
         ReserveSlots(booking.TravelPackageId, booking.PassengerCount);
 
+        AuditLog.Record(_db, User, AuditLog.Created, "Booking", booking.Code,
+            $"{booking.Client}, {booking.PassengerCount} pax, P{booking.GrossRevenue:N0}");
         _db.SaveChanges();
 
         return Ok(Dto(booking));
@@ -86,12 +89,74 @@ public class BookingsController : ControllerBase
 
         var previousPackageId = booking.TravelPackageId;
         var previousPassengers = booking.PassengerCount;
+        var before = (booking.Client, booking.PassengerCount, booking.GrossRevenue,
+            booking.PaymentStatus, booking.BookingStatus, booking.Destination);
 
         Apply(booking, request);
 
         ReleaseSlots(previousPackageId, previousPassengers);
         ReserveSlots(booking.TravelPackageId, booking.PassengerCount);
 
+        var changed = AuditLog.Difference(
+            ("Client", before.Client, booking.Client),
+            ("Passengers", before.PassengerCount, booking.PassengerCount),
+            ("Revenue", before.GrossRevenue, booking.GrossRevenue),
+            ("Payment", before.PaymentStatus, booking.PaymentStatus),
+            ("Status", before.BookingStatus, booking.BookingStatus),
+            ("Destination", before.Destination, booking.Destination));
+        if (changed is not null)
+            AuditLog.Record(_db, User, AuditLog.Updated, "Booking", booking.Code, changed);
+
+        _db.SaveChanges();
+
+        return Ok(Dto(booking));
+    }
+
+    [HttpPost("{code}/void")]
+    public IActionResult Void(string code, [FromBody] VoidRequest request)
+    {
+        var booking = _db.Bookings.SingleOrDefault(b => b.Code == code);
+        if (booking is null) return NotFound();
+        if (booking.IsVoided) return BadRequest(new Dictionary<string, string> { ["reason"] = "This booking is already voided." });
+
+        if (string.IsNullOrWhiteSpace(request.Reason))
+            return BadRequest(new Dictionary<string, string> { ["reason"] = "Say why this is being voided." });
+
+        booking.VoidedAt = DateTime.UtcNow;
+        booking.VoidedBy = User.FindFirst(ClaimTypes.Email)?.Value;
+        booking.VoidReason = request.Reason.Trim();
+
+        // The seats go back. A voided booking is not holding anything.
+        ReleaseSlots(booking.TravelPackageId, booking.PassengerCount);
+
+        AuditLog.Record(_db, User, AuditLog.Voided, "Booking", booking.Code, booking.VoidReason);
+        _db.SaveChanges();
+
+        return Ok(Dto(booking));
+    }
+
+    [HttpPost("{code}/restore")]
+    public IActionResult Restore(string code)
+    {
+        var booking = _db.Bookings.SingleOrDefault(b => b.Code == code);
+        if (booking is null) return NotFound();
+        if (!booking.IsVoided) return BadRequest(new Dictionary<string, string> { ["reason"] = "This booking is not voided." });
+
+        var package = booking.TravelPackageId is int id ? _db.TravelPackages.Find(id) : null;
+        if (package is not null && package.AvailableSlots < booking.PassengerCount)
+        {
+            return BadRequest(new Dictionary<string, string>
+            {
+                ["reason"] = $"Only {package.AvailableSlots} slots are free, and this booking needs {booking.PassengerCount}.",
+            });
+        }
+
+        booking.VoidedAt = null;
+        booking.VoidedBy = null;
+        booking.VoidReason = null;
+        ReserveSlots(booking.TravelPackageId, booking.PassengerCount);
+
+        AuditLog.Record(_db, User, AuditLog.Restored, "Booking", booking.Code);
         _db.SaveChanges();
 
         return Ok(Dto(booking));
@@ -246,5 +311,7 @@ public class BookingsController : ControllerBase
         staffAssigned = b.StaffAssigned,
         source = b.Source,
         notes = b.Notes,
+        voided = b.VoidedAt != null,
+        voidReason = b.VoidReason,
     };
 }

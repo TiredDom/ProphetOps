@@ -47,6 +47,7 @@ public static class DemandSeriesBuilder
         var lastComplete = new DateOnly(today.Year, today.Month, 1).AddMonths(-1);
 
         var monthly = db.Bookings
+            .Where(b => b.VoidedAt == null)
             .Where(b => b.BookingDate <= lastComplete.AddMonths(1).AddDays(-1))
             .AsEnumerable()
             .GroupBy(b => new DateOnly(b.BookingDate.Year, b.BookingDate.Month, 1))
