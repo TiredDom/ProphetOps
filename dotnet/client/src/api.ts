@@ -71,6 +71,18 @@ export interface Booking {
   staffAssigned: string | null;
   source: string;
   notes: string | null;
+  voided?: boolean;
+  voidReason?: string | null;
+}
+
+export interface ActivityEntry {
+  at: string;
+  actor: string;
+  actorName: string;
+  action: string;
+  entityType: string;
+  entityCode: string;
+  summary: string | null;
 }
 
 export interface PackageOption {
@@ -126,6 +138,8 @@ export interface ExpenseRow {
   relatedPackage: string;
   paymentStatus: string;
   notes: string | null;
+  voided?: boolean;
+  voidReason?: string | null;
 }
 
 export interface ExpenseInput {
@@ -339,6 +353,21 @@ export const api = {
   createBooking: (input: BookingInput) => request<Booking>('POST', '/api/bookings', input),
   updateBooking: (code: string, input: BookingInput) =>
     request<Booking>('PUT', `/api/bookings/${code}`, input),
+  voidBooking: (code: string, reason: string) =>
+    request<Booking>('POST', `/api/bookings/${encodeURIComponent(code)}/void`, { reason }),
+  restoreBooking: (code: string) =>
+    request<Booking>('POST', `/api/bookings/${encodeURIComponent(code)}/restore`, {}),
+  voidExpense: (code: string, reason: string) =>
+    request<ExpenseRow>('POST', `/api/expenses/${encodeURIComponent(code)}/void`, { reason }),
+  restoreExpense: (code: string) =>
+    request<ExpenseRow>('POST', `/api/expenses/${encodeURIComponent(code)}/restore`, {}),
+  activity: (entityType?: string, entityCode?: string) => {
+    const params = new URLSearchParams();
+    if (entityType) params.set('entityType', entityType);
+    if (entityCode) params.set('entityCode', entityCode);
+    const query = params.toString();
+    return request<ActivityEntry[]>('GET', '/api/activity' + (query ? '?' + query : ''));
+  },
   bulkBookings: (ids: string[], action: 'confirm' | 'paid') =>
     request<{ updated: number }>('POST', '/api/bookings/bulk', { ids, action }),
   packages: () => request<PackageRow[]>('GET', '/api/inventory'),

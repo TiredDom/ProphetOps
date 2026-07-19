@@ -18,11 +18,11 @@ public class DashboardController : ControllerBase
     [HttpGet]
     public IActionResult Get()
     {
-        var bookings = _db.Bookings.ToList();
+        var bookings = _db.Bookings.Where(b => b.VoidedAt == null).ToList();
         var packages = _db.TravelPackages.ToList();
 
         var revenue = bookings.Sum(b => b.GrossRevenue);
-        var costs = _db.Expenses.Sum(e => e.Amount);
+        var costs = _db.Expenses.Where(e => e.VoidedAt == null).Sum(e => e.Amount);
 
         var demand = DemandSeriesBuilder.Build(_db, DateOnly.FromDateTime(DateTime.Today));
         var anchor = demand.LastMonth;
@@ -89,7 +89,7 @@ public class DashboardController : ControllerBase
             estimatedProfit = Math.Max(revenue - costs, 0),
             bookings = bookings.Count,
             packages = packages.Count,
-            expenses = _db.Expenses.Count(),
+            expenses = _db.Expenses.Count(e => e.VoidedAt == null),
             forecast = new
             {
                 method = "Holt-Winters",

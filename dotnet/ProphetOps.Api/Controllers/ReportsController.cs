@@ -16,8 +16,8 @@ public class ReportsController : ControllerBase
     [HttpGet]
     public IActionResult Get()
     {
-        var bookings = _db.Bookings.ToList();
-        var expenses = _db.Expenses.ToList();
+        var bookings = _db.Bookings.Where(b => b.VoidedAt == null).ToList();
+        var expenses = _db.Expenses.Where(e => e.VoidedAt == null).ToList();
 
         var revenue = bookings.Sum(b => b.GrossRevenue);
         var costs = expenses.Sum(e => e.Amount);

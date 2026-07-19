@@ -31,7 +31,7 @@ public class AnalyticsController : ControllerBase
             })
             .ToList();
 
-        var bookings = _db.Bookings.ToList();
+        var bookings = _db.Bookings.Where(b => b.VoidedAt == null).ToList();
 
         var packageMix = bookings
             .GroupBy(b => b.PackageName)

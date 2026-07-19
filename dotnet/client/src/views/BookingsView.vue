@@ -28,6 +28,21 @@
 
         <p v-if="unusualWarning" class="drawer-form-check" role="alert">{{ unusualWarning }}</p>
 
+        <div v-if="askVoid" class="void-panel" role="group" aria-label="Void this booking">
+          <p class="void-lead">Voiding keeps the record and its history, but takes it out of every total and out of the forecast. Any seats it holds go back to the package.</p>
+          <label class="account-field">
+            <span>Why is it being voided?</span>
+            <input v-model.trim="voidReason" maxlength="160" placeholder="Duplicate entry, client cancelled, recorded in error" />
+          </label>
+          <p v-if="voidError" class="drawer-form-error" role="alert">{{ voidError }}</p>
+          <div class="void-actions">
+            <button class="secondary-button" type="button" :disabled="voiding" @click="askVoid = false">Keep it</button>
+            <button class="danger-button" type="button" :disabled="voiding || !voidReason" @click="confirmVoid">
+              {{ voiding ? 'Voiding…' : 'Void booking' }}
+            </button>
+          </div>
+        </div>
+
         <fieldset class="booking-mode">
           <legend class="section-label">Booking type</legend>
           <div class="booking-mode-options" role="radiogroup" aria-label="Booking type">
@@ -117,6 +132,14 @@
         </div>
 
         <template #footer>
+          <button
+            v-if="editing && !editingVoided"
+            class="table-link danger-link"
+            type="button"
+            :disabled="saving"
+            @click="askVoid = true"
+          >Void this booking</button>
+          <span class="footer-spacer"></span>
           <button class="secondary-button" type="button" :disabled="saving" @click="showForm = false">Cancel</button>
           <button class="primary-button" type="button" :disabled="saving" @click="save">
             {{ saving ? 'Saving…' : editing ? 'Save changes' : 'Save booking' }}
@@ -183,8 +206,11 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="b in visibleBookings" :key="b.id">
-                  <td><strong>{{ b.id }}</strong></td>
+                <tr v-for="b in visibleBookings" :key="b.id" :class="{ 'row-voided': b.voided }">
+                  <td>
+                    <strong>{{ b.id }}</strong>
+                    <span v-if="b.voided" class="row-subtext voided-tag" :title="b.voidReason ?? ''">Voided</span>
+                  </td>
                   <td>{{ b.client }}</td>
                   <td>
                     <strong>{{ b.package }}</strong>
@@ -200,7 +226,8 @@
                   <td><span class="record-badge" :class="badge(b.paymentStatus)">{{ b.paymentStatus }}</span></td>
                   <td><span class="record-badge" :class="badge(b.bookingStatus)">{{ b.bookingStatus }}</span></td>
                   <td class="num">
-                    <button class="table-link" type="button" @click="openEdit(b)">Edit</button>
+                    <button v-if="b.voided" class="table-link" type="button" @click="restore(b)">Restore</button>
+                    <button v-else class="table-link" type="button" @click="openEdit(b)">Edit</button>
                   </td>
                 </tr>
               </tbody>
@@ -256,6 +283,14 @@ const drawerTitle = ref('New booking');
 
 const unusualWarning = ref('');
 const confirmUnusual = ref(false);
+
+const askVoid = ref(false);
+const voiding = ref(false);
+const voidReason = ref('');
+const voidError = ref('');
+const editingVoided = computed(
+  () => bookings.value.find((b) => b.id === originalCode.value)?.voided ?? false,
+);
 
 const query = ref('');
 const paymentOptions = ['All', 'Paid', 'Partially Paid', 'Pending'];
@@ -354,6 +389,9 @@ function openForm() {
   formError.value = '';
   unusualWarning.value = '';
   confirmUnusual.value = false;
+  askVoid.value = false;
+  voidReason.value = '';
+  voidError.value = '';
   showForm.value = true;
 }
 
@@ -381,6 +419,9 @@ function openEdit(b: Booking) {
   formError.value = '';
   unusualWarning.value = '';
   confirmUnusual.value = false;
+  askVoid.value = false;
+  voidReason.value = '';
+  voidError.value = '';
   showForm.value = true;
 }
 
@@ -402,6 +443,36 @@ async function load() {
     toast.error('We could not load the bookings. Please refresh and try again.');
   } finally {
     loading.value = false;
+  }
+}
+
+async function confirmVoid() {
+  if (voiding.value || !voidReason.value) return;
+  voiding.value = true;
+  voidError.value = '';
+  try {
+    await api.voidBooking(originalCode.value, voidReason.value);
+    await load();
+    askVoid.value = false;
+    showForm.value = false;
+    toast.success('Booking ' + originalCode.value + ' voided');
+  } catch (e) {
+    voidError.value = e instanceof ApiError
+      ? Object.values(e.fields)[0] ?? e.message
+      : 'Could not void the booking.';
+  } finally {
+    voiding.value = false;
+  }
+}
+
+async function restore(b: Booking) {
+  try {
+    await api.restoreBooking(b.id);
+    await load();
+    toast.success('Booking ' + b.id + ' restored');
+  } catch (e) {
+    const message = e instanceof ApiError ? Object.values(e.fields)[0] ?? e.message : 'Could not restore the booking.';
+    toast.error(message);
   }
 }
 
@@ -619,5 +690,49 @@ onMounted(load);
 .kind-tag.kind-tailored {
   background: var(--tone-primary-surface);
   color: var(--tone-primary-ink);
+}
+
+.row-voided td {
+  color: var(--color-text-faint);
+}
+
+.row-voided td strong,
+.row-voided .record-badge {
+  color: var(--color-text-muted);
+}
+
+.voided-tag {
+  color: var(--color-danger-ink);
+  font-weight: 600;
+}
+
+.void-panel {
+  margin-bottom: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--tone-danger-border);
+  border-radius: var(--radius-md);
+  background: var(--tone-danger-surface);
+}
+
+.void-lead {
+  margin: 0 0 var(--space-3);
+  color: var(--tone-danger-ink);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.void-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.footer-spacer {
+  flex: 1;
+}
+
+.danger-link {
+  color: var(--color-danger-ink);
 }
 </style>

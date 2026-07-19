@@ -23,6 +23,8 @@ public record BookingRequest(
 
 public record BulkRequest(string[]? Ids, string? Action);
 
+public record VoidRequest(string? Reason);
+
 public record UserRequest(
     string? Name,
     string? Email,

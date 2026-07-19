@@ -10,4 +10,10 @@ public class Expense
     public string RelatedPackage { get; set; } = "";
     public string PaymentStatus { get; set; } = "Pending";
     public string? Notes { get; set; }
+
+    public DateTime? VoidedAt { get; set; }
+    public string? VoidedBy { get; set; }
+    public string? VoidReason { get; set; }
+
+    public bool IsVoided => VoidedAt is not null;
 }
