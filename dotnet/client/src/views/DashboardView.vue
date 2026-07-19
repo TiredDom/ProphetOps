@@ -129,6 +129,7 @@
 import { computed, onMounted, ref } from 'vue';
 import AppShell from '../components/AppShell.vue';
 import { api, type DashboardData } from '../api';
+import { peso } from '../format';
 
 const data = ref<DashboardData | null>(null);
 const loading = ref(true);
@@ -158,9 +159,6 @@ const trajectorySentence = computed(() => {
   return `Demand looks steady, peaking in ${peakMonth}.`;
 });
 
-function peso(value: number): string {
-  return '₱' + Math.round(value).toLocaleString('en-PH');
-}
 
 function badge(value: string): string {
   return 'status-' + value.toLowerCase().replace(/[^a-z0-9]+/g, '-');

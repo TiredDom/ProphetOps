@@ -112,6 +112,7 @@
 import { computed, onMounted, ref } from 'vue';
 import AppShell from '../components/AppShell.vue';
 import { api, type AnalyticsData, type AnalyticsPoint } from '../api';
+import { peso, pesoCompact } from '../format';
 
 const data = ref<AnalyticsData | null>(null);
 const loading = ref(true);
@@ -122,20 +123,12 @@ const plotRight = 624;
 const plotTop = 18;
 const plotBottom = 210;
 
-function peso(value: number): string {
-  return '₱' + Math.round(value).toLocaleString('en-PH');
-}
 
 function trimNumber(value: number): string {
   const rounded = Math.round(value * 10) / 10;
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
 }
 
-function pesoCompact(value: number): string {
-  if (value >= 1_000_000) return '₱' + trimNumber(value / 1_000_000) + 'M';
-  if (value >= 1_000) return '₱' + trimNumber(value / 1_000) + 'k';
-  return '₱' + Math.round(value).toLocaleString('en-PH');
-}
 
 function niceScale(peak: number, ticks: number): { max: number; step: number } {
   if (peak <= 0) return { max: ticks, step: 1 };

@@ -89,8 +89,8 @@
           </template>
 
           <label class="account-field">
-            <span>Price (₱)</span>
-            <input v-model.number="form.grossRevenue" type="number" min="0" />
+            <span>Price</span>
+            <MoneyField v-model="form.grossRevenue" />
           </label>
           <label class="account-field">
             <span>Payment status</span>
@@ -220,6 +220,8 @@ import EmptyState from '../components/EmptyState.vue';
 import SearchField from '../components/SearchField.vue';
 import { useToast } from '../composables/useToast';
 import { api, ApiError, type Booking, type BookingInput, type PackageOption } from '../api';
+import { peso } from '../format';
+import MoneyField from '../components/MoneyField.vue';
 
 type BookingMode = 'package' | 'custom';
 type BookingForm = BookingInput & { mode: BookingMode };
@@ -265,9 +267,6 @@ function clearFilters() {
   paymentFilter.value = 'All';
 }
 
-function peso(value: number): string {
-  return '₱' + Math.round(value).toLocaleString('en-PH');
-}
 
 function badge(value: string): string {
   return 'status-' + value.toLowerCase().replace(/[^a-z0-9]+/g, '-');

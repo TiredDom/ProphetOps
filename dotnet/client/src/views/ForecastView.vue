@@ -138,6 +138,7 @@
 import { computed, onMounted, ref } from 'vue';
 import AppShell from '../components/AppShell.vue';
 import { api, type ForecastData } from '../api';
+import { peso, pesoCompact } from '../format';
 
 const chartWidth = 720;
 const chartHeight = 320;
@@ -151,22 +152,7 @@ const data = ref<ForecastData | null>(null);
 const loading = ref(true);
 const error = ref('');
 
-function peso(value: number): string {
-  return '₱' + Math.round(value).toLocaleString('en-PH');
-}
 
-function pesoCompact(value: number): string {
-  const abs = Math.abs(value);
-  if (abs >= 1000000) {
-    const millions = value / 1000000;
-    const text = millions >= 10 ? Math.round(millions).toString() : (Math.round(millions * 10) / 10).toString();
-    return '₱' + text + 'M';
-  }
-  if (abs >= 1000) {
-    return '₱' + Math.round(value / 1000) + 'k';
-  }
-  return '₱' + Math.round(value);
-}
 
 function niceNum(range: number, round: boolean): number {
   const exponent = Math.floor(Math.log10(range));

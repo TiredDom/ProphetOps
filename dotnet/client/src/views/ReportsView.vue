@@ -162,14 +162,12 @@ import AppShell from '../components/AppShell.vue';
 import Skeleton from '../components/Skeleton.vue';
 import EmptyState from '../components/EmptyState.vue';
 import { api, type ReportsData } from '../api';
+import { peso } from '../format';
 
 const data = ref<ReportsData | null>(null);
 const loading = ref(true);
 const error = ref('');
 
-function peso(value: number): string {
-  return '₱' + Math.round(value).toLocaleString('en-PH');
-}
 
 function badge(value: string): string {
   return 'status-' + value.toLowerCase().replace(/[^a-z0-9]+/g, '-');
