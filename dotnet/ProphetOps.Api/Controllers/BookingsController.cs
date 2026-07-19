@@ -55,6 +55,9 @@ public class BookingsController : ControllerBase
         var stock = ValidateAvailability(request, null);
         if (stock.Count > 0) return BadRequest(stock);
 
+        var unusual = UnusualRevenue(request, null);
+        if (unusual is not null) return Conflict(new { message = unusual });
+
         var booking = new Booking();
         Apply(booking, request);
         _db.Bookings.Add(booking);
@@ -77,6 +80,9 @@ public class BookingsController : ControllerBase
 
         var stock = ValidateAvailability(request, booking);
         if (stock.Count > 0) return BadRequest(stock);
+
+        var unusual = UnusualRevenue(request, booking);
+        if (unusual is not null) return Conflict(new { message = unusual });
 
         var previousPackageId = booking.TravelPackageId;
         var previousPassengers = booking.PassengerCount;
@@ -190,6 +196,37 @@ public class BookingsController : ControllerBase
         if (request.GrossRevenue < 0)
             errors["grossRevenue"] = "Revenue must be zero or more.";
         return errors;
+    }
+
+    private const int UnusualMultiple = 5;
+    private const int UnusualSample = 8;
+
+    /// A mistyped figure passes every other check: it is a positive number in the right field.
+    /// It also survives longest, because the forecaster reads a spike as a seasonal signal and
+    /// carries it for a year. So an entry far above the usual is queried once before it is
+    /// saved, and accepted the moment the person says they meant it.
+    private string? UnusualRevenue(BookingRequest request, Booking? existing)
+    {
+        if (request.ConfirmUnusual) return null;
+        if (existing is not null && existing.GrossRevenue == request.GrossRevenue) return null;
+
+        var others = _db.Bookings
+            .Where(b => existing == null || b.Id != existing.Id)
+            .Select(b => b.GrossRevenue)
+            .ToList();
+
+        if (others.Count < UnusualSample) return null;
+
+        others.Sort();
+        var middle = others.Count / 2;
+        var median = others.Count % 2 == 1
+            ? others[middle]
+            : (others[middle - 1] + others[middle]) / 2;
+
+        if (median <= 0 || request.GrossRevenue < median * UnusualMultiple) return null;
+
+        return $"₱{request.GrossRevenue:N0} is more than {UnusualMultiple} times the usual booking "
+            + $"(about ₱{median:N0}). Check for a stray digit, or save again to confirm the amount is right.";
     }
 
     private static object Dto(Booking b) => new

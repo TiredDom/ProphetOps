@@ -26,6 +26,8 @@
       <Drawer :open="showForm" :title="drawerTitle" @close="showForm = false">
         <p v-if="formError" class="drawer-form-error" role="alert">{{ formError }}</p>
 
+        <p v-if="unusualWarning" class="drawer-form-check" role="alert">{{ unusualWarning }}</p>
+
         <fieldset class="booking-mode">
           <legend class="section-label">Booking type</legend>
           <div class="booking-mode-options" role="radiogroup" aria-label="Booking type">
@@ -252,6 +254,9 @@ const editing = ref(false);
 const originalCode = ref('');
 const drawerTitle = ref('New booking');
 
+const unusualWarning = ref('');
+const confirmUnusual = ref(false);
+
 const query = ref('');
 const paymentOptions = ['All', 'Paid', 'Partially Paid', 'Pending'];
 const paymentFilter = ref('All');
@@ -347,6 +352,8 @@ function openForm() {
   originalCode.value = '';
   drawerTitle.value = 'New booking';
   formError.value = '';
+  unusualWarning.value = '';
+  confirmUnusual.value = false;
   showForm.value = true;
 }
 
@@ -372,6 +379,8 @@ function openEdit(b: Booking) {
   originalCode.value = b.id;
   drawerTitle.value = 'Edit booking';
   formError.value = '';
+  unusualWarning.value = '';
+  confirmUnusual.value = false;
   showForm.value = true;
 }
 
@@ -420,14 +429,24 @@ async function save() {
     staffAssigned: form.staffAssigned,
     source: form.source,
     notes: form.notes,
+    confirmUnusual: confirmUnusual.value,
   };
   try {
     if (editing.value) await api.updateBooking(originalCode.value, payload);
     else await api.createBooking(payload);
     await load();
     showForm.value = false;
+    confirmUnusual.value = false;
+    unusualWarning.value = '';
     toast.success('Booking ' + payload.id + ' saved');
   } catch (e) {
+    // 409 is the server asking whether an unusually large figure was meant, not a refusal.
+    if (e instanceof ApiError && e.status === 409) {
+      unusualWarning.value = e.message;
+      confirmUnusual.value = true;
+      saving.value = false;
+      return;
+    }
     const message = e instanceof ApiError ? Object.values(e.fields)[0] ?? e.message : 'Could not save the booking.';
     formError.value = message;
     toast.error(message);
@@ -440,6 +459,17 @@ onMounted(load);
 </script>
 
 <style scoped>
+.drawer-form-check {
+  margin-bottom: var(--space-4);
+  padding: 10px 12px;
+  border: 1px solid var(--tone-warning-border);
+  border-radius: var(--radius-md);
+  background: var(--tone-warning-surface);
+  color: var(--tone-warning-ink);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .drawer-form-error {
   margin-bottom: var(--space-4);
   color: var(--color-danger-ink);

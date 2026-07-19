@@ -17,6 +17,10 @@ public record TrajectoryInput
     public required int Accuracy { get; init; }
     public required double Mae { get; init; }
     public required double SeasonalNaiveMae { get; init; }
+
+    /// Months already recorded whose totals sit far outside the rest. Empty unless the forecast
+    /// is running on the agency's own history, since there is nothing to check otherwise.
+    public IReadOnlyList<string> UnusualMonths { get; init; } = [];
 }
 
 /// Turns a finished forecast into plain-language statements an owner can act on.
@@ -83,6 +87,9 @@ public static class TrajectoryInsights
 
         var benchmark = BenchmarkNote(input);
         if (benchmark is not null) notes.Add(benchmark);
+
+        var quality = DataQualityNote(input);
+        if (quality is not null) notes.Add(quality);
 
         notes.Add(new TrajectoryNote("reliability", ReliabilityText(input)));
 
@@ -180,6 +187,25 @@ public static class TrajectoryInsights
             "benchmark",
             $"On recorded months this forecast missed by {Money(input.Mae)} on average, "
             + $"{Percent(better)} closer than assuming each month repeats the same month last year.");
+    }
+
+    private static TrajectoryNote? DataQualityNote(TrajectoryInput input)
+    {
+        var months = input.UnusualMonths;
+        if (months.Count == 0) return null;
+
+        var named = months.Count switch
+        {
+            1 => months[0],
+            2 => $"{months[0]} and {months[1]}",
+            _ => $"{string.Join(", ", months.Take(months.Count - 1))} and {months[^1]}",
+        };
+
+        var subject = months.Count == 1 ? "sits" : "sit";
+        return new TrajectoryNote(
+            "dataQuality",
+            $"{named} {subject} far outside the pattern of the other months. "
+            + "Worth checking those entries before trusting the shape, since the forecast learns from them.");
     }
 
     private static string ReliabilityText(TrajectoryInput input)

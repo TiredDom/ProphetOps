@@ -79,6 +79,12 @@ public class ForecastController : ControllerBase
                 Accuracy = accuracy,
                 Mae = metrics?.Mae ?? 0,
                 SeasonalNaiveMae = forecast.Baselines?.SeasonalNaiveMae ?? 0,
+                UnusualMonths = demand.UsingLiveRecords
+                    ? SeriesAnomalies.Detect(series)
+                        .Select(a => anchor.AddMonths(a.Index - (series.Count - 1))
+                            .ToString("MMMM yyyy", CultureInfo.InvariantCulture))
+                        .ToList()
+                    : [],
             })
             : new List<TrajectoryNote>();
 
