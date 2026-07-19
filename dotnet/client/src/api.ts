@@ -191,6 +191,13 @@ export interface ForecastInsight {
   peakValue: number;
 }
 
+export interface ForecastDataSource {
+  usingLiveRecords: boolean;
+  liveMonthsAvailable: number;
+  minimumMonths: number;
+  filledMonths: number;
+}
+
 export interface ForecastData {
   method: string;
   seasonLength: number;
@@ -201,6 +208,7 @@ export interface ForecastData {
   metrics: ForecastMetricsView;
   baselines: ForecastBaselines;
   insight: ForecastInsight;
+  dataSource: ForecastDataSource;
   history: ForecastPoint[];
   steps: ForecastStepView[];
 }

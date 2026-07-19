@@ -24,9 +24,10 @@ public class DashboardController : ControllerBase
         var revenue = bookings.Sum(b => b.GrossRevenue);
         var costs = _db.Expenses.Sum(e => e.Amount);
 
-        var anchor = new DateOnly(2026, 7, 1);
-        var series = SampleSalesHistory.MonthlyRevenue(anchor.Year, anchor.Month).Select(v => (double)v).ToList();
-        var forecast = HoltWintersForecaster.Forecast(series, 12, 6);
+        var demand = DemandSeriesBuilder.Build(_db, DateOnly.FromDateTime(DateTime.Today));
+        var anchor = demand.LastMonth;
+        var series = demand.Values.ToList();
+        var forecast = HoltWintersForecaster.Forecast(series, DemandSeriesBuilder.SeasonLength, 6);
         var mape = forecast.Ok ? forecast.Metrics!.Mape : 0;
         var accuracy = forecast.Ok ? Math.Max(0, (int)Math.Round(100 - mape)) : 0;
 
