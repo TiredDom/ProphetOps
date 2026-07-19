@@ -82,17 +82,7 @@
 
     <main class="main-panel">
       <header class="topbar">
-        <div class="topbar-utilities">
-          <span class="date-pill">{{ today }}</span>
-          <span class="topbar-divider" aria-hidden="true"></span>
-          <button class="profile-button" type="button">
-            <span class="profile-avatar">{{ initials }}</span>
-            <span>{{ displayRole }}</span>
-          </button>
-          <button class="topbar-logout" type="button" @click="signOut">Log out</button>
-        </div>
-
-        <div class="topbar-title-row">
+        <div class="topbar-row">
           <div class="topbar-heading">
             <button
               class="menu-button"
@@ -110,8 +100,20 @@
             </div>
           </div>
 
-          <div v-if="$slots.actions" class="topbar-page-actions">
-            <slot name="actions" />
+          <div class="topbar-tools">
+            <div v-if="$slots.actions" class="topbar-page-actions">
+              <slot name="actions" />
+            </div>
+
+            <div class="topbar-utilities">
+              <span class="date-pill">{{ today }}</span>
+              <span class="topbar-divider" aria-hidden="true"></span>
+              <button class="profile-button" type="button">
+                <span class="profile-avatar">{{ initials }}</span>
+                <span>{{ displayRole }}</span>
+              </button>
+              <button class="topbar-logout" type="button" @click="signOut">Log out</button>
+            </div>
           </div>
         </div>
       </header>

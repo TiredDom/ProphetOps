@@ -28,8 +28,8 @@
             <p class="analytics-panel-label">Sales history</p>
             <p class="analytics-panel-meta">Last {{ data.salesHistory.length }} months of revenue</p>
           </div>
-          <svg class="sales-chart" viewBox="0 0 640 240" preserveAspectRatio="xMidYMid meet" role="img" :aria-label="chartAriaLabel">
-            <line class="sales-axis-line" x1="56" y1="18" x2="56" y2="210" />
+          <svg class="sales-chart" viewBox="0 0 640 208" preserveAspectRatio="xMidYMid meet" role="img" :aria-label="chartAriaLabel">
+            <line class="sales-axis-line" x1="56" y1="18" x2="56" y2="180" />
             <g v-for="line in gridLines" :key="'grid-' + line.value">
               <line
                 :class="['sales-gridline', { 'sales-gridline-base': line.value === 0 }]"
@@ -44,7 +44,7 @@
               <rect class="sales-bar" :x="bar.x" :y="bar.y" :width="bar.width" :height="bar.height" rx="2">
                 <title>{{ bar.tip }}</title>
               </rect>
-              <text v-if="bar.showLabel" class="sales-xlabel" :x="bar.cx" y="228" text-anchor="middle">{{ bar.label }}</text>
+              <text v-if="bar.showLabel" class="sales-xlabel" :x="bar.cx" y="198" text-anchor="middle">{{ bar.label }}</text>
             </g>
           </svg>
         </section>
@@ -53,7 +53,6 @@
           <section class="analytics-panel">
             <div class="analytics-panel-head">
               <p class="analytics-panel-label">Package mix</p>
-              <p class="analytics-panel-meta">Bookings by package</p>
             </div>
             <div class="bar-rows">
               <div v-for="row in packageBars" :key="row.label" class="bar-row">
@@ -67,7 +66,6 @@
           <section class="analytics-panel">
             <div class="analytics-panel-head">
               <p class="analytics-panel-label">Payment status</p>
-              <p class="analytics-panel-meta">Bookings by payment</p>
             </div>
             <div class="bar-rows">
               <div v-for="row in paymentBars" :key="row.label" class="bar-row">
@@ -82,7 +80,6 @@
         <section class="analytics-panel">
           <div class="analytics-panel-head">
             <p class="analytics-panel-label">Revenue by destination</p>
-            <p class="analytics-panel-meta">Revenue per destination</p>
           </div>
           <div class="dss-table-frame">
             <table class="dss-table">
@@ -121,7 +118,7 @@ const error = ref('');
 const plotLeft = 56;
 const plotRight = 624;
 const plotTop = 18;
-const plotBottom = 210;
+const plotBottom = 180;
 
 
 function trimNumber(value: number): string {
@@ -221,38 +218,36 @@ onMounted(async () => {
   color: var(--color-danger-ink);
 }
 .analytics-panel {
-  margin-top: 1.5rem;
-  padding: 1.5rem 1.75rem;
+  padding: 16px 20px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-lg);
 }
 .analytics-panel-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 1.25rem;
+  margin-bottom: 14px;
 }
 .analytics-panel-label {
   margin: 0;
   font-family: var(--font-display);
   font-optical-sizing: auto;
-  font-size: 1.15rem;
+  font-size: 17px;
+  font-weight: 560;
   color: var(--color-text-primary);
 }
 .analytics-panel-meta {
   margin: 0;
-  font-size: 0.8rem;
+  font-size: 12px;
   color: var(--color-text-muted);
 }
 .analytics-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 1.5rem;
-}
-.analytics-grid .analytics-panel {
-  margin-top: 1.5rem;
+  align-items: start;
+  gap: 20px;
 }
 .sales-chart {
   display: block;
@@ -289,16 +284,16 @@ onMounted(async () => {
 .bar-rows {
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
+  gap: 10px;
 }
 .bar-row {
   display: grid;
-  grid-template-columns: minmax(90px, 1fr) 2fr auto;
+  grid-template-columns: minmax(0, 1.6fr) minmax(48px, 1fr) auto;
   align-items: center;
-  gap: 0.85rem;
+  gap: 12px;
 }
 .bar-row-label {
-  font-size: 0.9rem;
+  font-size: 13px;
   color: var(--color-text-secondary);
 }
 .bar-row-track {

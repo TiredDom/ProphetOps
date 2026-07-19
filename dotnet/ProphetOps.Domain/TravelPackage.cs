@@ -13,6 +13,7 @@ public class TravelPackage
     public int SoldCount { get; set; }
     public int ReservedCount { get; set; }
     public string Status { get; set; } = "Normal";
+    public string? ImagePath { get; set; }
     public DateOnly? LastUpdatedAt { get; set; }
 
     public ICollection<Booking> Bookings { get; set; } = new List<Booking>();
