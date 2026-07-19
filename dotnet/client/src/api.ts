@@ -75,6 +75,38 @@ export interface Booking {
   voidReason?: string | null;
 }
 
+export interface ImportNote {
+  line: number;
+  reason: string;
+}
+
+export interface ImportPreview {
+  valid: number;
+  skipped: number;
+  duplicates: number;
+  duplicateCodes: string[];
+  from: string | null;
+  to: string | null;
+  months: number;
+  passengers: number;
+  totalRevenue: number;
+  problems: ImportNote[];
+  warnings: ImportNote[];
+}
+
+export interface ImportResult {
+  batch: string;
+  imported: number;
+  skipped: number;
+  duplicates: number;
+  duplicateCodes: string[];
+  from: string | null;
+  to: string | null;
+  totalRevenue: number;
+  problems: ImportNote[];
+  warnings: ImportNote[];
+}
+
 export interface ActivityEntry {
   at: string;
   actor: string;
@@ -333,9 +365,10 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
   );
 }
 
-async function upload<T>(url: string, file: File): Promise<T> {
+async function upload<T>(url: string, file: File, fields?: Record<string, string>): Promise<T> {
   const body = new FormData();
   body.append('file', file);
+  if (fields) for (const [key, value] of Object.entries(fields)) body.append(key, value);
 
   // No Content-Type header here on purpose — the browser has to set it so the multipart
   // boundary matches the body it generated.
@@ -369,6 +402,10 @@ export const api = {
     const query = params.toString();
     return request<ActivityEntry[]>('GET', '/api/activity' + (query ? '?' + query : ''));
   },
+  importBookingsPreview: (file: File) =>
+    upload<ImportPreview>('/api/import/bookings/preview', file),
+  importBookingsCommit: (file: File) =>
+    upload<ImportResult>('/api/import/bookings/commit', file, { confirm: 'true' }),
   bulkBookings: (ids: string[], action: 'confirm' | 'paid') =>
     request<{ updated: number }>('POST', '/api/bookings/bulk', { ids, action }),
   packages: () => request<PackageRow[]>('GET', '/api/inventory'),
