@@ -5,47 +5,34 @@
       <p v-else-if="error" class="dash-note dash-error" role="alert">{{ error }}</p>
 
       <template v-else-if="data">
-        <section class="forecast-panel">
-          <p class="forecast-label">Demand forecast · {{ data.method }}</p>
-          <p class="forecast-headline">{{ data.accuracy }}% accuracy on recorded months</p>
-          <p class="forecast-detail">
-            MAPE {{ data.metrics.mape }}% · {{ data.method }} · {{ data.horizon }}-month horizon
+        <section class="forecast-brief" :class="`brief-${data.insight.direction}`">
+          <p class="brief-label">Demand forecast · {{ data.method }} · {{ data.horizon }}-month outlook</p>
+
+          <p v-if="data.ok" class="brief-answer">
+            <span class="brief-mark" aria-hidden="true">{{ signalIcon }}</span>
+            <span>{{ insightText }}</span>
           </p>
+          <p v-else class="brief-answer">
+            <span>Not enough history to compute a Holt-Winters forecast yet.</span>
+          </p>
+
+          <div v-if="data.ok" class="brief-figures">
+            <span class="brief-figure">
+              <span class="brief-figure-label">Next month</span>
+              <strong>{{ peso(nextValue) }}</strong>
+            </span>
+            <span class="brief-figure">
+              <span class="brief-figure-label">Accuracy on past months</span>
+              <strong>{{ data.accuracy }}% <em>MAPE {{ data.metrics.mape }}%</em></strong>
+            </span>
+          </div>
         </section>
 
         <p class="source-note" :class="{ 'source-live': data.dataSource.usingLiveRecords }" role="note">
           {{ sourceNote }}
         </p>
 
-        <section
-          v-if="data.ok"
-          class="decision-signal"
-          :class="`signal-${data.insight.direction}`"
-          role="note"
-        >
-          <span class="signal-mark" aria-hidden="true">{{ signalIcon }}</span>
-          <p class="signal-text">{{ insightText }}</p>
-        </section>
-
         <template v-if="data.ok">
-          <section class="stat-band" aria-label="Forecast summary">
-            <div class="stat-cell">
-              <span class="stat-label">Average monthly error</span>
-              <strong class="stat-value">{{ data.metrics.mape }}%</strong>
-              <span class="stat-note">Typical error</span>
-            </div>
-            <div class="stat-cell">
-              <span class="stat-label">Next month</span>
-              <strong class="stat-value">{{ peso(nextValue) }}</strong>
-              <span class="stat-note">Next month</span>
-            </div>
-            <div class="stat-cell">
-              <span class="stat-label">Outlook</span>
-              <strong class="stat-value">{{ data.horizon }} mo</strong>
-              <span class="stat-note">Months ahead</span>
-            </div>
-          </section>
-
           <div v-if="chart" class="forecast-chart">
             <svg
               :viewBox="`0 0 ${chartWidth} ${chartHeight}`"
@@ -121,10 +108,6 @@
             </li>
           </ul>
         </template>
-
-        <p v-else class="dash-note">
-          Not enough history to compute a Holt-Winters forecast yet.
-        </p>
       </template>
     </section>
   </AppShell>
@@ -137,12 +120,12 @@ import { api, type ForecastData, type ForecastStepView } from '../api';
 import { peso, pesoCompact } from '../format';
 
 const chartWidth = 720;
-const chartHeight = 320;
+const chartHeight = 258;
 const plotLeft = 58;
 const plotRight = chartWidth - 20;
-const plotTop = 20;
-const plotBottom = chartHeight - 36;
-const labelY = plotBottom + 20;
+const plotTop = 16;
+const plotBottom = chartHeight - 32;
+const labelY = plotBottom + 18;
 
 const data = ref<ForecastData | null>(null);
 const loading = ref(true);
@@ -181,7 +164,7 @@ const insightText = computed(() => {
     ins.direction === 'flat'
       ? 'projected to stay roughly flat over the next six months'
       : `projected ${ins.changePercent > 0 ? '+' : ''}${ins.changePercent}% over the next six months`;
-  return `Demand is ${trend} — ${magnitude}, peaking in ${ins.peakMonth} (${peso(ins.peakValue)}), at about ${d.accuracy}% in-sample accuracy.`;
+  return `Demand is ${trend} — ${magnitude}, peaking in ${ins.peakMonth} at ${peso(ins.peakValue)}.`;
 });
 
 const stepScale = computed(() => {
@@ -299,30 +282,87 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.forecast-panel {
-  margin-bottom: 1.5rem;
-  padding: 1.75rem 2rem;
+.forecast-brief {
+  padding: 18px 24px 16px;
   background: var(--color-shell);
   color: var(--color-shell-text);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
 }
-.forecast-label {
+
+.brief-label {
   margin: 0;
-  font-size: 0.75rem;
-  letter-spacing: 0.1em;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: rgba(233, 237, 233, 0.6);
+  color: var(--color-shell-muted);
 }
-.forecast-headline {
-  margin: 0.35rem 0 0.25rem;
-  font-family: 'Fraunces Variable', Georgia, serif;
-  font-size: 2.1rem;
+
+.brief-answer {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 10px 0 0;
+  font-size: 17px;
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
+.brief-mark {
+  flex: none;
+  font-size: 11px;
+}
+
+.brief-up .brief-mark {
+  color: #6FDCAF;
+}
+
+.brief-down .brief-mark {
+  color: #FF9E96;
+}
+
+.brief-flat .brief-mark {
+  color: #F2CB7B;
+}
+
+.brief-figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 40px;
+  margin-top: 14px;
+  padding-top: 13px;
+  border-top: 1px solid var(--color-shell-border);
+}
+
+.brief-figure {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.brief-figure-label {
+  font-size: 11px;
   font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-shell-muted);
 }
-.forecast-detail {
-  margin: 0;
-  color: rgba(233, 237, 233, 0.8);
-  font-size: 0.95rem;
+
+.brief-figure strong {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-size: 21px;
+  font-weight: 560;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.brief-figure em {
+  margin-left: 7px;
+  font-family: var(--font-family);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 500;
+  color: var(--color-shell-muted);
 }
 .step-rows {
   display: flex;
@@ -334,10 +374,10 @@ onMounted(async () => {
 
 .step-row {
   display: grid;
-  grid-template-columns: 132px 132px minmax(120px, 1fr) auto;
+  grid-template-columns: 126px 118px minmax(120px, 1fr) auto;
   align-items: center;
   gap: var(--space-4);
-  padding: var(--space-3) 0;
+  padding: 8px 0;
   border-bottom: 1px solid var(--color-border-subtle);
 }
 
@@ -354,7 +394,7 @@ onMounted(async () => {
 .step-figure {
   font-family: var(--font-display);
   font-optical-sizing: auto;
-  font-size: 19px;
+  font-size: 17px;
   font-weight: 560;
   color: var(--color-text-primary);
   font-variant-numeric: lining-nums tabular-nums;
@@ -409,63 +449,15 @@ onMounted(async () => {
 }
 
 .source-note {
-  margin: calc(var(--space-4) * -1) 0 0;
+  margin: calc(var(--space-3) * -1) 0 0;
   padding: 0;
   color: var(--color-text-muted);
   font-size: 12.5px;
   line-height: 1.5;
 }
 
-.decision-signal {
-  display: flex;
-  align-items: center;
-  gap: 0.85rem;
-  margin-bottom: 1.5rem;
-  padding: 0.9rem 1.15rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-}
-.signal-mark {
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  width: 1.85rem;
-  height: 1.85rem;
-  border-radius: var(--radius-pill);
-  color: #FFFFFF;
-  font-size: 0.8rem;
-  line-height: 1;
-}
-.signal-text {
-  margin: 0;
-  font-size: 1rem;
-  color: var(--color-text-primary);
-}
-.signal-up {
-  background: var(--tint-success);
-  border-color: rgba(18, 128, 91, 0.24);
-}
-.signal-up .signal-mark {
-  background: var(--color-success);
-}
-.signal-down {
-  background: var(--tint-danger);
-  border-color: rgba(192, 38, 31, 0.24);
-}
-.signal-down .signal-mark {
-  background: var(--color-danger);
-}
-.signal-flat {
-  background: var(--tint-warning);
-  border-color: rgba(181, 115, 11, 0.24);
-}
-.signal-flat .signal-mark {
-  background: var(--color-warning);
-}
 .forecast-chart {
-  margin: 1.5rem 0;
-  padding: 1.25rem 1.5rem;
+  padding: 14px 18px 12px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
@@ -516,9 +508,9 @@ onMounted(async () => {
 .forecast-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 1.5rem;
-  margin: 1rem 0 0;
-  font-size: 0.8rem;
+  gap: 6px 24px;
+  margin: 10px 0 0;
+  font-size: 12px;
   color: var(--color-text-muted);
 }
 .legend-swatch {

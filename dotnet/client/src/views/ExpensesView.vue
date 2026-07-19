@@ -116,32 +116,42 @@
             <button class="table-link" type="button" @click="clearFilters">Clear filters</button>
           </div>
 
-          <div v-else class="dss-table-frame">
-            <table class="dss-table">
-              <thead>
-                <tr>
-                  <th>Expense ID</th>
-                  <th>Date</th>
-                  <th>Category</th>
-                  <th>Related package</th>
-                  <th class="num">Amount</th>
-                  <th>Payment status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="e in filtered" :key="e.id">
-                  <td><strong>{{ e.id }}</strong></td>
-                  <td class="cell-nowrap">{{ e.date }}</td>
-                  <td>{{ e.category }}</td>
-                  <td>{{ blank(e.relatedPackage) }}</td>
-                  <td class="num"><strong>{{ peso(e.amount) }}</strong></td>
-                  <td><span class="record-badge" :class="badge(e.paymentStatus)">{{ e.paymentStatus }}</span></td>
-                  <td><button class="table-link" type="button" @click="openEdit(e)">Edit</button></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <template v-else>
+            <div class="dss-table-frame">
+              <table class="dss-table">
+                <thead>
+                  <tr>
+                    <th>Expense ID</th>
+                    <th>Date</th>
+                    <th>Category</th>
+                    <th>Related package</th>
+                    <th class="num">Amount</th>
+                    <th>Payment status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="e in visibleExpenses" :key="e.id">
+                    <td><strong>{{ e.id }}</strong></td>
+                    <td class="cell-nowrap">{{ e.date }}</td>
+                    <td>{{ e.category }}</td>
+                    <td>{{ blank(e.relatedPackage) }}</td>
+                    <td class="num"><strong>{{ peso(e.amount) }}</strong></td>
+                    <td><span class="record-badge" :class="badge(e.paymentStatus)">{{ e.paymentStatus }}</span></td>
+                    <td><button class="table-link" type="button" @click="openEdit(e)">Edit</button></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <ListFooter
+              :shown="shown"
+              :total="total"
+              noun="expenses"
+              @more="loadMore"
+              @all="showAll"
+            />
+          </template>
         </section>
 
         <aside class="content-panel breakdown-panel">
@@ -187,6 +197,8 @@ import Drawer from '../components/Drawer.vue';
 import Skeleton from '../components/Skeleton.vue';
 import EmptyState from '../components/EmptyState.vue';
 import SearchField from '../components/SearchField.vue';
+import ListFooter from '../components/ListFooter.vue';
+import { usePaged } from '../composables/usePaged';
 import { useToast } from '../composables/useToast';
 import { api, ApiError, type ExpenseRow, type ExpenseInput } from '../api';
 import { peso } from '../format';
@@ -228,6 +240,8 @@ const filtered = computed(() => {
     );
   });
 });
+
+const { visible: visibleExpenses, total, shown, loadMore, showAll } = usePaged(filtered);
 
 const categoryChips = computed(() => [
   { value: 'All', label: 'All', count: expenses.value.length },

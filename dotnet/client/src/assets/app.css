@@ -364,28 +364,34 @@ a {
    ============================================================ */
 
 .topbar {
-    display: flex;
-    flex-direction: column;
+    display: block;
     background: var(--color-bg);
+}
+
+.topbar-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: 18px;
 }
 
 .topbar-utilities {
     display: flex;
-    justify-content: flex-end;
     align-items: center;
     gap: 4px;
-    min-height: 46px;
-    border-bottom: 1px solid var(--color-border-subtle);
 }
 
-.topbar-title-row {
+.topbar-tools {
     display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 24px;
-    padding: 22px 0 18px;
-    border-bottom: 1px solid var(--color-border);
-    margin-bottom: 24px;
+    align-items: center;
+    justify-content: flex-end;
+    flex: none;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding-top: 1px;
 }
 
 .topbar-heading {
@@ -395,20 +401,20 @@ a {
     min-width: 0;
 }
 
-.topbar-title-row h1 {
+.topbar-row h1 {
     font-family: var(--font-display);
-    font-size: 31px;
+    font-size: 25px;
     font-weight: 580;
     font-optical-sizing: auto;
     letter-spacing: -0.015em;
-    line-height: 1.12;
+    line-height: 1.14;
     color: var(--color-text-primary);
 }
 
 .topbar-description {
-    margin-top: 6px;
+    margin-top: 2px;
     color: var(--color-text-secondary);
-    font-size: 14px;
+    font-size: 13px;
     max-width: 62ch;
 }
 
@@ -654,8 +660,8 @@ a {
 .stat-cell {
     display: flex;
     flex-direction: column;
-    gap: 7px;
-    padding: 18px 22px 17px;
+    gap: 5px;
+    padding: 13px 18px 14px;
     min-width: 0;
     border-left: 1px solid var(--color-border-subtle);
     text-decoration: none;
@@ -685,7 +691,7 @@ a.stat-cell:hover {
 .stat-value {
     font-family: var(--font-display);
     font-optical-sizing: auto;
-    font-size: 30px;
+    font-size: 25px;
     font-weight: 580;
     letter-spacing: -0.015em;
     line-height: 1.12;
@@ -702,7 +708,7 @@ a.stat-cell:hover {
     align-items: baseline;
     gap: 8px;
     color: var(--color-text-muted);
-    font-size: 12.5px;
+    font-size: 12px;
     min-width: 0;
 }
 
@@ -971,6 +977,11 @@ a.stat-cell:hover {
         linear-gradient(to left, rgba(32, 38, 31, 0.16), transparent) right / 16px 100% no-repeat scroll;
 }
 
+.dss-table-frame {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+}
+
 .dss-table {
     width: 100%;
     border-collapse: collapse;
@@ -990,7 +1001,7 @@ a.stat-cell:hover {
 }
 
 .dss-table td {
-    padding: 11px 12px;
+    padding: 9px 12px;
     border-bottom: 1px solid var(--color-border-subtle);
     vertical-align: middle;
     color: var(--color-text-secondary);
@@ -1238,6 +1249,18 @@ textarea[aria-invalid='true'] {
 .form-helper {
     color: var(--color-text-muted);
     font-size: 12.5px;
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
 }
 
 /* ============================================================
@@ -2712,8 +2735,9 @@ input[type='checkbox']:focus-visible {
         cursor: pointer;
     }
 
-    .topbar-utilities {
-        min-height: 42px;
+    .topbar .date-pill,
+    .topbar-divider {
+        display: none;
     }
 
     .dss-grid.two-column {
@@ -2778,20 +2802,21 @@ input[type='checkbox']:focus-visible {
         font-size: 22px;
     }
 
-    .topbar-title-row {
+    .topbar-row {
         flex-direction: column;
         align-items: stretch;
-        gap: 14px;
-        padding: 18px 0 16px;
-        margin-bottom: 18px;
+        gap: 12px;
+        padding: 14px 0;
+        margin-bottom: 16px;
     }
 
-    .topbar-title-row h1 {
-        font-size: 24px;
+    .topbar-row h1 {
+        font-size: 22px;
     }
 
-    .topbar-page-actions {
-        padding-bottom: 0;
+    .topbar-tools {
+        justify-content: space-between;
+        padding-top: 0;
     }
 
     .analytics-cost-summary {

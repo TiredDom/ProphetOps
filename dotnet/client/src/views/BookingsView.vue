@@ -165,42 +165,54 @@
           </button>
         </div>
 
-        <div v-if="visibleBookings.length" class="dss-table-frame">
-          <table class="dss-table">
-            <thead>
-              <tr>
-                <th>Booking ID</th>
-                <th>Client / Partner</th>
-                <th>Package</th>
-                <th class="num">Passengers</th>
-                <th class="num">Revenue</th>
-                <th>Payment</th>
-                <th>Status</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="b in visibleBookings" :key="b.id">
-                <td><strong>{{ b.id }}</strong></td>
-                <td>{{ b.client }}</td>
-                <td>
-                  <strong>{{ b.package }}</strong>
-                  <span class="row-subtext">{{ b.destination }}</span>
-                  <span class="kind-tag" :class="{ 'kind-tailored': isTailored(b) }">
-                    {{ isTailored(b) ? 'Tailored' : 'Package' }}
-                  </span>
-                </td>
-                <td class="num">{{ b.y }}</td>
-                <td class="num"><strong>{{ peso(b.grossRevenue) }}</strong></td>
-                <td><span class="record-badge" :class="badge(b.paymentStatus)">{{ b.paymentStatus }}</span></td>
-                <td><span class="record-badge" :class="badge(b.bookingStatus)">{{ b.bookingStatus }}</span></td>
-                <td class="num">
-                  <button class="table-link" type="button" @click="openEdit(b)">Edit</button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <template v-if="visibleBookings.length">
+          <div class="dss-table-frame">
+            <table class="dss-table">
+              <thead>
+                <tr>
+                  <th>Booking ID</th>
+                  <th>Client / Partner</th>
+                  <th>Package</th>
+                  <th class="num">Passengers</th>
+                  <th class="num">Revenue</th>
+                  <th>Payment</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="b in visibleBookings" :key="b.id">
+                  <td><strong>{{ b.id }}</strong></td>
+                  <td>{{ b.client }}</td>
+                  <td>
+                    <strong>{{ b.package }}</strong>
+                    <span class="row-subtext">
+                      {{ b.destination }}
+                      <span class="kind-tag" :class="{ 'kind-tailored': isTailored(b) }">
+                        {{ isTailored(b) ? 'Tailored' : 'Package' }}
+                      </span>
+                    </span>
+                  </td>
+                  <td class="num">{{ b.y }}</td>
+                  <td class="num"><strong>{{ peso(b.grossRevenue) }}</strong></td>
+                  <td><span class="record-badge" :class="badge(b.paymentStatus)">{{ b.paymentStatus }}</span></td>
+                  <td><span class="record-badge" :class="badge(b.bookingStatus)">{{ b.bookingStatus }}</span></td>
+                  <td class="num">
+                    <button class="table-link" type="button" @click="openEdit(b)">Edit</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <ListFooter
+            :shown="shown"
+            :total="total"
+            noun="bookings"
+            @more="loadMore"
+            @all="showAll"
+          />
+        </template>
 
         <div v-else class="filter-empty">
           <p>No bookings match your search.</p>
@@ -218,6 +230,8 @@ import Drawer from '../components/Drawer.vue';
 import Skeleton from '../components/Skeleton.vue';
 import EmptyState from '../components/EmptyState.vue';
 import SearchField from '../components/SearchField.vue';
+import ListFooter from '../components/ListFooter.vue';
+import { usePaged } from '../composables/usePaged';
 import { useToast } from '../composables/useToast';
 import { api, ApiError, type Booking, type BookingInput, type PackageOption } from '../api';
 import { peso } from '../format';
@@ -253,7 +267,7 @@ const paymentCounts = computed(() => {
   return counts;
 });
 
-const visibleBookings = computed(() => {
+const matching = computed(() => {
   const term = query.value.trim().toLowerCase();
   return bookings.value.filter((b) => {
     if (paymentFilter.value !== 'All' && b.paymentStatus !== paymentFilter.value) return false;
@@ -261,6 +275,8 @@ const visibleBookings = computed(() => {
     return [b.client, b.package, b.destination, b.id].some((field) => (field ?? '').toLowerCase().includes(term));
   });
 });
+
+const { visible: visibleBookings, total, shown, loadMore, showAll } = usePaged(matching);
 
 function clearFilters() {
   query.value = '';
@@ -561,7 +577,7 @@ onMounted(load);
 
 .kind-tag {
   display: inline-block;
-  margin-top: 5px;
+  margin-left: 6px;
   padding: 1px 8px;
   border-radius: var(--radius-pill);
   background: var(--tone-neutral-surface);

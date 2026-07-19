@@ -101,6 +101,7 @@ export interface PackageRow {
   soldCount: number;
   reservedCount: number;
   status: string;
+  imageUrl: string | null;
 }
 
 export interface PackageInput {
@@ -273,21 +274,7 @@ function readCookie(name: string): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-async function request<T>(method: string, url: string, body?: unknown): Promise<T> {
-  const headers: Record<string, string> = {};
-  if (body) headers['Content-Type'] = 'application/json';
-  if (method !== 'GET' && method !== 'HEAD') {
-    const token = readCookie('XSRF-TOKEN');
-    if (token) headers['X-XSRF-TOKEN'] = token;
-  }
-
-  const response = await fetch(url, {
-    method,
-    credentials: 'include',
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-
+async function unwrap<T>(response: Response): Promise<T> {
   if (!response.ok) {
     let message = 'Request failed.';
     let fields: Record<string, string> = {};
@@ -303,6 +290,37 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
 
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
+}
+
+function csrfHeaders(): Record<string, string> {
+  const token = readCookie('XSRF-TOKEN');
+  return token ? { 'X-XSRF-TOKEN': token } : {};
+}
+
+async function request<T>(method: string, url: string, body?: unknown): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (body) headers['Content-Type'] = 'application/json';
+  if (method !== 'GET' && method !== 'HEAD') Object.assign(headers, csrfHeaders());
+
+  return unwrap<T>(
+    await fetch(url, {
+      method,
+      credentials: 'include',
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    }),
+  );
+}
+
+async function upload<T>(url: string, file: File): Promise<T> {
+  const body = new FormData();
+  body.append('file', file);
+
+  // No Content-Type header here on purpose — the browser has to set it so the multipart
+  // boundary matches the body it generated.
+  return unwrap<T>(
+    await fetch(url, { method: 'POST', credentials: 'include', headers: csrfHeaders(), body }),
+  );
 }
 
 export const api = {
@@ -321,6 +339,10 @@ export const api = {
   createPackage: (input: PackageInput) => request<PackageRow>('POST', '/api/inventory', input),
   updatePackage: (code: string, input: PackageInput) =>
     request<PackageRow>('PUT', `/api/inventory/${code}`, input),
+  uploadPackageImage: (code: string, file: File) =>
+    upload<PackageRow>(`/api/inventory/${encodeURIComponent(code)}/image`, file),
+  removePackageImage: (code: string) =>
+    request<PackageRow>('DELETE', `/api/inventory/${encodeURIComponent(code)}/image`),
   expenses: () => request<ExpenseRow[]>('GET', '/api/expenses'),
   createExpense: (input: ExpenseInput) => request<ExpenseRow>('POST', '/api/expenses', input),
   updateExpense: (code: string, input: ExpenseInput) =>
