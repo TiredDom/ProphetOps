@@ -115,6 +115,80 @@ public class DemandSeriesTests
     }
 
     [Fact]
+    public void Entries_added_through_the_running_month_do_not_disturb_the_series()
+    {
+        using var db = NewDb();
+        FillMonths(db, new DateOnly(2024, 1, 1), 24);
+
+        var before = DemandSeriesBuilder.Build(db, new DateOnly(2026, 1, 4));
+
+        // Staff record bookings across the first fortnight of the month they are standing in.
+        foreach (var day in new[] { 4, 7, 9, 12, 15 })
+        {
+            AddBooking(db, 2026, 1, 30000);
+            db.SaveChanges();
+
+            var during = DemandSeriesBuilder.Build(db, new DateOnly(2026, 1, day));
+            Assert.Equal(before.Values.Count, during.Values.Count);
+            Assert.Equal(before.LastMonth, during.LastMonth);
+            Assert.Equal(before.Values[^1], during.Values[^1]);
+        }
+    }
+
+    [Fact]
+    public void The_series_takes_the_month_up_once_that_month_has_finished()
+    {
+        using var db = NewDb();
+        FillMonths(db, new DateOnly(2024, 1, 1), 24);
+        AddBooking(db, 2026, 1, 150000);
+        db.SaveChanges();
+
+        var standingInJanuary = DemandSeriesBuilder.Build(db, new DateOnly(2026, 1, 20));
+        var standingInFebruary = DemandSeriesBuilder.Build(db, new DateOnly(2026, 2, 1));
+
+        Assert.Equal(24, standingInJanuary.Values.Count);
+        Assert.Equal(25, standingInFebruary.Values.Count);
+        Assert.Equal(150000, standingInFebruary.Values[^1]);
+    }
+
+    [Fact]
+    public void Switches_from_the_sample_series_to_live_records_on_the_month_that_completes_two_seasons()
+    {
+        using var db = NewDb();
+        FillMonths(db, new DateOnly(2024, 1, 1), 23);
+
+        var justShort = DemandSeriesBuilder.Build(db, new DateOnly(2025, 12, 10));
+        Assert.False(justShort.UsingLiveRecords);
+        Assert.Equal(23, justShort.LiveMonthsAvailable);
+
+        AddBooking(db, 2025, 12, 100000);
+        db.SaveChanges();
+
+        var crossed = DemandSeriesBuilder.Build(db, new DateOnly(2026, 1, 10));
+        Assert.True(crossed.UsingLiveRecords);
+        Assert.Equal(24, crossed.LiveMonthsAvailable);
+    }
+
+    [Fact]
+    public void A_booking_entered_late_for_an_earlier_month_lands_in_that_month()
+    {
+        using var db = NewDb();
+        FillMonths(db, new DateOnly(2024, 1, 1), 24, 100000);
+
+        var before = DemandSeriesBuilder.Build(db, new DateOnly(2026, 1, 9));
+        var marchIndex = 14;
+
+        // Someone catches up on a March 2025 booking nine months later.
+        AddBooking(db, 2025, 3, 45000);
+        db.SaveChanges();
+
+        var after = DemandSeriesBuilder.Build(db, new DateOnly(2026, 1, 9));
+
+        Assert.Equal(before.Values.Count, after.Values.Count);
+        Assert.Equal(before.Values[marchIndex] + 45000, after.Values[marchIndex]);
+    }
+
+    [Fact]
     public void Sums_every_booking_inside_a_month()
     {
         using var db = NewDb();
