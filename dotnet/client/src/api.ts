@@ -186,11 +186,17 @@ export interface ForecastStepView {
   upper: number;
 }
 
+export interface TrajectoryNote {
+  kind: string;
+  text: string;
+}
+
 export interface ForecastInsight {
   direction: 'up' | 'down' | 'flat';
   changePercent: number;
   peakMonth: string;
   peakValue: number;
+  notes: TrajectoryNote[];
 }
 
 export interface ForecastDataSource {
