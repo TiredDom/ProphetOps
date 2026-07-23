@@ -30,18 +30,13 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 
-# Manuscript, figures and presentation material - kept with the written
-# requirements rather than in the application repository
+# Office documents and editor lock files
 *.docx
+*.xlsx
 *.pdf
 ~$*
-diagrams/
-paper-figures/
-presentation/
-ProphetOps_Manuscript_Edit_Log.txt
-PROPHETOPSHOLTWINTERS-CORRECTED-CHANGELOG.txt
 
-# Local working notes and planning drafts
+# Local notes, not part of the application
 markdowns/
 information/
 PRODUCT.md
