@@ -24,6 +24,8 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 
+# Office documents and editor lock files
 *.docx
+*.xlsx
 *.pdf
 ~$*
