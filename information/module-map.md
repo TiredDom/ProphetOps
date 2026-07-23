@@ -28,35 +28,34 @@ Important notes:
 - Keep the Laravel + Inertia + Vue structure simple and modular.
 - Do not introduce a public website, customer booking portal, payment flow, or external API integration unless the user explicitly changes scope.
 
-## Algorithm / TOPSIS Decision Support
+## Algorithm / Demand Forecasting
 
 Purpose:
 Provide the active capstone algorithm direction.
 
 Current source of truth:
 
-- `information/topsis-decision-support-plan.md`
+- `information/forecasting-holt-winters.md`
 
 Current status:
 
-- TOPSIS is the active algorithm direction.
-- Meta Prophet is historical unless the team explicitly restores forecasting.
-- The system should rank travel package or operations alternatives through explainable criteria and weights.
-- Current package records support the first TOPSIS ranking module.
-- The visible owner-facing Package Decision Guide is available at `/decision-guide`; `/forecasting` is only a compatibility redirect.
+- Holt-Winters (additive triple exponential smoothing) is the active algorithm direction, shipped at `/forecast`.
+- TOPSIS and Meta Prophet are historical unless the team explicitly restores them.
+- The system projects future monthly revenue and the seasonal pattern from the agency's monthly sales history, as an explainable algorithm implemented from first principles.
+- `ProphetOpsData::salesHistory()` (a 36-month representative sample series) currently feeds the forecaster.
+- The visible owner-facing Forecast page is available at `/forecast`; `/forecasting` and `/decision-guide` are only compatibility redirects to `/forecast`.
 
 Expected decisions:
 
-- Which package should staff recommend for a client or agency partner.
-- Which package should admins prioritize, monitor, or promote.
-- Which package has risk because of low slots, weak data, or low business value.
-- Which option best fits budget, destination, duration, capacity, supplier reliability, and business value.
+- How demand is likely to move over the coming months, and which month is projected to peak.
+- Which packages or capacity to prepare before the projected peak.
+- Whether recent revenue is trending up, down, or holding steady versus the projection.
 
 Important notes:
 
 - Do not depend on Facebook or supplier APIs.
 - Fragmented source data from sheets, messages, posters, and manual communication is part of the research problem.
-- Keep TOPSIS outputs explainable in business language, not formula-heavy UI copy.
+- Keep forecast outputs explainable in business language, not formula-heavy UI copy.
 
 ## Authentication / Account Access
 
@@ -127,7 +126,7 @@ Important notes:
 - It must answer what is happening, why it matters, and what should be reviewed next.
 - Forecast and AI areas must not imply that Meta Prophet or real AI is already running.
 - Future dashboard DSS behavior should follow `information/topsis-decision-support-plan.md`.
-- When TOPSIS ranking exists, the dashboard should show the best decision gist and the top three review actions, not a dense algorithm workspace.
+- The dashboard should show the demand outlook and the top review actions, not a dense algorithm workspace.
 
 ## Bookings / Transactions
 
@@ -214,25 +213,26 @@ Current behavior:
 - Include monthly sales chart, booking volume chart, revenue by destination, top packages table, revenue vs expenses comparison, and summary cards.
 - Summary cards: Top Revenue Route, Highest Passenger Volume, Most Active Month, Costliest Category.
 
-## Package Decision Guide
+## Forecast
 
 Purpose:
-Compare package alternatives using TOPSIS criteria and explainable business output.
+Project demand using an explainable forecasting algorithm and translate it into business output.
 
 Current status:
 
-- Implemented as `resources/js/Pages/ForecastingPreview.vue`.
-- Current route: `GET /decision-guide`.
-- Old route: `GET /forecasting` redirects to `/decision-guide`.
+- Implemented as `resources/js/Pages/Forecast.vue`.
+- Current route: `GET /forecast`.
+- Old routes: `GET /forecasting` and `GET /decision-guide` redirect to `/forecast`.
 
 Current target:
 
-- Use saved package catalog data and TOPSIS criteria fields.
-- Accept budget, destination, duration, and travel type priority inputs.
-- Show compared alternatives, fit score/closeness coefficient, criteria weights, and explanation.
+- Use the Holt-Winters additive triple exponential smoothing algorithm, implemented from first principles.
+- Forecast the monthly revenue series from `ProphetOpsData::salesHistory()`.
+- Show projected demand, seasonal and trend components, and an explainable business summary.
 - Keep formulas/details in documentation or tests instead of formula-heavy UI copy.
-- The backend ranking service lives in `app/Support/TopsisDecisionSupport.php`.
-- The active algorithm plan lives in `information/topsis-decision-support-plan.md`.
+- The backend controller is `app/Http/Controllers/ForecastController.php`.
+- The forecasting service lives in `app/Support/HoltWintersForecaster.php`, with `app/Support/ForecastInsight.php` producing the business insight.
+- The active algorithm methodology lives in `information/forecasting-holt-winters.md`.
 
 Important note:
 
@@ -269,7 +269,7 @@ Current status:
 
 Current behavior:
 
-- Report cards: Sales Summary, Inventory Summary, Expense Summary, TOPSIS Decision Summary, DSS Evaluation Summary.
+- Report cards: Sales Summary, Package Catalog Summary, Expense Summary, Demand Forecast Summary, Decision Support Summary.
 - Actions: View report, Export PDF, Export Excel.
 - Export actions may open an availability modal if not implemented yet, but the main UI should avoid placeholder wording.
 
@@ -302,7 +302,7 @@ Previous path:
 
 New direction:
 
-- Keep validation ideas as behavior inside Bookings, Inventory, Expenses, Analytics, Package Decision Guide, and Reports.
+- Keep validation ideas as behavior inside Bookings, Inventory, Expenses, Analytics, Forecast, and Reports.
 - Do not make Data Validation compete with the required Sprint 1 pages unless the user asks to restore it.
 
 ## Navigation
@@ -314,7 +314,7 @@ Required labels:
 - Inventory
 - Expenses
 - Analytics
-- Package Decision Guide
+- Forecast
 - Reports
 - Users
 
@@ -328,5 +328,5 @@ Target behavior:
 - Sidebar on desktop.
 - Collapsible/mobile navigation on small screens.
 - Role-based visibility.
-- Sprint 1 demo access: Owner sees all pages, Admin sees Dashboard through Reports including Package Decision Guide, Staff sees Bookings and Inventory.
+- Sprint 1 demo access: Owner sees all pages, Admin sees Dashboard through Reports including Forecast, Staff sees Bookings and Inventory.
 - Restricted pages should not break the UI.

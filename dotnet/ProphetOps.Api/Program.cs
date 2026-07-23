@@ -2,16 +2,17 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
+using ProphetOps.Api;
 using ProphetOps.Data;
 using ProphetOps.Domain;
 
-var standalone = Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? "")
-    .Equals("ProphetOps.Api", StringComparison.OrdinalIgnoreCase);
+var baseDir = AppContext.BaseDirectory;
+var standalone = Directory.Exists(Path.Combine(baseDir, "wwwroot"));
 
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 {
     Args = args,
-    ContentRootPath = standalone ? AppContext.BaseDirectory : null,
+    ContentRootPath = standalone ? baseDir : null,
 });
 
 builder.Host.UseWindowsService();
@@ -62,6 +63,9 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddControllers();
 builder.Services.AddAntiforgery(options => options.HeaderName = "X-XSRF-TOKEN");
+
+builder.Services.AddSingleton(new SignInThrottle());
+builder.Services.AddHostedService<BackupService>();
 
 var app = builder.Build();
 

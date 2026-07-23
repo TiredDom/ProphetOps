@@ -19,4 +19,10 @@ public class Booking
     public string? StaffAssigned { get; set; }
     public string Source { get; set; } = "Manual quotation";
     public string? Notes { get; set; }
+
+    public DateTime? VoidedAt { get; set; }
+    public string? VoidedBy { get; set; }
+    public string? VoidReason { get; set; }
+
+    public bool IsVoided => VoidedAt is not null;
 }

@@ -2,10 +2,12 @@
 
 This file is legacy Sprint 1 planning with current-state corrections. For the quickest current source of truth, read `information/README.md` first.
 
+Note: this Sprint 1 planning doc predates the shipped direction. The active algorithm is Holt-Winters demand forecasting at `/forecast` (see `information/forecasting-holt-winters.md`); TOPSIS and the Package Decision Guide were not adopted.
+
 Current active capstone direction:
 
 - Title: `ProphetOps: A Business Decision Support System Using TOPSIS for Travel Operations Management`
-- TOPSIS is the active algorithm direction.
+- Holt-Winters demand forecasting at `/forecast` is the active algorithm direction (see `information/forecasting-holt-winters.md`).
 - Meta Prophet and AI forecasting plans are historical unless the team explicitly restores them.
 - The current app is backend-backed with Laravel sessions and SQLite local persistence.
 
@@ -66,7 +68,7 @@ Visual standards:
 4. Inventory
 5. Expenses / Operational Costs
 6. Sales Analytics
-7. Package Decision Guide
+7. Forecast
 8. Reports
 9. Users / Access Management
 
@@ -108,7 +110,7 @@ Owner / Management:
 
 Admin:
 
-- Can access Dashboard, Bookings, Inventory, Expenses, Analytics, Package Decision Guide, and Reports.
+- Can access Dashboard, Bookings, Inventory, Expenses, Analytics, Forecast, and Reports.
 
 Staff:
 
@@ -123,7 +125,7 @@ Primary navigation labels:
 - Inventory
 - Expenses
 - Analytics
-- Package Decision Guide
+- Forecast
 - Reports
 - Users
 
@@ -153,16 +155,16 @@ Example:
 Decision-support presentation wording:
 
 - Do not show repeated visible labels such as "mockup", "mock", "preview", "sample only", "placeholder", or "forecast engine integration pending" inside the app UI.
-- Use polished product-facing labels such as "Decision Support", "Package Decision Guide", "Business Priority", and "Recommended Review".
+- Use polished product-facing labels such as "Decision Support", "Forecast", "Business Priority", and "Recommended Review".
 - Keep limitations in documentation, presenter script, paper limitations, and AI handoff notes.
 
 Do not imply that Meta Prophet or an AI module is running.
 
 ## TOPSIS Decision Support Direction
 
-The active research feature is TOPSIS-based travel operations decision support.
+The active research feature is Holt-Winters demand forecasting at `/forecast`.
 
-Use `information/topsis-decision-support-plan.md` before changing Dashboard, Package Decision Guide, Package Catalog, Reports, or decision-support behavior.
+Use `information/forecasting-holt-winters.md` before changing Dashboard, Forecast, Package Catalog, Reports, or decision-support behavior.
 
 Feature direction:
 
@@ -171,11 +173,11 @@ Feature direction:
 - Dashboard recommendations should be based on package fit, capacity status, supplier reliability, cost, and business value.
 - Every recommendation must show the criteria, business meaning, and suggested action.
 - Visible app UI should not look like a rough mockup during presentation.
-- Package Decision Guide, dashboard, analytics, and report graphs should follow `markdowns/modular-graph-system-plan.md` so charts stay contained and reusable.
+- Forecast, dashboard, analytics, and report graphs should follow `markdowns/modular-graph-system-plan.md` so charts stay contained and reusable.
 
 ## Saved Data Requirements
 
-Saved data must feel realistic for a B2B travel and tours agency and support TOPSIS ranking.
+Saved data must feel realistic for a B2B travel and tours agency and support demand forecasting.
 
 Include:
 
@@ -238,7 +240,7 @@ Use a full page for:
 
 - Dashboard
 - Analytics
-- Package Decision Guide
+- Forecast
 - Reports
 - Complex multi-section views
 - Pages with charts and large tables
@@ -301,7 +303,7 @@ Add reusable skeleton states for:
 - Insight cards
 - Charts
 - Tables
-- Package Decision Guide charts
+- Forecast charts
 
 Do not skeleton-load the app shell/sidebar every time. The navigation should stay stable.
 

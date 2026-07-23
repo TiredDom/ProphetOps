@@ -3,7 +3,42 @@
 Current direction note:
 Entries before `2026-06-06 - Sprint 1 DSS Planning Reset` are historical. Some older entries mention legacy pages such as Operational Records, Data Validation, Packages, Settings, or earlier visual directions. The active implementation direction is now `information/sprint-1-direction.md`.
 
+## 2026-07-02 - Replaced TOPSIS With Holt-Winters Forecasting
+
+Type:
+Algorithm / Backend / Frontend / Testing
+
+Summary:
+Removed the TOPSIS ranking implementation and the Package Decision Guide, and replaced them with an explainable Holt-Winters demand-forecast page at `/forecast`. The forecast uses additive triple exponential smoothing over `ProphetOpsData::salesHistory()`, served by `ForecastController` into `resources/js/Pages/Forecast.vue`. Methodology is documented in `information/forecasting-holt-winters.md`.
+
+Files removed:
+
+- app/Support/TopsisDecisionSupport.php
+- app/Http/Controllers/ForecastingController.php
+- resources/js/Pages/ForecastingPreview.vue
+- resources/js/Pages/TrajectoryInsights.vue
+- tests/Feature/TopsisDecisionSupportTest.php
+
+Files added:
+
+- app/Http/Controllers/ForecastController.php
+- app/Support/HoltWintersForecaster.php
+- app/Support/ForecastInsight.php
+- resources/js/Pages/Forecast.vue
+- information/forecasting-holt-winters.md
+- tests/Feature/HoltWintersForecasterTest.php
+
+Routing:
+- `/forecasting` and `/decision-guide` now redirect to `/forecast`.
+
+AI Handoff:
+- Module: Holt-Winters demand forecasting
+- What changed: TOPSIS decision support was removed; the active research algorithm is now Holt-Winters at `/forecast`.
+- Next likely task: Verify the forecast page and update remaining docs that still reference TOPSIS or the Package Decision Guide.
+
 ## 2026-06-19 - TOPSIS Ranking Implementation
+
+(Superseded — see the 2026-07-02 entry; this TOPSIS work was later removed.)
 
 Type:
 Algorithm / Backend / Frontend / Testing

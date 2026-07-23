@@ -13,10 +13,10 @@ Purpose:
 Provides reusable line icons for navigation, stat cards, buttons, panel headers, and empty states.
 
 Current use:
-Sidebar, TopBar, StatCard, ContentPanel, EmptyState, Login, Dashboard, Bookings, Inventory, Expenses, Analytics, Package Decision Guide, Reports, and Users.
+Sidebar, TopBar, StatCard, ContentPanel, EmptyState, Login, Dashboard, Bookings, Inventory, Expenses, Analytics, Forecast, Reports, and Users.
 
 Sprint 1 direction:
-Keep using this component unless an icon library is intentionally added. Add icons for Bookings, Expenses, Analytics, Package Decision Guide, Reports, Users, drawers, alerts, and exports as needed.
+Keep using this component unless an icon library is intentionally added. Add icons for Bookings, Expenses, Analytics, Forecast, Reports, Users, drawers, alerts, and exports as needed.
 
 ### Sidebar
 
@@ -34,7 +34,7 @@ Update navigation to the required labels:
 - Inventory
 - Expenses
 - Analytics
-- Package Decision Guide
+- Forecast
 - Reports
 - Users
 
@@ -60,7 +60,7 @@ Purpose:
 Wraps current pages with the sidebar, top bar, role-aware navigation, shared Inertia auth props, and logout behavior.
 
 Used In:
-Dashboard, Bookings, Inventory, Expenses, Analytics, Package Decision Guide, Reports, and Users.
+Dashboard, Bookings, Inventory, Expenses, Analytics, Forecast, Reports, and Users.
 
 ### StatCard
 
@@ -90,17 +90,18 @@ Path:
 `resources/js/Components/charts/`
 
 Purpose:
-Provide reusable graph shells and chart types for Package Decision Guide, Dashboard, Analytics, and Reports.
+Provide reusable graph shells and chart types for Forecast, Dashboard, Analytics, and Reports.
 
 Current components:
 
 - `ChartPanel`
-- `LineTrendChart`
-- `MiniBarChart`
 - `ComparisonTrack`
+- `DonutChart`
+- `ForecastChart`
+- `MiniBarChart`
 
 Sprint 1 direction:
-Use these shared chart components instead of page-specific chart markup when a chart appears on Dashboard, Package Decision Guide, Analytics, or Reports.
+Use these shared chart components instead of page-specific chart markup when a chart appears on Dashboard, Forecast, Analytics, or Reports.
 
 Containment rules:
 
@@ -189,9 +190,10 @@ Build or extract these when implementation needs them:
 - SearchInput
 - ChartCard
 - ChartPanel: implemented
-- LineTrendChart: implemented
-- MiniBarChart: implemented
 - ComparisonTrack: implemented
+- DonutChart: implemented
+- ForecastChart: implemented
+- MiniBarChart: implemented
 - EmptyState
 - ActionNotice: implemented
 - SkeletonCard
@@ -353,7 +355,7 @@ Use for Sprint 1 prototype access behavior.
 Rules:
 
 - Owner / Management: all pages
-- Admin: Dashboard, Bookings, Inventory, Expenses, Analytics, Package Decision Guide, Reports
+- Admin: Dashboard, Bookings, Inventory, Expenses, Analytics, Forecast, Reports
 - Staff: Bookings and Inventory only
 
 Restricted pages should fail gracefully.

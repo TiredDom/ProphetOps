@@ -40,13 +40,20 @@ Current DSS fields:
 
 Data should feel realistic for a B2B travel and tours agency.
 
-## TOPSIS Data Requirements
+## Forecasting Algorithm Data Requirements
 
-TOPSIS is the active capstone algorithm direction. Use `information/topsis-decision-support-plan.md` before adding algorithm fields, migrations, or UI output.
+Holt-Winters (additive triple exponential smoothing) is the active capstone algorithm. It runs from `ProphetOpsData::salesHistory()`, a deterministic sample series of 36 months of monthly revenue. See `information/forecasting-holt-winters.md` before adding algorithm fields, migrations, or UI output.
 
-The first TOPSIS version can rank travel packages using standardized internal data.
+The forecaster only needs an ordered monthly revenue series (period label plus revenue value); the seasonal, trend, and level components are derived internally rather than stored.
 
-Useful current fields:
+Useful current fields for the sales-history series:
+
+- period label (month)
+- monthly revenue
+
+TOPSIS was explored earlier but was not adopted. Any TOPSIS fields below are future/not-implemented ideas only. The first TOPSIS version could rank travel packages using standardized internal data.
+
+Possible future TOPSIS fields (not implemented):
 
 - package name
 - destination
@@ -175,7 +182,7 @@ Derived values:
 ### Forecast Preview / Planning Trend
 
 Purpose:
-Support simple trend review from saved booking records. This is a supporting view, not the active capstone algorithm.
+Support simple trend review from saved booking records. This is a supporting view; the active capstone algorithm is Holt-Winters forecasting (see the Forecasting Algorithm Data Requirements section).
 
 Current planning fields:
 

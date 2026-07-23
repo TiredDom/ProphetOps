@@ -41,9 +41,20 @@ const permissions: Record<string, string[]> = {
   Staff: ['Bookings', 'Package Catalog'],
 };
 
+const labelByPath: Record<string, string> = Object.fromEntries(
+  groups.flatMap((group) => group.items.map((item) => [item.path, item.label])),
+);
+
 export function navFor(role: string | undefined): NavGroup[] {
   const allowed = role ? permissions[role] ?? [] : [];
   return groups
     .map((group) => ({ ...group, items: group.items.filter((item) => allowed.includes(item.label)) }))
     .filter((group) => group.items.length > 0);
+}
+
+export function canAccess(role: string | undefined, path: string): boolean {
+  const label = labelByPath[path];
+  if (!label) return true;
+  const allowed = role ? permissions[role] ?? [] : [];
+  return allowed.includes(label);
 }
