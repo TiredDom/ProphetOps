@@ -25,10 +25,7 @@ video/
 /.codex
 /.gemini
 /.impeccable
-/outputs/*
-!/outputs/tracker-ready/
-/outputs/tracker-ready/*
-!/outputs/tracker-ready/*.xlsx
+/outputs
 Homestead.json
 Homestead.yaml
 Thumbs.db
@@ -46,6 +43,7 @@ PROPHETOPSHOLTWINTERS-CORRECTED-CHANGELOG.txt
 
 # Local working notes and planning drafts
 markdowns/
+information/
 PRODUCT.md
 DESIGN.md
 CLAUDE.md

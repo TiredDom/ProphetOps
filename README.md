@@ -28,12 +28,8 @@ Open http://localhost:5099 and sign in with `owner@prophetops.local` / `owner123
 | Path | Contents |
 | --- | --- |
 | `dotnet/` | The application — .NET solution (API, domain, data, forecasting, tests) + Vue client |
-| `information/` | Internal design notes, decisions, and the migration record |
-| `markdowns/` | Working notes and plans |
-| `outputs/` | Security/testing trackers (IAS test cases, vulnerability risk analysis) |
 | `SETUP.md` | Setup guide |
 | `DEMO.md` | Presentation / demo script |
-| `PRODUCT.md` | Product overview |
 
 ## About
 
