@@ -18,6 +18,16 @@ public record BookingRequest(
     string? BookingStatus,
     string? StaffAssigned,
     string? Source,
-    string? Notes);
+    string? Notes,
+    bool ConfirmUnusual = false);
 
 public record BulkRequest(string[]? Ids, string? Action);
+
+public record VoidRequest(string? Reason);
+
+public record UserRequest(
+    string? Name,
+    string? Email,
+    string? Role,
+    string? Password,
+    string? Status);

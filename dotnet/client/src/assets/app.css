@@ -8,76 +8,91 @@
 
 :root {
     /* Canvas & surfaces */
-    --color-bg: #F5F4EF;
+    --color-bg: #F4F5F8;
     --color-surface: #FFFFFF;
-    --color-surface-sunken: #EFEDE6;
+    --color-surface-sunken: #EAEEF4;
     --color-panel: #FFFFFF;
 
-    /* Shell (sidebar) — dark ink-green */
-    --color-shell: #15221B;
-    --color-shell-raised: #1C2C23;
-    --color-shell-border: rgba(255, 255, 255, 0.09);
-    --color-shell-text: #E9EDE9;
-    --color-shell-muted: #93A398;
+    /* Boarding-pass motif — the cream ticket */
+    --color-ticket: #F3ECDC;
+    --color-ticket-border: #E4D9BF;
+    --color-gold: #B98A1E;
 
-    /* Accent — deep evergreen */
-    --color-primary: #1E6B4F;
-    --color-primary-hover: #185A42;
-    --color-primary-active: #124A36;
-    --color-primary-soft: #E9F0EB;
-    --color-secondary: #185A42;
-    --color-data: #5B6660;
+    /* Shell (sidebar) — deep navy */
+    --color-shell: #0E2247;
+    --color-shell-raised: #17335F;
+    --color-shell-border: rgba(255, 255, 255, 0.10);
+    --color-shell-text: #EAF0FB;
+    --color-shell-muted: #9FB2D0;
+
+    /* Primary — navy (trust; actions, nav, links) */
+    --color-primary: #16346B;
+    --color-primary-hover: #10274F;
+    --color-primary-active: #0C1F41;
+    --color-primary-soft: #E7ECF7;
+    --color-secondary: #A81E27;
+    --color-data: #56617A;
+
+    /* Accent — brand crimson (highlights, used sparingly) */
+    --color-accent: #C4262E;
+    --color-accent-hover: #A81E27;
+    --color-accent-ink: #8E1A20;
+    --color-accent-soft: #FBEAEA;
 
     /* Semantic roles */
-    --color-success: #1E6B4F;
-    --color-success-ink: #175640;
-    --color-warning: #9A6700;
-    --color-warning-ink: #7A5200;
-    --color-danger: #B42318;
-    --color-danger-ink: #912018;
-    --color-info: #1E6B4F;
+    --color-success: #12805B;
+    --color-success-ink: #0C6045;
+    --color-warning: #B5730B;
+    --color-warning-ink: #8A5600;
+    --color-danger: #C0261F;
+    --color-danger-ink: #94170F;
+    --color-info: #16346B;
 
     /* Semantic tints (used sparingly — rules and washes) */
-    --tint-primary: rgba(30, 107, 79, 0.08);
-    --tint-success: rgba(30, 107, 79, 0.1);
-    --tint-warning: rgba(154, 103, 0, 0.1);
-    --tint-danger: rgba(180, 35, 24, 0.08);
-    --tint-data: rgba(91, 102, 96, 0.1);
+    --tint-primary: rgba(22, 52, 107, 0.08);
+    --tint-success: rgba(18, 128, 91, 0.1);
+    --tint-warning: rgba(181, 115, 11, 0.1);
+    --tint-danger: rgba(192, 38, 31, 0.08);
+    --tint-data: rgba(86, 97, 122, 0.1);
+    --tint-accent: rgba(196, 38, 46, 0.08);
 
-    /* Tone surfaces — subtle filled callouts (dark ink stays >12:1) */
-    --tone-primary-surface: #ECF2EE;
-    --tone-primary-border: #CFE0D6;
-    --tone-primary-ink: #175640;
-    --tone-warning-surface: #FAF2E2;
-    --tone-warning-border: #E9DBBB;
-    --tone-warning-ink: #6E4A00;
-    --tone-danger-surface: #FBEDEA;
-    --tone-danger-border: #EACfC9;
-    --tone-danger-ink: #8A1F15;
-    --tone-neutral-surface: #F2F0E8;
-    --tone-neutral-border: #E1DED3;
+    /* Tone surfaces — subtle filled callouts (dark ink stays >7:1) */
+    --tone-primary-surface: #EAEFF8;
+    --tone-primary-border: #CBD8EC;
+    --tone-primary-ink: #16346B;
+    --tone-warning-surface: #FAF2E0;
+    --tone-warning-border: #EADCB9;
+    --tone-warning-ink: #7A5100;
+    --tone-danger-surface: #FBEBEA;
+    --tone-danger-border: #EFCDCA;
+    --tone-danger-ink: #94170F;
+    --tone-neutral-surface: #EEF1F6;
+    --tone-neutral-border: #DCE2EC;
+    --tone-accent-surface: #FBECEC;
+    --tone-accent-border: #F0CFCF;
+    --tone-accent-ink: #8E1A20;
 
-    /* Ink ramp — warm, weighted for legibility */
-    --color-text-primary: #1C221B;
-    --color-text-secondary: #414A40;
-    --color-text-muted: #5E675E;
-    --color-text-faint: #8B948B;
+    /* Ink ramp — navy, weighted for legibility */
+    --color-text-primary: #14213D;
+    --color-text-secondary: #3A4763;
+    --color-text-muted: #5B6883;
+    --color-text-faint: #8A96AC;
 
-    /* Borders — warm hairlines */
-    --color-border: #E2DFD5;
-    --color-border-strong: #CDC9BC;
-    --color-border-subtle: #EAE8DF;
+    /* Borders — cool hairlines */
+    --color-border: #DCE1EA;
+    --color-border-strong: #C4CCDA;
+    --color-border-subtle: #E7EBF2;
 
     /* Elevation — flat by default; overlays only */
     --shadow-xs: none;
     --shadow-sm: none;
-    --shadow-md: 0 1px 2px rgba(32, 38, 31, 0.05);
-    --shadow-lg: 0 12px 32px rgba(24, 28, 24, 0.14);
+    --shadow-md: 0 1px 2px rgba(14, 34, 71, 0.06);
+    --shadow-lg: 0 14px 34px rgba(14, 34, 71, 0.14);
     --shadow-premium: none;
 
     /* Focus */
-    --color-ring: #1E6B4F;
-    --focus-ring: 0 0 0 3px rgba(30, 107, 79, 0.28);
+    --color-ring: #2B5CB8;
+    --focus-ring: 0 0 0 3px rgba(43, 92, 184, 0.30);
 
     /* Typography */
     --font-family: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -213,6 +228,9 @@ a {
 
 .main-panel {
     min-width: 0;
+    width: 100%;
+    max-width: 1560px;
+    margin-inline: auto;
     padding: 0 40px 72px;
 }
 
@@ -267,67 +285,78 @@ a {
 .sidebar-nav {
     display: flex;
     flex-direction: column;
-    gap: 22px;
-    padding-top: 22px;
+    gap: 4px;
+    padding-top: 20px;
 }
 
 .nav-group {
     display: grid;
-    gap: 2px;
+    gap: 3px;
+    padding-top: 16px;
+    border-top: 1px solid var(--color-shell-border);
+}
+
+.nav-group:first-child {
+    padding-top: 0;
+    border-top: none;
 }
 
 .nav-group-label {
-    padding: 0 10px 6px;
+    padding: 0 10px 8px;
     color: var(--color-shell-muted);
-    font-size: 10.5px;
+    font-size: 11px;
     font-weight: 600;
-    letter-spacing: 0.09em;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
+    cursor: default;
+    user-select: none;
 }
 
 .nav-item {
     position: relative;
     display: flex;
     align-items: center;
-    gap: 11px;
+    gap: 10px;
     width: 100%;
-    min-height: 36px;
+    min-height: 38px;
     border: none;
     border-radius: var(--radius-md);
     background: transparent;
     color: var(--color-shell-muted);
-    padding: 7px 10px;
+    padding: 8px 11px;
     text-align: left;
     text-decoration: none;
     font-size: 13.5px;
     font-weight: 500;
     cursor: pointer;
-    transition: background var(--transition-fast), color var(--transition-fast);
+    transition: background 150ms var(--ease-out), color 150ms var(--ease-out);
 }
 
 .nav-item:hover {
     color: var(--color-shell-text);
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.06);
 }
 
 .nav-item.active {
-    color: #FFFFFF;
-    background: rgba(255, 255, 255, 0.08);
+    color: var(--color-shell-text);
+    background: var(--color-shell-raised);
 }
 
 .nav-item.active::before {
     content: '';
     position: absolute;
-    left: -16px;
+    left: 0;
     top: 6px;
     bottom: 6px;
-    width: 2px;
-    background: #6FBF9A;
+    width: 3px;
+    border-radius: var(--radius-pill);
+    background: var(--color-accent);
 }
 
-.nav-icon .app-icon {
-    width: 16px;
-    height: 16px;
+.nav-item-icon {
+    flex: none;
+    width: 20px;
+    height: 20px;
 }
 
 /* ============================================================
@@ -335,28 +364,34 @@ a {
    ============================================================ */
 
 .topbar {
-    display: flex;
-    flex-direction: column;
+    display: block;
     background: var(--color-bg);
+}
+
+.topbar-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: 18px;
 }
 
 .topbar-utilities {
     display: flex;
-    justify-content: flex-end;
     align-items: center;
     gap: 4px;
-    min-height: 46px;
-    border-bottom: 1px solid var(--color-border-subtle);
 }
 
-.topbar-title-row {
+.topbar-tools {
     display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 24px;
-    padding: 22px 0 18px;
-    border-bottom: 1px solid var(--color-border);
-    margin-bottom: 24px;
+    align-items: center;
+    justify-content: flex-end;
+    flex: none;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding-top: 1px;
 }
 
 .topbar-heading {
@@ -366,20 +401,20 @@ a {
     min-width: 0;
 }
 
-.topbar-title-row h1 {
+.topbar-row h1 {
     font-family: var(--font-display);
-    font-size: 31px;
+    font-size: 25px;
     font-weight: 580;
     font-optical-sizing: auto;
     letter-spacing: -0.015em;
-    line-height: 1.12;
+    line-height: 1.14;
     color: var(--color-text-primary);
 }
 
 .topbar-description {
-    margin-top: 6px;
+    margin-top: 2px;
     color: var(--color-text-secondary);
-    font-size: 14px;
+    font-size: 13px;
     max-width: 62ch;
 }
 
@@ -541,7 +576,6 @@ a {
     display: flex;
     flex-direction: column;
     gap: 20px;
-    max-width: 1180px;
 }
 
 .dss-grid {
@@ -626,8 +660,8 @@ a {
 .stat-cell {
     display: flex;
     flex-direction: column;
-    gap: 7px;
-    padding: 18px 22px 17px;
+    gap: 5px;
+    padding: 13px 18px 14px;
     min-width: 0;
     border-left: 1px solid var(--color-border-subtle);
     text-decoration: none;
@@ -657,7 +691,7 @@ a.stat-cell:hover {
 .stat-value {
     font-family: var(--font-display);
     font-optical-sizing: auto;
-    font-size: 30px;
+    font-size: 25px;
     font-weight: 580;
     letter-spacing: -0.015em;
     line-height: 1.12;
@@ -674,7 +708,7 @@ a.stat-cell:hover {
     align-items: baseline;
     gap: 8px;
     color: var(--color-text-muted);
-    font-size: 12.5px;
+    font-size: 12px;
     min-width: 0;
 }
 
@@ -943,6 +977,11 @@ a.stat-cell:hover {
         linear-gradient(to left, rgba(32, 38, 31, 0.16), transparent) right / 16px 100% no-repeat scroll;
 }
 
+.dss-table-frame {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+}
+
 .dss-table {
     width: 100%;
     border-collapse: collapse;
@@ -962,7 +1001,7 @@ a.stat-cell:hover {
 }
 
 .dss-table td {
-    padding: 11px 12px;
+    padding: 9px 12px;
     border-bottom: 1px solid var(--color-border-subtle);
     vertical-align: middle;
     color: var(--color-text-secondary);
@@ -1111,7 +1150,7 @@ textarea {
 
 input::placeholder,
 textarea::placeholder {
-    color: #6F776F;
+    color: var(--color-text-muted);
     opacity: 1;
 }
 
@@ -1210,6 +1249,44 @@ textarea[aria-invalid='true'] {
 .form-helper {
     color: var(--color-text-muted);
     font-size: 12.5px;
+}
+
+/* Ten navigation links sit before the content on every page; this gives a keyboard or
+   screen-reader user one stop to get past them. Off-screen until focused. */
+.skip-link {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    z-index: var(--z-tooltip);
+    padding: 10px 16px;
+    border: 1px solid var(--color-primary);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-primary);
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    transform: translateY(calc(-100% - 16px));
+}
+
+.skip-link:focus {
+    transform: translateY(0);
+}
+
+#main-content:focus {
+    outline: none;
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
 }
 
 /* ============================================================
@@ -2549,22 +2626,32 @@ meter::-webkit-meter-even-less-good-value {
 
 .account-input .password-toggle {
     position: absolute;
-    right: 6px;
-    width: 30px;
-    height: 30px;
+    right: 5px;
+    height: 32px;
+    padding: 0 10px;
     border: none;
     border-radius: var(--radius-sm);
     background: transparent;
-    color: var(--color-text-faint);
+    color: var(--color-text-muted);
+    font-size: 12.5px;
+    font-weight: 600;
     cursor: pointer;
+    transition: color var(--transition-fast), background var(--transition-fast);
 }
 
 .account-input .password-toggle:hover {
-    color: var(--color-text-secondary);
+    color: var(--color-primary);
+    background: var(--color-surface-sunken);
+}
+
+.account-input .password-toggle:focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 1px;
+    color: var(--color-primary);
 }
 
 .login-form .account-input input {
-    padding-right: 40px;
+    padding-right: 68px;
 }
 
 .login-status {
@@ -2627,7 +2714,7 @@ input[type='checkbox']:focus-visible {
 }
 
 .nav-item:focus-visible {
-    outline: 2px solid #6FBF9A;
+    outline: 2px solid var(--color-accent);
     outline-offset: -2px;
 }
 
@@ -2674,8 +2761,9 @@ input[type='checkbox']:focus-visible {
         cursor: pointer;
     }
 
-    .topbar-utilities {
-        min-height: 42px;
+    .topbar .date-pill,
+    .topbar-divider {
+        display: none;
     }
 
     .dss-grid.two-column {
@@ -2689,6 +2777,20 @@ input[type='checkbox']:focus-visible {
 }
 
 @media (max-width: 860px) {
+    /* iOS Safari zooms the page when a field under 16px takes focus, which leaves the layout
+       shifted afterwards. Touch targets also grow to the 44px the platform guidelines ask for. */
+    input[type='text'],
+    input[type='email'],
+    input[type='password'],
+    input[type='number'],
+    input[type='date'],
+    input[type='search'],
+    select,
+    textarea {
+        min-height: 44px;
+        font-size: 16px;
+    }
+
     .dss-table {
         min-width: 720px;
     }
@@ -2740,20 +2842,21 @@ input[type='checkbox']:focus-visible {
         font-size: 22px;
     }
 
-    .topbar-title-row {
+    .topbar-row {
         flex-direction: column;
         align-items: stretch;
-        gap: 14px;
-        padding: 18px 0 16px;
-        margin-bottom: 18px;
+        gap: 12px;
+        padding: 14px 0;
+        margin-bottom: 16px;
     }
 
-    .topbar-title-row h1 {
-        font-size: 24px;
+    .topbar-row h1 {
+        font-size: 22px;
     }
 
-    .topbar-page-actions {
-        padding-bottom: 0;
+    .topbar-tools {
+        justify-content: space-between;
+        padding-top: 0;
     }
 
     .analytics-cost-summary {

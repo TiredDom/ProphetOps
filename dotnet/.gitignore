@@ -5,4 +5,6 @@ obj/
 *.db-shm
 *.db-wal
 ProphetOps.Api/wwwroot/
+uploads/
+backups/
 publish/

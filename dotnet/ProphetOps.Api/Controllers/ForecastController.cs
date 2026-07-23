@@ -11,12 +11,17 @@ namespace ProphetOps.Api.Controllers;
 [Authorize(Policy = "Forecast")]
 public class ForecastController : ControllerBase
 {
+    private readonly AppDbContext _db;
+
+    public ForecastController(AppDbContext db) => _db = db;
+
     [HttpGet]
     public IActionResult Get()
     {
-        var anchor = new DateOnly(2026, 7, 1);
-        var series = SampleSalesHistory.MonthlyRevenue(anchor.Year, anchor.Month).Select(v => (double)v).ToList();
-        var forecast = HoltWintersForecaster.Forecast(series, 12, 6);
+        var demand = DemandSeriesBuilder.Build(_db, DateOnly.FromDateTime(DateTime.Today));
+        var anchor = demand.LastMonth;
+        var series = demand.Values.ToList();
+        var forecast = HoltWintersForecaster.Forecast(series, DemandSeriesBuilder.SeasonLength, 6);
 
         var metrics = forecast.Metrics;
         var mape = metrics?.Mape ?? 0;
@@ -27,13 +32,22 @@ public class ForecastController : ControllerBase
             .Select((value, index) =>
             {
                 var back = recent.Count - 1 - index;
-                return new { label = back == 0 ? "M0" : "M-" + back, value };
+                var month = anchor.AddMonths(-back).ToString("MMM", CultureInfo.InvariantCulture);
+                return new { label = back == 0 ? "M0" : "M-" + back, month, value };
             })
             .ToList();
 
         var forecastSteps = forecast.Forecast ?? new List<ForecastStep>();
         var steps = forecastSteps
-            .Select(s => new { step = s.Step, value = s.Value, lower = s.Lower, upper = s.Upper })
+            .Select(s => new
+            {
+                step = s.Step,
+                month = anchor.AddMonths(s.Step).ToString("MMM", CultureInfo.InvariantCulture),
+                monthLabel = anchor.AddMonths(s.Step).ToString("MMMM yyyy", CultureInfo.InvariantCulture),
+                value = s.Value,
+                lower = s.Lower,
+                upper = s.Upper,
+            })
             .ToList();
 
         var recentMean = series.Count > 0 ? series.Skip(Math.Max(0, series.Count - 6)).Average() : 0;
@@ -46,6 +60,33 @@ public class ForecastController : ControllerBase
             ? anchor.AddMonths(peak.Step).ToString("MMMM yyyy", CultureInfo.InvariantCulture)
             : "";
         var peakValue = peak?.Value ?? 0;
+
+        var notes = forecast.Ok
+            ? TrajectoryInsights.Build(new TrajectoryInput
+            {
+                Steps = forecastSteps
+                    .Select(s => new TrajectoryStep(
+                        anchor.AddMonths(s.Step).ToString("MMMM yyyy", CultureInfo.InvariantCulture),
+                        s.Value,
+                        s.Lower,
+                        s.Upper))
+                    .ToList(),
+                Direction = direction,
+                ChangePercent = changePercent,
+                LastRecordedLabel = anchor.ToString("MMMM yyyy", CultureInfo.InvariantCulture),
+                LastRecordedValue = series.Count > 0 ? series[^1] : 0,
+                Mape = mape,
+                Accuracy = accuracy,
+                Mae = metrics?.Mae ?? 0,
+                SeasonalNaiveMae = forecast.Baselines?.SeasonalNaiveMae ?? 0,
+                UnusualMonths = demand.UsingLiveRecords
+                    ? SeriesAnomalies.Detect(series)
+                        .Select(a => anchor.AddMonths(a.Index - (series.Count - 1))
+                            .ToString("MMMM yyyy", CultureInfo.InvariantCulture))
+                        .ToList()
+                    : [],
+            })
+            : new List<TrajectoryNote>();
 
         return Ok(new
         {
@@ -78,6 +119,15 @@ public class ForecastController : ControllerBase
                 changePercent,
                 peakMonth,
                 peakValue,
+                notes = notes.Select(n => new { kind = n.Kind, text = n.Text }),
+            },
+            dataSource = new
+            {
+                usingLiveRecords = demand.UsingLiveRecords,
+                liveMonthsAvailable = demand.LiveMonthsAvailable,
+                recordedMonths = demand.RecordedMonths,
+                minimumMonths = demand.MinimumMonths,
+                filledMonths = demand.FilledMonths,
             },
             history,
             steps,

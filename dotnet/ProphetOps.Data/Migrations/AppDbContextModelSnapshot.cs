@@ -17,6 +17,47 @@ namespace ProphetOps.Data.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.11");
 
+            modelBuilder.Entity("ProphetOps.Domain.AuditEntry", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Actor")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ActorName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("At")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EntityCode")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Summary")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("At");
+
+                    b.HasIndex("EntityType", "EntityCode");
+
+                    b.ToTable("AuditEntries");
+                });
+
             modelBuilder.Entity("ProphetOps.Domain.Booking", b =>
                 {
                     b.Property<int>("Id")
@@ -76,6 +117,15 @@ namespace ProphetOps.Data.Migrations
                     b.Property<int?>("TravelPackageId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("VoidReason")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("VoidedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("VoidedBy")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Code")
@@ -117,6 +167,15 @@ namespace ProphetOps.Data.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("VoidReason")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("VoidedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("VoidedBy")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Code")
@@ -146,6 +205,9 @@ namespace ProphetOps.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Duration")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ImagePath")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Inclusions")

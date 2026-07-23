@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ProphetOps.Data;
@@ -80,6 +81,43 @@ public class ExpensesController : ControllerBase
         return errors;
     }
 
+    [HttpPost("{code}/void")]
+    public IActionResult Void(string code, [FromBody] VoidRequest request)
+    {
+        var expense = _db.Expenses.SingleOrDefault(x => x.Code == code);
+        if (expense is null) return NotFound();
+        if (expense.IsVoided) return BadRequest(new Dictionary<string, string> { ["reason"] = "This expense is already voided." });
+
+        if (string.IsNullOrWhiteSpace(request.Reason))
+            return BadRequest(new Dictionary<string, string> { ["reason"] = "Say why this is being voided." });
+
+        expense.VoidedAt = DateTime.UtcNow;
+        expense.VoidedBy = User.FindFirst(ClaimTypes.Email)?.Value;
+        expense.VoidReason = request.Reason.Trim();
+
+        AuditLog.Record(_db, User, AuditLog.Voided, "Expense", expense.Code, expense.VoidReason);
+        _db.SaveChanges();
+
+        return Ok(Dto(expense));
+    }
+
+    [HttpPost("{code}/restore")]
+    public IActionResult Restore(string code)
+    {
+        var expense = _db.Expenses.SingleOrDefault(x => x.Code == code);
+        if (expense is null) return NotFound();
+        if (!expense.IsVoided) return BadRequest(new Dictionary<string, string> { ["reason"] = "This expense is not voided." });
+
+        expense.VoidedAt = null;
+        expense.VoidedBy = null;
+        expense.VoidReason = null;
+
+        AuditLog.Record(_db, User, AuditLog.Restored, "Expense", expense.Code);
+        _db.SaveChanges();
+
+        return Ok(Dto(expense));
+    }
+
     private static object Dto(Expense e) => new
     {
         id = e.Code,
@@ -90,6 +128,8 @@ public class ExpensesController : ControllerBase
         relatedPackage = e.RelatedPackage,
         paymentStatus = e.PaymentStatus,
         notes = e.Notes,
+        voided = e.VoidedAt != null,
+        voidReason = e.VoidReason,
     };
 }
 
