@@ -31,7 +31,12 @@ public class ReportsApiTests : IDisposable
 
         var body = await Body(response);
         Assert.True(body.GetProperty("revenue").GetInt32() > 0);
-        Assert.Equal(9, body.GetProperty("counts").GetProperty("bookings").GetInt32());
+
+        // The consolidated count has to agree with the bookings module rather than with a fixed
+        // number, so the check still means something after the demonstration data is regenerated.
+        var bookings = (await Body(await client.GetAsync("/api/bookings")))
+            .GetProperty("bookings").GetArrayLength();
+        Assert.Equal(bookings, body.GetProperty("counts").GetProperty("bookings").GetInt32());
     }
 
     [Fact]

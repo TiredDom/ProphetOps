@@ -146,7 +146,15 @@ public class ExportApiTests : IDisposable
         var boracay = parsed.Rows.Single(r => r.Code == "PKG-101");
         Assert.Equal("Boracay Group Package", boracay.Package);
         Assert.Equal(12_000, boracay.Price);
-        Assert.Equal("Low", boracay.Status);
+
+        // The status is derived from the remaining slots, so it moves whenever the demonstration
+        // data is regenerated. What has to hold is that the export carries across what the module
+        // reports, not that it carries across one particular value.
+        var live = (await client.GetFromJsonAsync<JsonElement>("/api/inventory"))
+            .EnumerateArray()
+            .Single(p => p.GetProperty("id").GetString() == "PKG-101")
+            .GetProperty("status").GetString();
+        Assert.Equal(live, boracay.Status);
     }
 
     [Fact]

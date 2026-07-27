@@ -27,21 +27,35 @@ public class DataLayerTests : IDisposable
         _connection.Dispose();
     }
 
+    /// Deliberately not exact counts. The demonstration data is regenerated whenever the packages
+    /// or the date range change, and a test that pins the totals fails on every such change without
+    /// anything actually being broken.
     [Fact]
-    public void Seeds_the_expected_row_counts()
+    public void Seeds_enough_data_for_the_system_to_be_demonstrated()
     {
         Assert.Equal(3, _db.Users.Count());
-        Assert.Equal(6, _db.TravelPackages.Count());
-        Assert.Equal(9, _db.Bookings.Count());
-        Assert.Equal(5, _db.Expenses.Count());
+        Assert.NotEmpty(_db.TravelPackages);
+        Assert.NotEmpty(_db.Expenses);
+
+        // Holt-Winters needs two full seasons before it will run on real records rather than
+        // falling back to the sample series.
+        var months = _db.Bookings
+            .Where(b => b.VoidedAt == null)
+            .Select(b => new { b.BookingDate.Year, b.BookingDate.Month })
+            .Distinct()
+            .Count();
+        Assert.True(months >= 24, $"Seeded bookings span only {months} months.");
     }
 
     [Fact]
     public void Booking_links_to_its_package_through_the_only_foreign_key()
     {
-        var booking = _db.Bookings.Include(b => b.TravelPackage).First(b => b.Code == "BKG-2401");
+        var booking = _db.Bookings
+            .Include(b => b.TravelPackage)
+            .First(b => b.TravelPackageId != null);
+
         Assert.NotNull(booking.TravelPackage);
-        Assert.Equal("PKG-101", booking.TravelPackage!.Code);
+        Assert.Equal(booking.TravelPackageId, booking.TravelPackage!.Id);
     }
 
     [Fact]
@@ -59,6 +73,8 @@ public class DataLayerTests : IDisposable
     [Fact]
     public void A_created_booking_persists_and_reads_back()
     {
+        var before = _db.Bookings.Count();
+
         _db.Bookings.Add(new Booking
         {
             Code = "BKG-TEST",
@@ -71,7 +87,7 @@ public class DataLayerTests : IDisposable
         });
         _db.SaveChanges();
 
-        Assert.Equal(10, _db.Bookings.Count());
+        Assert.Equal(before + 1, _db.Bookings.Count());
         Assert.NotNull(_db.Bookings.SingleOrDefault(b => b.Code == "BKG-TEST"));
     }
 
