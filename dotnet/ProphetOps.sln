@@ -17,6 +17,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProphetOps.Api", "ProphetOp
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProphetOps.Api.Tests", "ProphetOps.Api.Tests\ProphetOps.Api.Tests.csproj", "{B258A7B2-0A4C-42DD-9815-363E6BCC00B5}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProphetOps.Setup", "ProphetOps.Setup\ProphetOps.Setup.csproj", "{65379488-7CAF-474B-9302-D5438765F7A2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -54,5 +56,9 @@ Global
 		{B258A7B2-0A4C-42DD-9815-363E6BCC00B5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B258A7B2-0A4C-42DD-9815-363E6BCC00B5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B258A7B2-0A4C-42DD-9815-363E6BCC00B5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{65379488-7CAF-474B-9302-D5438765F7A2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{65379488-7CAF-474B-9302-D5438765F7A2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{65379488-7CAF-474B-9302-D5438765F7A2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{65379488-7CAF-474B-9302-D5438765F7A2}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
