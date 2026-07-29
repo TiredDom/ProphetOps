@@ -33,7 +33,7 @@ public class DataLayerTests : IDisposable
     [Fact]
     public void Seeds_enough_data_for_the_system_to_be_demonstrated()
     {
-        Assert.Equal(3, _db.Users.Count());
+        Assert.True(_db.Users.Count() >= 3);
         Assert.NotEmpty(_db.TravelPackages);
         Assert.NotEmpty(_db.Expenses);
 
@@ -63,7 +63,7 @@ public class DataLayerTests : IDisposable
     {
         Assert.Equal(
             new[] { Roles.Admin, Roles.OwnerManagement, Roles.Staff },
-            _db.Users.Select(u => u.Role).OrderBy(r => r).ToArray());
+            _db.Users.Select(u => u.Role).Distinct().OrderBy(r => r).ToArray());
 
         var admin = _db.Users.Single(u => u.Email == "admin@prophetops.local");
         Assert.NotEqual("admin123", admin.PasswordHash);

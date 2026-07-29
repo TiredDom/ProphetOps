@@ -32,11 +32,12 @@ public class ReportsApiTests : IDisposable
         var body = await Body(response);
         Assert.True(body.GetProperty("revenue").GetInt32() > 0);
 
-        // The consolidated count has to agree with the bookings module rather than with a fixed
-        // number, so the check still means something after the demonstration data is regenerated.
-        var bookings = (await Body(await client.GetAsync("/api/bookings")))
-            .GetProperty("bookings").GetArrayLength();
-        Assert.Equal(bookings, body.GetProperty("counts").GetProperty("bookings").GetInt32());
+        // Reports count what still stands, so voided rows are excluded here but not from the
+        // bookings list, which shows them marked.
+        var live = (await Body(await client.GetAsync("/api/bookings")))
+            .GetProperty("bookings").EnumerateArray()
+            .Count(b => !b.GetProperty("voided").GetBoolean());
+        Assert.Equal(live, body.GetProperty("counts").GetProperty("bookings").GetInt32());
     }
 
     [Fact]

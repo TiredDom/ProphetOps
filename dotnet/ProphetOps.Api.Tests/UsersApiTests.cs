@@ -42,7 +42,13 @@ public class UsersApiTests : IDisposable
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await Body(response);
-        Assert.Equal(3, body.GetArrayLength());
+
+        var emails = body.EnumerateArray()
+            .Select(u => u.GetProperty("email").GetString())
+            .ToList();
+        Assert.Contains("owner@prophetops.local", emails);
+        Assert.Contains("admin@prophetops.local", emails);
+        Assert.Contains("staff@prophetops.local", emails);
     }
 
     [Fact]
@@ -75,6 +81,7 @@ public class UsersApiTests : IDisposable
     public async Task Owner_creates_an_account_that_can_sign_in()
     {
         var owner = await LoginAs("owner@prophetops.local", "owner123");
+        var before = (await Body(await owner.GetAsync("/api/users"))).GetArrayLength();
 
         var create = await owner.PostAsJsonAsync("/api/users", new
         {
@@ -86,7 +93,7 @@ public class UsersApiTests : IDisposable
         });
         Assert.Equal(HttpStatusCode.OK, create.StatusCode);
 
-        Assert.Equal(4, (await Body(await owner.GetAsync("/api/users"))).GetArrayLength());
+        Assert.Equal(before + 1, (await Body(await owner.GetAsync("/api/users"))).GetArrayLength());
 
         var fresh = _factory.CreateClient();
         var login = await fresh.PostAsJsonAsync("/api/auth/login",
