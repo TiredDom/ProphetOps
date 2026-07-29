@@ -2859,6 +2859,19 @@ input[type='checkbox']:focus-visible {
         padding-top: 0;
     }
 
+    /* Once the topbar stacks, the action buttons have to be allowed to shrink and wrap.
+       Left at flex: none they size to their own content and run off the right edge. */
+    .topbar-tools,
+    .topbar-page-actions {
+        min-width: 0;
+        flex-wrap: wrap;
+    }
+
+    .topbar-page-actions {
+        flex: 1 1 auto;
+        justify-content: flex-start;
+    }
+
     .analytics-cost-summary {
         grid-template-columns: minmax(0, 1fr);
     }
@@ -2917,6 +2930,14 @@ input[type='checkbox']:focus-visible {
         border-left: none;
     }
 
+    /* The slide-over panels carry their own scoped width, so they need naming here too or
+       they sit at 92vw while every other panel goes full width. */
+    .slide-drawer {
+        width: 100vw !important;
+        max-width: 100vw !important;
+        border-left: none;
+    }
+
     .dss-filterbar {
         align-items: stretch;
     }
@@ -2934,8 +2955,10 @@ input[type='checkbox']:focus-visible {
         width: 100%;
     }
 
-    .topbar-page-actions {
-        flex-wrap: wrap;
+    /* Buttons share the row evenly rather than leaving one stranded on a line of its own. */
+    .topbar-page-actions > * {
+        flex: 1 1 auto;
+        justify-content: center;
     }
 
     .bulk-action-bar {
