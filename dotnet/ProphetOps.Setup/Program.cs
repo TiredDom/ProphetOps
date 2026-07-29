@@ -17,6 +17,13 @@ internal static class Program
     private const string DefaultTarget = @"C:\ProphetOps";
     private const int Port = 5099;
 
+    /// So the agency removes it from Settings the way they would any other program, rather than
+    /// being told to type a command.
+    private const string UninstallKey =
+        @"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\ProphetOps";
+
+    private const string UninstallerName = "Uninstall ProphetOps.exe";
+
     /// Files that belong to the agency, not to us. A reinstall must never take their records with
     /// it, so these are left alone if they are already on the machine.
     private static readonly string[] Preserve =
@@ -127,6 +134,9 @@ internal static class Program
         Step("Adding a ProphetOps shortcut to the desktop and Start menu");
         Shortcuts();
 
+        Step("Listing ProphetOps under Settings, Apps");
+        RegisterUninstaller(target);
+
         Step("Starting ProphetOps");
         Sc("start", ServiceName);
 
@@ -167,6 +177,9 @@ internal static class Program
         Step("Removing the firewall rule");
         Netsh(ignoreFailure: true, "advfirewall", "firewall", "delete", "rule", $"name={FirewallRule}");
 
+        Step("Removing it from the list of installed programs");
+        Run("reg", true, "delete", UninstallKey, "/f");
+
         Step("Removing the shortcuts");
         foreach (var link in ShortcutPaths())
         {
@@ -181,10 +194,18 @@ internal static class Program
         }
 
         Console.WriteLine();
-        Ok("ProphetOps has been removed.");
+        Ok("ProphetOps has been removed from this PC.");
         Console.WriteLine();
-        Console.WriteLine($"  The application folder and the database were left in place on purpose,");
-        Console.WriteLine($"  so no records are lost. Delete {DefaultTarget} by hand if you are sure.");
+        Console.WriteLine("  Your records have NOT been deleted. They are still in:");
+        Console.WriteLine();
+        Console.WriteLine($"      {DefaultTarget}");
+        Console.WriteLine();
+        Console.WriteLine("  Keep that folder if you may want ProphetOps back, or if you want to");
+        Console.WriteLine("  give the bookings and expenses to another system. Installing again");
+        Console.WriteLine("  picks up exactly where you left off.");
+        Console.WriteLine();
+        Console.WriteLine("  If you are certain you will never need the records again, you can");
+        Console.WriteLine("  delete that folder yourself in File Explorer.");
     }
 
     // ---------- steps ----------
@@ -223,6 +244,57 @@ internal static class Program
             "advfirewall", "firewall", "add", "rule",
             $"name={FirewallRule}", "dir=in", "action=allow",
             "protocol=TCP", $"localport={Port}", "profile=private,domain");
+    }
+
+    /// Puts a copy of this installer beside the application and points Windows at it, so ProphetOps
+    /// can be removed from Settings without the USB drive it arrived on.
+    private static void RegisterUninstaller(string target)
+    {
+        var uninstaller = Path.Combine(target, UninstallerName);
+
+        try
+        {
+            var self = Environment.ProcessPath;
+            if (self is not null && !string.Equals(self, uninstaller, StringComparison.OrdinalIgnoreCase))
+            {
+                File.Copy(self, uninstaller, overwrite: true);
+            }
+        }
+        catch (Exception ex)
+        {
+            Warn($"Could not place the uninstaller: {ex.Message}");
+            return;
+        }
+
+        var size = 0L;
+        try
+        {
+            size = new DirectoryInfo(target)
+                .EnumerateFiles("*", SearchOption.AllDirectories)
+                .Sum(f => f.Length) / 1024;
+        }
+        catch
+        {
+            // Only used for the size column in Settings.
+        }
+
+        var values = new (string Name, string Type, string Data)[]
+        {
+            ("DisplayName", "REG_SZ", "ProphetOps"),
+            ("DisplayVersion", "REG_SZ", "1.0"),
+            ("Publisher", "REG_SZ", "ProphetOps"),
+            ("InstallLocation", "REG_SZ", target),
+            ("DisplayIcon", "REG_SZ", Path.Combine(target, Executable)),
+            ("UninstallString", "REG_SZ", $"\"{uninstaller}\" --uninstall"),
+            ("EstimatedSize", "REG_DWORD", size.ToString()),
+            ("NoModify", "REG_DWORD", "1"),
+            ("NoRepair", "REG_DWORD", "1"),
+        };
+
+        foreach (var v in values)
+        {
+            Run("reg", true, "add", UninstallKey, "/v", v.Name, "/t", v.Type, "/d", v.Data, "/f");
+        }
     }
 
     /// A .url file rather than a real shortcut: plain text, no COM interop, opens like a bookmark.
@@ -496,7 +568,7 @@ internal static class Program
         Console.WriteLine($"  Installed in        {target}");
         Console.WriteLine($"  Daily backups in    {Path.Combine(target, "backups")}");
         Console.WriteLine();
-        Console.WriteLine("  To remove it later, run this installer again with --uninstall");
+        Console.WriteLine("  To remove it later:  Settings  >  Apps  >  ProphetOps  >  Uninstall");
 
         try
         {

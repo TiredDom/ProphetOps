@@ -61,7 +61,11 @@ IF YOU SEE "Windows protected your PC"
     is not signed with a paid certificate. Nothing is wrong.
 
 TO REMOVE IT
-    Run the installer again from a Command Prompt with --uninstall
+    Settings  >  Apps  >  Installed apps  >  ProphetOps  >  Uninstall
+
+    The same as removing any other program. Your bookings and expenses are
+    NOT deleted; they stay in C:\ProphetOps so that installing again picks up
+    where you left off.
 
 BACKUPS
     A copy of the database is saved every day to the backups folder inside
