@@ -1,16 +1,13 @@
 using System.Diagnostics;
+using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Security.Principal;
 
 namespace ProphetOps.Setup;
 
-/// One-click installer for the agency's PC.
-///
-/// Without this the app only runs when somebody logs in and double-clicks it, which means the
-/// office loses the system every time the PC restarts and nobody thinks to start it again. This
-/// registers it as a Windows Service so it comes up during boot, at the login screen, before any
-/// password is typed.
+/// One-click installer for the agency's PC. Registers the application as a Windows Service so
+/// it starts during boot, at the login screen, before any password is typed.
 internal static class Program
 {
     private const string ServiceName = "ProphetOps";
@@ -74,11 +71,21 @@ internal static class Program
                 $"Copy the whole folder off the USB drive, then run the installer from there.");
         }
 
+        // Otherwise the service registers, fails to bind, and looks like a broken installer.
+        var upgrade = ServiceExists();
+        if (!upgrade && PortIsTaken())
+        {
+            throw new InvalidOperationException(
+                $"Something is already using port {Port} on this PC.\n\n" +
+                $"ProphetOps needs that port. Close whatever is using it and run this again.\n" +
+                $"To see what it is, open a Command Prompt and run:\n" +
+                $"    netstat -ano | findstr :{Port}");
+        }
+
         Console.WriteLine($"Installing to {target}");
         Console.WriteLine();
 
         // A running service holds its own exe open, so it has to go down before anything is copied.
-        var upgrade = ServiceExists();
         if (upgrade)
         {
             Step("Stopping the running service");
@@ -116,6 +123,9 @@ internal static class Program
 
         Step("Keeping the PC awake when the lid is closed");
         LidStaysAwake();
+
+        Step("Adding a ProphetOps shortcut to the desktop and Start menu");
+        Shortcuts();
 
         Step("Starting ProphetOps");
         Sc("start", ServiceName);
@@ -156,6 +166,19 @@ internal static class Program
 
         Step("Removing the firewall rule");
         Netsh(ignoreFailure: true, "advfirewall", "firewall", "delete", "rule", $"name={FirewallRule}");
+
+        Step("Removing the shortcuts");
+        foreach (var link in ShortcutPaths())
+        {
+            try
+            {
+                if (File.Exists(link)) File.Delete(link);
+            }
+            catch
+            {
+                // Untidy, not a failure worth stopping for.
+            }
+        }
 
         Console.WriteLine();
         Ok("ProphetOps has been removed.");
@@ -201,6 +224,43 @@ internal static class Program
             $"name={FirewallRule}", "dir=in", "action=allow",
             "protocol=TCP", $"localport={Port}", "profile=private,domain");
     }
+
+    /// A .url file rather than a real shortcut: plain text, no COM interop, opens like a bookmark.
+    private static void Shortcuts()
+    {
+        foreach (var link in ShortcutPaths())
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(link)!);
+                File.WriteAllText(link,
+                    "[InternetShortcut]\r\n" +
+                    $"URL=http://localhost:{Port}\r\n" +
+                    "IconIndex=0\r\n");
+            }
+            catch (Exception ex)
+            {
+                Warn($"Could not create {Path.GetFileName(link)}: {ex.Message}");
+            }
+        }
+    }
+
+    /// For every user of the PC, since the owner and the staff may sign in under different accounts.
+    private static IEnumerable<string> ShortcutPaths()
+    {
+        var publicProfile = Environment.GetEnvironmentVariable("PUBLIC");
+        if (!string.IsNullOrWhiteSpace(publicProfile))
+            yield return Path.Combine(publicProfile, "Desktop", "ProphetOps.url");
+
+        yield return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu),
+            "Programs", "ProphetOps.url");
+    }
+
+    private static bool PortIsTaken() =>
+        IPGlobalProperties.GetIPGlobalProperties()
+            .GetActiveTcpListeners()
+            .Any(e => e.Port == Port);
 
     /// The office PC is a laptop. Closing the lid would otherwise suspend it, and with it every
     /// booking the staff are trying to record from their own devices.
@@ -318,16 +378,46 @@ internal static class Program
         OperatingSystem.IsWindows()
         && new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
 
-    /// The address the staff type on their own phones and PCs.
-    private static string? LocalAddress() =>
-        NetworkInterface.GetAllNetworkInterfaces()
-            .Where(n => n.OperationalStatus == OperationalStatus.Up
-                        && n.NetworkInterfaceType != NetworkInterfaceType.Loopback)
-            .SelectMany(n => n.GetIPProperties().UnicastAddresses)
-            .Select(a => a.Address)
-            .FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork
-                                 && !a.ToString().StartsWith("169.254"))
-            ?.ToString();
+    /// The addresses staff type on their own phones and PCs. Adapters carrying a gateway come
+    /// first, since those are the ones actually on the office network; virtual adapters from
+    /// VirtualBox, VMware or WSL have none and would hand out an address nothing can reach.
+    private static List<string> LocalAddresses()
+    {
+        var found = new List<(int Rank, string Address)>();
+
+        foreach (var n in NetworkInterface.GetAllNetworkInterfaces())
+        {
+            if (n.OperationalStatus != OperationalStatus.Up) continue;
+            if (n.NetworkInterfaceType is NetworkInterfaceType.Loopback or NetworkInterfaceType.Tunnel)
+                continue;
+
+            var properties = n.GetIPProperties();
+            var routable = properties.GatewayAddresses
+                .Any(g => g.Address is { } a && a.AddressFamily == AddressFamily.InterNetwork
+                          && !a.Equals(IPAddress.Any));
+
+            var physical = n.NetworkInterfaceType is NetworkInterfaceType.Wireless80211
+                or NetworkInterfaceType.Ethernet or NetworkInterfaceType.GigabitEthernet;
+
+            foreach (var unicast in properties.UnicastAddresses)
+            {
+                var address = unicast.Address;
+                if (address.AddressFamily != AddressFamily.InterNetwork) continue;
+
+                var text = address.ToString();
+                if (text.StartsWith("169.254") || text.StartsWith("127.")) continue;
+
+                var rank = routable ? 0 : physical ? 1 : 2;
+                found.Add((rank, text));
+            }
+        }
+
+        return found
+            .OrderBy(f => f.Rank)
+            .Select(f => f.Address)
+            .Distinct()
+            .ToList();
+    }
 
     // ---------- output ----------
 
@@ -377,14 +467,28 @@ internal static class Program
     {
         Ok("ProphetOps is installed and running.");
         Console.WriteLine();
-        Console.WriteLine("  On this PC          http://localhost:5099");
+        Console.WriteLine($"  On this PC          http://localhost:{Port}");
 
-        var address = LocalAddress();
-        if (address is not null)
+        var addresses = LocalAddresses();
+        if (addresses.Count > 0)
         {
-            Console.WriteLine($"  On other devices    http://{address}:{Port}");
+            Console.WriteLine($"  On other devices    http://{addresses[0]}:{Port}");
+            foreach (var extra in addresses.Skip(1).Take(2))
+            {
+                Console.WriteLine($"       or             http://{extra}:{Port}");
+            }
+            Console.WriteLine();
+            Console.WriteLine("  Phones and other PCs must be on the same office network as this PC.");
+            Console.WriteLine("  Mobile data will not reach it.");
+        }
+        else
+        {
+            Warn("This PC has no network address, so other devices cannot reach it yet.");
+            Console.WriteLine("  Connect it to the office network and the address will work.");
         }
 
+        Console.WriteLine();
+        Console.WriteLine("  A ProphetOps shortcut is on the desktop and in the Start menu.");
         Console.WriteLine();
         Console.WriteLine("  It starts by itself whenever this PC is switched on, even before");
         Console.WriteLine("  anyone signs in to Windows.");
