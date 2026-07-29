@@ -39,6 +39,10 @@ Get-ChildItem (Join-Path $handoff 'app') -Filter 'prophetops.db*' | Remove-Item 
 $stale = Join-Path $handoff 'app\backups'
 if (Test-Path $stale) { Remove-Item $stale -Recurse -Force }
 
+# The restore instructions have to travel with the backups, not sit in the source repository:
+# the day they are needed is the day the PC they describe has stopped working.
+Copy-Item (Join-Path $root 'BACKUP.md') (Join-Path $handoff 'BACKUP AND RESTORE.txt')
+
 Set-Content -Path (Join-Path $handoff 'READ ME FIRST.txt') -Encoding utf8 -Value @'
 ProphetOps
 Decision support for Renan-Tina Travel and Tours
@@ -71,6 +75,9 @@ BACKUPS
     A copy of the database is saved every day to the backups folder inside
     C:\ProphetOps. Copy that folder to a USB drive or cloud folder regularly:
     a backup on the same PC will not survive that PC being lost or stolen.
+
+    "BACKUP AND RESTORE.txt" in this folder explains how to put a backup back
+    if you ever need to. Keep it with the backups, not only here.
 '@
 
 Write-Host ''

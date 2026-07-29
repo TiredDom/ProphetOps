@@ -11,7 +11,7 @@ You do not need to be a developer to follow this. Take it one step at a time.
 | | |
 | --- | --- |
 | **What is copied** | `prophetops.db`, the whole database |
-| **Where copies land** | `backups\` next to the application, e.g. `C:\ProphetOps\publish\backups\` |
+| **Where copies land** | `backups\` next to the application, e.g. `C:\ProphetOps\backups\` |
 | **How often** | Once a few minutes after the service starts, then every 24 hours |
 | **How many are kept** | The newest 7. Older ones are deleted automatically |
 | **File names** | `prophetops-20260719T021500Z.db` — the date and time (UTC) the copy was taken |
@@ -38,7 +38,7 @@ the business.
 
 ## Check the backups are really running
 
-Open `C:\ProphetOps\publish\backups\` in File Explorer and look at the dates. You should see
+Open `C:\ProphetOps\backups\` in File Explorer and look at the dates. You should see
 up to seven files, the newest less than a day old. That is the whole check.
 
 If the newest file is old, or the folder is missing, the service has not been running — see
@@ -66,7 +66,7 @@ a few seconds and run the query again.
 **2. Choose the backup you want.** Usually the newest.
 
 ```powershell
-cd C:\ProphetOps\publish
+cd C:\ProphetOps
 Get-ChildItem backups\prophetops-*.db | Sort-Object Name
 ```
 
