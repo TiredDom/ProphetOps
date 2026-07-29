@@ -39,11 +39,8 @@ public static class DemandSeriesBuilder
 
     private static readonly DateOnly SampleAnchor = new(2026, 7, 1);
 
-    /// Builds the monthly revenue series the forecaster consumes.
-    ///
-    /// Live booking history is preferred, but only once it covers MinimumMonths. Below that the
-    /// deterministic sample series is used so the published accuracy figures stay reproducible and
-    /// the agency still sees a working forecast; callers surface which source was used.
+    /// Builds the monthly revenue series the forecaster consumes. Live history is preferred once
+    /// it covers MinimumMonths; below that the sample series is used and the caller is told which.
     public static DemandSeries Build(AppDbContext db, DateOnly today)
     {
         // The running month is still accumulating bookings. Including it would read as a demand
@@ -65,11 +62,9 @@ public static class DemandSeriesBuilder
         {
             var first = monthly.Keys.Min();
 
-            // Stop at the last month that actually has bookings rather than at the last complete
-            // calendar month. If entry is running behind, trailing empty months are almost always
-            // unrecorded rather than genuinely zero, and feeding them in would teach the model a
-            // collapse to zero. Gaps *inside* the range are still kept, because those shift the
-            // seasonal alignment if dropped.
+            // Trailing empty months are usually unrecorded rather than genuinely zero, so the series stops
+            // at the last month with bookings. Gaps inside the range stay, since dropping them shifts the
+            // seasonal alignment.
             var lastRecorded = monthly.Keys.Max();
             var end = lastRecorded < lastComplete ? lastRecorded : lastComplete;
 
@@ -88,10 +83,8 @@ public static class DemandSeriesBuilder
             liveMonths = live.Count;
         }
 
-        // Two full seasons of *observations*, not two seasons of calendar. A handful of records
-        // scattered across three years spans far more than the minimum while carrying almost no
-        // signal, and the gaps between them are zeros the model would read as collapsed demand.
-        // Counting the span alone let four imported rows pass a gate meant to guarantee history.
+        // Two full seasons of observations, not of calendar. A handful of records scattered across
+        // three years spans the minimum while carrying almost no signal.
         if (liveMonths - filled >= MinimumMonths)
         {
             return new DemandSeries

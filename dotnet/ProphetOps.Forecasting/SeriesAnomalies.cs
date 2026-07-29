@@ -2,12 +2,9 @@ namespace ProphetOps.Forecasting;
 
 public record SeriesAnomaly(int Index, double Value, double Median);
 
-/// Finds months whose total sits so far outside the rest that a recording mistake is the more
-/// likely explanation.
-///
-/// Median and median absolute deviation are used rather than mean and standard deviation
-/// because the very value being hunted would drag a mean toward itself and inflate a standard
-/// deviation, hiding the thing the test is for.
+/// Finds months whose total sits far enough outside the rest that a recording mistake is the
+/// likelier explanation. Median and median absolute deviation rather than mean and standard
+/// deviation, which the outlier itself would skew.
 public static class SeriesAnomalies
 {
     private const double MadToSigma = 0.6745;

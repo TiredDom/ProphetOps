@@ -17,9 +17,8 @@ public static class ImageUpload
         return ContentTypes.TryGetValue(extension, out var type) ? type : null;
     }
 
-    // The extension is taken from the file's own leading bytes rather than from the name or
-    // content type the browser sent, because both of those are supplied by the caller and a
-    // caller who can name the file can otherwise choose what the server later serves it as.
+    // The extension comes from the file's leading bytes, not from the name or content type the
+    // caller sent, since both of those are theirs to choose.
     public static string? SniffExtension(Stream stream)
     {
         if (!stream.CanSeek) return null;

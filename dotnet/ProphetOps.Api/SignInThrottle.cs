@@ -2,15 +2,8 @@ using System.Collections.Concurrent;
 
 namespace ProphetOps.Api;
 
-/// Slows down repeated failed sign-ins.
-///
-/// Failures are counted against the email and against the caller's address separately. Counting
-/// the email alone would let anyone lock a colleague out by mistyping her address on purpose;
-/// counting the address alone would let one machine walk through every account in turn. Each
-/// count covers the other's blind spot.
-///
-/// Every lockout expires. This is a three-person office on a private LAN, where locking the owner
-/// out of her own system at 9am costs the business more than a slow guessing run ever would.
+/// Slows down repeated failed sign-ins. Counts against the email and the caller's address
+/// separately, so neither can be used to lock out the other. Every lockout expires.
 public sealed class SignInThrottle
 {
     public const int EmailFreeAttempts = 5;
@@ -19,8 +12,7 @@ public sealed class SignInThrottle
     public static readonly TimeSpan FirstLockout = TimeSpan.FromSeconds(15);
     public static readonly TimeSpan LongestLockout = TimeSpan.FromMinutes(5);
 
-    /// A quiet stretch this long clears the count, so a fumble this morning never adds to one
-    /// this afternoon. It also bounds memory: nothing here outlives its own silence for long.
+    /// A quiet stretch this long clears the count, and bounds how long entries are kept.
     public static readonly TimeSpan ForgetAfter = TimeSpan.FromMinutes(15);
 
     private const int PruneAbove = 512;
@@ -99,7 +91,6 @@ public sealed class SignInThrottle
         return TimeSpan.FromSeconds(Math.Min(seconds, LongestLockout.TotalSeconds));
     }
 
-    /// Someone cycling addresses could otherwise leave a key behind for every one they invent.
     /// Only entries that are both forgotten and unlocked go, and only by matching value, so a
     /// count that moved between the read and the removal is left alone.
     private void Prune(DateTimeOffset now)

@@ -266,10 +266,8 @@ public class BookingsController : ControllerBase
     private const int UnusualMultiple = 5;
     private const int UnusualSample = 8;
 
-    /// A mistyped figure passes every other check: it is a positive number in the right field.
-    /// It also survives longest, because the forecaster reads a spike as a seasonal signal and
-    /// carries it for a year. So an entry far above the usual is queried once before it is
-    /// saved, and accepted the moment the person says they meant it.
+    /// A mistyped figure passes every other check, and the forecaster reads a spike as seasonal
+    /// signal for a year. So an entry far above the usual is queried once before it is saved.
     private string? UnusualRevenue(BookingRequest request, Booking? existing)
     {
         if (request.ConfirmUnusual) return null;

@@ -91,9 +91,8 @@ public class ExportController : ControllerBase
 
     private static readonly char[] Reserved = { ',', '"', '\r', '\n' };
 
-    /// A client named "=HYPERLINK(...)" is data, and stays data when the file is opened in a
-    /// spreadsheet. The apostrophe is how spreadsheets themselves write a value that must not
-    /// be evaluated, so it survives a round trip through them and through our own importer.
+    /// The apostrophe is how spreadsheets themselves write a value that must not be evaluated,
+    /// so it survives a round trip through them and through our own importer.
     private static string Field(string value)
     {
         var guarded = value.Length > 0 && value[0] is '=' or '+' or '-' or '@' or '\t'

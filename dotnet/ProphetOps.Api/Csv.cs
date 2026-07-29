@@ -5,9 +5,8 @@ namespace ProphetOps.Api;
 
 public record CsvProblem(int Line, string Reason);
 
-/// The mechanics every spreadsheet import shares: quoted fields, doubled quotes, a byte order
-/// mark, lines ending either way, blank lines, and amounts typed with peso signs and commas.
-/// Each import decides what its columns mean; none of them re-learns how a CSV is written.
+/// The mechanics every spreadsheet import shares: quoting, byte order marks, line endings,
+/// and amounts typed with peso signs. Each import decides only what its columns mean.
 internal static class Csv
 {
     /// Line numbers are the physical line the record starts on, so a reported problem is the

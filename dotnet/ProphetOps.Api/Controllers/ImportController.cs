@@ -329,9 +329,7 @@ public class ImportController : ControllerBase
         return (Encoding.UTF8.GetString(bytes), null);
     }
 
-    /// A spreadsheet saved as .xlsx or a renamed image will arrive with a plausible name and
-    /// content type, because both of those belong to whoever is uploading. What the bytes are
-    /// is the only part they cannot dress up.
+    /// The name and the content type belong to whoever is uploading. The leading bytes do not.
     private static bool LooksLikeText(byte[] bytes)
     {
         var limit = Math.Min(bytes.Length, 8000);

@@ -23,11 +23,9 @@ public record TrajectoryInput
     public IReadOnlyList<string> UnusualMonths { get; init; } = [];
 }
 
-/// Turns a finished forecast into plain-language statements an owner can act on.
-///
-/// Every rule is a plain comparison over figures the forecaster already produced; nothing here
-/// models anything. Rules that find nothing worth saying stay silent, so a quiet forecast
-/// produces a short read rather than padding.
+/// Turns a finished forecast into plain-language statements an owner can act on. Every rule is
+/// a comparison over figures the forecaster already produced; rules with nothing to say stay
+/// silent.
 public static class TrajectoryInsights
 {
     private const double PeakAboveAverage = 0.08;
@@ -48,10 +46,8 @@ public static class TrajectoryInsights
         var average = steps.Average(s => s.Value);
         var horizon = steps.Count;
 
-        // Ordered by what the owner has to decide, not by how the rules were written: what is
-        // happening, what to do about it, what is imminent, then the analytical detail.
-        // On a level series the highest month is whichever one sorted first, not a peak. Naming
-        // it would state an accident of ordering as a finding.
+        // Ordered by what the owner has to decide, not by how the rules were written. On a level
+        // series the highest month is an accident of sorting rather than a peak.
         var peakStandsOut = average > 0 && (peak.Value - average) / average >= PeakStandsOut;
 
         notes.Add(new TrajectoryNote("direction", Headline(input, peak, horizon, peakStandsOut)));

@@ -4,11 +4,8 @@ using ProphetOps.Domain;
 
 namespace ProphetOps.Api;
 
-/// Records who did what to which record.
-///
-/// Three roles share this system and every one of them can edit money. Without a trail, a
-/// figure that turns out to be wrong has no history and no author, and the only way to ask
-/// what happened is to ask people to remember.
+/// Records who did what to which record. Three roles can edit money, so a figure that turns
+/// out wrong needs an author.
 public static class AuditLog
 {
     public const string Created = "Created";

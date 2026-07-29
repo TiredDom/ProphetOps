@@ -16,11 +16,8 @@ public record PackageCsvResult(
     IReadOnlyList<CsvProblem> Problems,
     IReadOnlyList<CsvProblem> Warnings);
 
-/// Reads the agency's package catalog out of a spreadsheet export.
-///
-/// Same bargain as BookingCsv: the hard parts of an import are in the file itself, so the file
-/// is read here, apart from the endpoint, where each rule is cheap to pin down with a test.
-/// Nothing is dropped in silence — a row either parses or is named with the line it sits on.
+/// Reads the agency's package catalog out of a spreadsheet export. Same split as BookingCsv:
+/// parsing lives here so each rule can be tested on its own.
 public static class PackageCsv
 {
     public const int MaxRows = 2000;

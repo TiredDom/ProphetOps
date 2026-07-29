@@ -5,9 +5,6 @@ using ProphetOps.Data;
 namespace ProphetOps.Api;
 
 /// Copies the database into a backups/ folder on a timer.
-///
-/// The agency runs this on one office PC. Until now a failed disk took every booking, expense and
-/// forecast the business has ever recorded with it, and there was nothing to restore from.
 public sealed class BackupService : BackgroundService
 {
     private const string Prefix = "prophetops-";
@@ -77,9 +74,8 @@ public sealed class BackupService : BackgroundService
                 return;
             }
 
-            // The file only takes the name the restore instructions mention once it is complete
-            // and checked, so a service killed mid-write cannot leave behind something that
-            // reads as a finished backup.
+            // Only takes its final name once complete and checked, so a service killed mid-write cannot
+            // leave something that reads as a finished backup.
             File.Move(partial, finished, overwrite: true);
 
             _log.LogInformation(
@@ -93,9 +89,8 @@ public sealed class BackupService : BackgroundService
         }
     }
 
-    /// SQLite's own backup API rather than File.Copy: the database is in use, and a byte-for-byte
-    /// copy can catch a half-finished write or miss commits still sitting in the write-ahead log,
-    /// producing a file that only turns out to be corrupt on the day it is needed.
+    /// SQLite's backup API rather than File.Copy: the database is in use, and a byte copy can
+    /// catch a half-finished write.
     private static void Copy(string database, string destination)
     {
         using var source = new SqliteConnection(PathOnly(database));

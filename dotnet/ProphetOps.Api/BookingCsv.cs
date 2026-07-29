@@ -21,13 +21,9 @@ public record BookingCsvResult(
     IReadOnlyList<CsvProblem> Problems,
     IReadOnlyList<CsvProblem> Warnings);
 
-/// Reads the agency's booking history out of a spreadsheet export.
-///
-/// Kept apart from the endpoint because every hard part of an import is in the file itself: a
-/// sheet that writes dates its own way, peso signs typed into a number column, a client name
-/// with a comma in it. Those are cheap to pin down with tests and expensive to meet halfway
-/// through an import. Nothing is dropped in silence — a row either parses or is named with the
-/// line it sits on.
+/// Reads the agency's booking history out of a spreadsheet export. Parsing lives here rather
+/// than in the endpoint so each rule can be tested on its own. A row either parses or is
+/// named with the line it sits on.
 public static class BookingCsv
 {
     public const int MaxRows = 5000;
@@ -214,9 +210,8 @@ public static class BookingCsv
             var dayFirst = Real(year, second, first);
             var monthFirst = Real(year, first, second);
 
-            // Below the thirteenth both readings are legal dates, so nothing in the file can
-            // settle it. The agency writes day first, so that is what wins, and the row is
-            // flagged rather than quietly assumed.
+            // Below the thirteenth both readings are legal. The agency writes day first, so that wins,
+            // and the row is flagged rather than quietly assumed.
             if (dayFirst)
             {
                 eitherWayRound = monthFirst && first != second;
