@@ -219,6 +219,8 @@ const activeCategory = ref('All');
 
 const CATEGORIES = ['Tour operations', 'Marketing', 'Seasonal cost', 'Overhead'];
 
+const businessToday = ref('');
+const businessDateError = 'Could not load the business date. Refresh and try again.';
 const form = reactive<ExpenseInput>(emptyForm());
 
 const drawerTitle = computed(() => (editing.value ? 'Edit expense' : 'New expense'));
@@ -299,7 +301,7 @@ function clearFilters() {
 function emptyForm(): ExpenseInput {
   return {
     id: '',
-    date: new Date().toISOString().slice(0, 10),
+    date: businessToday.value,
     category: 'Tour operations',
     amount: 0,
     relatedPackage: '',
@@ -309,6 +311,11 @@ function emptyForm(): ExpenseInput {
 }
 
 function openForm() {
+  if (!businessToday.value) {
+    formError.value = businessDateError;
+    toast.error(businessDateError);
+    return;
+  }
   Object.assign(form, emptyForm());
   form.id = 'EXP-' + (3100 + expenses.value.length + 1);
   editing.value = false;
@@ -345,7 +352,12 @@ function validate(): string {
 async function load() {
   loading.value = true;
   try {
+    const config = await api.appConfig();
+    businessToday.value = config.today;
     expenses.value = await api.expenses();
+  } catch {
+    if (!businessToday.value) toast.error(businessDateError);
+    toast.error('We could not load the expenses. Please refresh and try again.');
   } finally {
     loading.value = false;
   }

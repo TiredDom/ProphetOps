@@ -5,11 +5,13 @@ business-to-business wholesale travel agency. It replaces a workflow spread acro
 messaging apps, spreadsheets, email and paper notebooks with one private web
 application, and pairs that record-keeping with an in-house demand forecast.
 
-The application is private by design. It runs on the agency's own always-on machine as a
-single process — the API serves the built single-page client — deployed as a Windows
-Service, reachable over HTTPS on the office network and by the owner remotely through a
-VPN. It is never exposed to the public internet, and the sign-in screen is deliberately
-unbranded.
+The application is private by design. The API serves the built single-page client, so
+the system still runs as one web process. The legacy/local release path is a Windows
+Service on an agency-controlled machine, reachable on the office network and, when
+configured, through the agency's private remote-access arrangement. The current
+readiness work also prepares a future staff-only hosted container path; that hosted
+deployment, access layer, domain, object-storage bucket, credentials and production
+cutover are external operational actions and are not provisioned in this repository.
 
 ## What it does
 
@@ -55,29 +57,60 @@ void and restore is written to an audit trail with its author.
 
 ## Built with
 
-- **ASP.NET Core 8 (C#)** — REST/JSON API, authentication, authorisation, business logic
+- **ASP.NET Core 10 (C#)** — REST/JSON API, authentication, authorisation, business logic
 - **Vue 3 + TypeScript** — single-page client built with Vite, served by the API
 - **Entity Framework Core + SQLite** — typed data access, parameterised queries, migrations
-- **Kestrel** hosted as a Windows Service, with scheduled database backups
+- **Kestrel** as one web process, with a legacy Windows Service release path and planned hosted container path
 
 Security is layered rather than bolted on: hashed passwords, sign-in throttling with
 escalating lockouts, antiforgery/CSRF validation, a strict Content-Security-Policy,
 hardened response headers, and role checks applied server-side.
+
+Application and test projects target .NET 10 and are pinned through `global.json`.
+The legacy `ProphetOps.Setup` installer intentionally remains `net8.0` and was left
+unchanged during the container-readiness work.
 
 ## Running it
 
 The application lives in [`dotnet/`](dotnet/). After cloning:
 
 ```powershell
-cd dotnet\client ; npm install ; npm run build ; cd ..
+cd dotnet\client
+npm install
+npm run build
+cd ..
+$env:ASPNETCORE_ENVIRONMENT = "Development"
+$env:Demo__Enabled = "true"
+$env:Storage__Root = (New-Item -ItemType Directory -Force .local-state-demo).FullName
+$env:Business__TimeZone = "Asia/Manila"
 dotnet run --project ProphetOps.Api --urls http://localhost:5099
 ```
 
 Open http://localhost:5099 and sign in with `owner@prophetops.local` / `owner123`.
 
+These commands explicitly enable demonstration data on an empty development database.
+Normal startup does not create accounts or sample records, and Production rejects demo
+mode. Remove `Demo__Enabled` from the terminal environment after the demonstration.
+`Storage__Root` must be an absolute writable directory; the example above creates an
+isolated local folder for the demo database, uploads, backups and authentication keys.
+`Business__TimeZone` must be set deliberately; the example uses Asia/Manila pending
+agency confirmation for go-live.
+For an agency installation, follow the first-owner setup in `dotnet/README.md` instead.
+
 See **[dotnet/README.md](dotnet/README.md)** for development, testing, publishing and
 deployment, **[SETUP.md](SETUP.md)** for a first-time setup walkthrough, and
 **[DEMO.md](DEMO.md)** for the demonstration script.
+
+## Source-Only Hosted Readiness
+
+- `render.preview.yaml` models a temporary free Render preview. It uses ephemeral
+  `/tmp` storage, disables scheduled backups, and bootstraps the first owner from
+  environment secrets. It is not durable and must not be represented as production.
+- `render.yaml` is the paid staff-hosting blueprint. It uses a persistent disk, requires
+  Cloudflare Access origin validation, and enables encrypted scheduled backups to an
+  S3-compatible object store such as Cloudflare R2.
+- No real domains, staff identities, bucket names, account IDs, credentials or default
+  public evaluator accounts are committed.
 
 ## Scope
 

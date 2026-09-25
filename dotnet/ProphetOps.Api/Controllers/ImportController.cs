@@ -16,8 +16,13 @@ public class ImportController : ControllerBase
     private static readonly string[] AcceptedTypes = { "text/csv", "application/vnd.ms-excel", "text/plain" };
 
     private readonly AppDbContext _db;
+    private readonly IBusinessClock _clock;
 
-    public ImportController(AppDbContext db) => _db = db;
+    public ImportController(AppDbContext db, IBusinessClock clock)
+    {
+        _db = db;
+        _clock = clock;
+    }
 
     [HttpPost("bookings/preview")]
     [RequestSizeLimit(MaxBytes)]
@@ -52,6 +57,7 @@ public class ImportController : ControllerBase
     }
 
     [HttpPost("bookings/commit")]
+    [ServiceFilter(typeof(MutationTransaction))]
     [RequestSizeLimit(MaxBytes)]
     public async Task<IActionResult> Commit(IFormFile? file, [FromForm] string? confirm)
     {
@@ -106,8 +112,9 @@ public class ImportController : ControllerBase
         }
 
         var batch = $"IMP-{DateTime.UtcNow:yyyyMMdd-HHmmss}";
-        AuditLog.Record(_db, User, AuditLog.Imported, "Booking", batch,
-            Summary(imported, result.Problems.Count, alreadyHeld.Count, file!.FileName));
+        if (imported.Count > 0)
+            AuditLog.Record(_db, User, AuditLog.Imported, "Booking", batch,
+                Summary(imported, result.Problems.Count, alreadyHeld.Count, file!.FileName));
         _db.SaveChanges();
 
         return Ok(new
@@ -156,6 +163,7 @@ public class ImportController : ControllerBase
     }
 
     [HttpPost("packages/commit")]
+    [ServiceFilter(typeof(MutationTransaction))]
     [RequestSizeLimit(MaxBytes)]
     [Authorize(Policy = "Package Catalog")]
     public async Task<IActionResult> CommitPackages(IFormFile? file, [FromForm] string? confirm)
@@ -173,7 +181,7 @@ public class ImportController : ControllerBase
         var (codes, names) = ExistingPackages();
         var imported = new List<TravelPackage>();
         var alreadyHeld = new List<string>();
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = _clock.Today;
 
         foreach (var row in result.Rows)
         {
@@ -205,8 +213,9 @@ public class ImportController : ControllerBase
         }
 
         var batch = $"IMP-PKG-{DateTime.UtcNow:yyyyMMdd-HHmmss}";
-        AuditLog.Record(_db, User, AuditLog.Imported, "TravelPackage", batch,
-            PackageSummary(imported, result.Problems.Count, alreadyHeld.Count, file!.FileName));
+        if (imported.Count > 0)
+            AuditLog.Record(_db, User, AuditLog.Imported, "TravelPackage", batch,
+                PackageSummary(imported, result.Problems.Count, alreadyHeld.Count, file!.FileName));
         _db.SaveChanges();
 
         return Ok(new

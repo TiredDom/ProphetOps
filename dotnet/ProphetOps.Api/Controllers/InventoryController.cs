@@ -8,15 +8,20 @@ namespace ProphetOps.Api.Controllers;
 [ApiController]
 [Route("api/inventory")]
 [Authorize(Policy = "Package Catalog")]
+[ServiceFilter(typeof(MutationTransaction))]
 public class InventoryController : ControllerBase
 {
     private readonly AppDbContext _db;
-    private readonly IWebHostEnvironment _env;
+    private readonly StoragePaths _storage;
+    private readonly IBusinessClock _clock;
+    private readonly MutationTransaction _transaction;
 
-    public InventoryController(AppDbContext db, IWebHostEnvironment env)
+    public InventoryController(AppDbContext db, StoragePaths storage, IBusinessClock clock, MutationTransaction transaction)
     {
         _db = db;
-        _env = env;
+        _storage = storage;
+        _clock = clock;
+        _transaction = transaction;
     }
 
     [HttpGet]
@@ -36,11 +41,13 @@ public class InventoryController : ControllerBase
         var errors = Validate(request);
         if (errors.Count > 0) return BadRequest(errors);
         if (_db.TravelPackages.Any(p => p.Code == request.Id))
-            return BadRequest(new Dictionary<string, string> { ["code"] = "Package code already exists." });
+            return Conflict(new { code = "duplicate_code", message = "Package code already exists. Check the saved package before trying again." });
 
         var package = new TravelPackage();
         Apply(package, request);
         _db.TravelPackages.Add(package);
+        AuditLog.Record(_db, User, AuditLog.Created, "TravelPackage", package.Code,
+            $"{package.PackageName}, {package.AvailableSlots:N0} slots, P{package.BasePrice:N0}");
         _db.SaveChanges();
 
         return Ok(Dto(package));
@@ -51,11 +58,27 @@ public class InventoryController : ControllerBase
     {
         var package = _db.TravelPackages.SingleOrDefault(p => p.Code == code);
         if (package is null) return NotFound();
+        if (request.Revision != package.Revision) return MutationTransaction.Stale();
+        if (request.Id != code) return BadRequest(new { id = "Package code cannot be changed." });
 
         var errors = Validate(request);
         if (errors.Count > 0) return BadRequest(errors);
 
+        var before = (package.PackageName, package.Destination, package.Duration, package.BasePrice,
+            package.Inclusions, package.AvailableSlots, package.SoldCount, package.ReservedCount, package.Status);
         Apply(package, request);
+        var changed = AuditLog.Difference(
+            ("Name", before.PackageName, package.PackageName),
+            ("Destination", before.Destination, package.Destination),
+            ("Duration", before.Duration, package.Duration),
+            ("Price", before.BasePrice, package.BasePrice),
+            ("Inclusions", before.Inclusions, package.Inclusions),
+            ("Available", before.AvailableSlots, package.AvailableSlots),
+            ("Sold", before.SoldCount, package.SoldCount),
+            ("Reserved", before.ReservedCount, package.ReservedCount),
+            ("Status", before.Status, package.Status));
+        if (changed is not null)
+            AuditLog.Record(_db, User, AuditLog.Updated, "TravelPackage", package.Code, changed);
         _db.SaveChanges();
 
         return Ok(Dto(package));
@@ -79,7 +102,7 @@ public class InventoryController : ControllerBase
 
     [HttpPost("{code}/image")]
     [RequestSizeLimit(ImageUpload.MaxBytes)]
-    public async Task<IActionResult> UploadImage(string code, IFormFile? file)
+    public async Task<IActionResult> UploadImage(string code, IFormFile? file, [FromForm] int? revision)
     {
         var package = _db.TravelPackages.SingleOrDefault(p => p.Code == code);
         if (package is null) return NotFound();
@@ -89,6 +112,7 @@ public class InventoryController : ControllerBase
 
         if (file.Length > ImageUpload.MaxBytes)
             return BadRequest(new Dictionary<string, string> { ["image"] = "Image must be 4 MB or smaller." });
+        if (revision != package.Revision) return MutationTransaction.Stale();
 
         using var buffer = new MemoryStream();
         await file.CopyToAsync(buffer);
@@ -101,35 +125,43 @@ public class InventoryController : ControllerBase
         Directory.CreateDirectory(folder);
 
         var stored = ImageUpload.NewStoredName(extension);
+        _transaction.AfterRollback(() => DiscardStored(stored));
         buffer.Position = 0;
         await using (var target = System.IO.File.Create(Path.Combine(folder, stored)))
         {
             await buffer.CopyToAsync(target);
         }
 
-        DiscardStored(package.ImagePath);
+        var previous = package.ImagePath;
+        _transaction.AfterCommit(() => QuarantineStored(previous));
         package.ImagePath = stored;
-        package.LastUpdatedAt = DateOnly.FromDateTime(DateTime.UtcNow);
+        package.LastUpdatedAt = _clock.Today;
+        AuditLog.Record(_db, User, AuditLog.Updated, "TravelPackage", package.Code,
+            previous is null ? "Photo uploaded" : "Photo replaced");
         _db.SaveChanges();
 
         return Ok(Dto(package));
     }
 
     [HttpDelete("{code}/image")]
-    public IActionResult DeleteImage(string code)
+    public IActionResult DeleteImage(string code, [FromBody] RevisionRequest request)
     {
         var package = _db.TravelPackages.SingleOrDefault(p => p.Code == code);
         if (package is null) return NotFound();
+        if (request.Revision != package.Revision) return MutationTransaction.Stale();
 
-        DiscardStored(package.ImagePath);
+        var previous = package.ImagePath;
+        _transaction.AfterCommit(() => QuarantineStored(previous));
         package.ImagePath = null;
-        package.LastUpdatedAt = DateOnly.FromDateTime(DateTime.UtcNow);
+        package.LastUpdatedAt = _clock.Today;
+        if (previous is not null)
+            AuditLog.Record(_db, User, AuditLog.Updated, "TravelPackage", package.Code, "Photo removed");
         _db.SaveChanges();
 
         return Ok(Dto(package));
     }
 
-    private string ImageFolder() => Path.Combine(_env.ContentRootPath, "uploads", "packages");
+    private string ImageFolder() => _storage.PackageImagesPath;
 
     private void DiscardStored(string? storedName)
     {
@@ -137,6 +169,19 @@ public class InventoryController : ControllerBase
 
         var path = Path.Combine(ImageFolder(), Path.GetFileName(storedName));
         if (System.IO.File.Exists(path)) System.IO.File.Delete(path);
+    }
+
+    private void QuarantineStored(string? storedName)
+    {
+        if (string.IsNullOrWhiteSpace(storedName)) return;
+
+        var source = Path.Combine(ImageFolder(), Path.GetFileName(storedName));
+        if (!System.IO.File.Exists(source)) return;
+        var quarantine = Path.Combine(ImageFolder(), ".quarantine");
+        Directory.CreateDirectory(quarantine);
+        var target = Path.Combine(quarantine, Path.GetFileName(storedName));
+        if (System.IO.File.Exists(target)) return;
+        System.IO.File.Move(source, target);
     }
 
     private void Apply(TravelPackage package, PackageRequest request)
@@ -151,12 +196,13 @@ public class InventoryController : ControllerBase
         package.SoldCount = request.SoldCount;
         package.ReservedCount = request.ReservedCount;
         package.Status = request.Status ?? "Normal";
-        package.LastUpdatedAt = DateOnly.FromDateTime(DateTime.UtcNow);
+        package.LastUpdatedAt = _clock.Today;
     }
 
     private static Dictionary<string, string> Validate(PackageRequest request)
     {
         var errors = new Dictionary<string, string>();
+        if (string.IsNullOrWhiteSpace(request.Id)) errors["id"] = "Enter a package code.";
         if (string.IsNullOrWhiteSpace(request.PackageName))
             errors["packageName"] = "Enter the package name.";
         if (string.IsNullOrWhiteSpace(request.Destination))
@@ -165,6 +211,8 @@ public class InventoryController : ControllerBase
             errors["basePrice"] = "Base price must be zero or more.";
         if (request.AvailableSlots < 0)
             errors["availableSlots"] = "Available slots must be zero or more.";
+        if (request.SoldCount < 0) errors["soldCount"] = "Sold count must be zero or more.";
+        if (request.ReservedCount < 0) errors["reservedCount"] = "Reserved count must be zero or more.";
         return errors;
     }
 
@@ -178,6 +226,7 @@ public class InventoryController : ControllerBase
         {
             id = p.Code,
             backendId = p.Id,
+            revision = p.Revision,
             packageName = p.PackageName,
             destination = p.Destination,
             duration = p.Duration,
@@ -202,4 +251,5 @@ public record PackageRequest(
     int AvailableSlots,
     int SoldCount,
     int ReservedCount,
-    string? Status);
+    string? Status,
+    int? Revision = null);

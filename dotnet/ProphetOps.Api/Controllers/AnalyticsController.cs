@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ProphetOps.Data;
@@ -10,24 +11,35 @@ namespace ProphetOps.Api.Controllers;
 public class AnalyticsController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly IBusinessClock _clock;
 
-    public AnalyticsController(AppDbContext db) => _db = db;
+    public AnalyticsController(AppDbContext db, IBusinessClock clock)
+    {
+        _db = db;
+        _clock = clock;
+    }
 
     [HttpGet]
-    public IActionResult Get()
+    public IActionResult Get([FromQuery] DateOnly? throughMonth = null)
     {
-        const int anchorYear = 2026;
-        const int anchorMonth = 7;
+        var cutoff = throughMonth ?? _clock.Today;
+        var anchor = new DateOnly(cutoff.Year, cutoff.Month, 1);
+        if (anchor < new DateOnly(1, 12, 1))
+            return BadRequest(new { message = "The chart cutoff must allow twelve calendar months." });
+        var firstMonth = anchor.AddMonths(-11);
+        var monthly = MonthlyActuals.Build(_db, anchor).ToDictionary(m => m.Month);
+        var recent = Enumerable.Range(0, 12)
+            .Select(i => firstMonth.AddMonths(i))
+            .Select(month => monthly.GetValueOrDefault(month) ?? new MonthlyActual(month, 0, 0, 0))
+            .ToList();
 
-        var history = SampleSalesHistory.MonthlyRevenue(anchorYear, anchorMonth);
-        var anchor = new DateOnly(anchorYear, anchorMonth, 1);
-        var recent = history.Skip(Math.Max(0, history.Count - 12)).ToList();
-
-        var salesHistory = recent
-            .Select((value, i) => new
+        var salesHistory = recent.Select(m => new
             {
-                label = anchor.AddMonths(-(recent.Count - 1 - i)).ToString("MMM"),
-                value,
+                month = m.Month.ToString("yyyy-MM", CultureInfo.InvariantCulture),
+                label = m.Month.ToString("MMM yyyy", CultureInfo.InvariantCulture),
+                value = m.RevenuePhp,
+                bookingCount = m.BookingCount,
+                passengerCount = m.PassengerCount,
             })
             .ToList();
 
@@ -47,16 +59,26 @@ public class AnalyticsController : ControllerBase
 
         var revenueByDestination = bookings
             .GroupBy(b => b.Destination)
-            .Select(g => new { label = g.Key, value = g.Sum(b => b.GrossRevenue) })
+            .Select(g => new { label = g.Key, value = g.Sum(b => (long)b.GrossRevenue) })
             .OrderByDescending(x => x.value)
             .ToList();
 
-        var totalRevenue = bookings.Sum(b => b.GrossRevenue);
+        var totalRevenue = bookings.Sum(b => (long)b.GrossRevenue);
         var totalBookings = bookings.Count;
-        var averageBooking = totalBookings > 0 ? (int)Math.Round((double)totalRevenue / totalBookings) : 0;
+        var averageBooking = totalBookings > 0 ? (long)Math.Round((double)totalRevenue / totalBookings) : 0;
 
         return Ok(new
         {
+            totalsScope = "lifetime",
+            excludesVoided = true,
+            chartWindow = new
+            {
+                fromMonth = firstMonth.ToString("yyyy-MM", CultureInfo.InvariantCulture),
+                throughMonth = anchor.ToString("yyyy-MM", CultureInfo.InvariantCulture),
+                revenuePhp = recent.Sum(m => m.RevenuePhp),
+                bookingCount = recent.Sum(m => m.BookingCount),
+                passengerCount = recent.Sum(m => m.PassengerCount),
+            },
             salesHistory,
             packageMix,
             paymentBreakdown,

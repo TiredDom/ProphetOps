@@ -7,7 +7,11 @@ Use this guide for the Information Assurance and Security demo and the test case
 Build the SPA once, then run the single-process app and open it:
 
 ```powershell
-cd dotnet\client ; npm run build ; cd ..
+cd dotnet\client
+npm run build
+cd ..
+$env:ASPNETCORE_ENVIRONMENT = "Development"
+$env:Demo__Enabled = "true"
 dotnet run --project ProphetOps.Api --urls http://localhost:5099
 ```
 
@@ -16,6 +20,11 @@ http://localhost:5099/login
 ```
 
 ## Demo Accounts
+
+Demo records are created only on an empty database with the explicit setting above.
+An existing database is not topped up or given a fabricated audit history. Remove
+`Demo__Enabled` from the terminal environment after the demonstration; never use demo
+mode with agency records or a Production environment.
 
 Use Owner for the main walkthrough:
 

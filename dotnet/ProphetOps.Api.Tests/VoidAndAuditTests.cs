@@ -25,7 +25,8 @@ public class VoidAndAuditTests : IDisposable
         return client;
     }
 
-    private static object NewBooking(string id, int revenue = 90_000, int pax = 2, string? packageId = null) => new
+    private static object NewBooking(string id, int revenue = 90_000, int pax = 2, string? packageId = null,
+        int? revision = null) => new
     {
         id,
         ds = "2026-07-12",
@@ -39,7 +40,16 @@ public class VoidAndAuditTests : IDisposable
         bookingStatus = "Pending",
         entryType = packageId is null ? "Custom quotation" : "Package preset",
         source = "Manual quotation",
+        revision,
     };
+
+    private static async Task<int> BookingRevision(HttpClient client, string code)
+    {
+        var listing = await client.GetFromJsonAsync<JsonElement>("/api/bookings");
+        return listing.GetProperty("bookings").EnumerateArray()
+            .First(b => b.GetProperty("id").GetString() == code)
+            .GetProperty("revision").GetInt32();
+    }
 
     private static async Task<int> Revenue(HttpClient client)
     {
@@ -56,7 +66,7 @@ public class VoidAndAuditTests : IDisposable
         (await client.PostAsJsonAsync("/api/bookings", NewBooking("BKG-VOID-1", 90_000))).EnsureSuccessStatusCode();
         Assert.Equal(before + 90_000, await Revenue(client));
 
-        var voided = await client.PostAsJsonAsync("/api/bookings/BKG-VOID-1/void", new { reason = "Duplicate entry" });
+        var voided = await client.PostAsJsonAsync("/api/bookings/BKG-VOID-1/void", new { reason = "Duplicate entry", revision = 1 });
         Assert.Equal(HttpStatusCode.OK, voided.StatusCode);
 
         Assert.Equal(before, await Revenue(client));
@@ -77,10 +87,10 @@ public class VoidAndAuditTests : IDisposable
         var afterBooking = await Slots(client, code);
         Assert.Equal(free - 3, afterBooking);
 
-        (await client.PostAsJsonAsync("/api/bookings/BKG-VOID-2/void", new { reason = "Client cancelled" })).EnsureSuccessStatusCode();
+        (await client.PostAsJsonAsync("/api/bookings/BKG-VOID-2/void", new { reason = "Client cancelled", revision = 1 })).EnsureSuccessStatusCode();
         Assert.Equal(free, await Slots(client, code));
 
-        (await client.PostAsJsonAsync("/api/bookings/BKG-VOID-2/restore", new { })).EnsureSuccessStatusCode();
+        (await client.PostAsJsonAsync("/api/bookings/BKG-VOID-2/restore", new { revision = 2 })).EnsureSuccessStatusCode();
         Assert.Equal(free - 3, await Slots(client, code));
     }
 
@@ -110,9 +120,9 @@ public class VoidAndAuditTests : IDisposable
     {
         var client = await SignedIn();
         (await client.PostAsJsonAsync("/api/bookings", NewBooking("BKG-VOID-4"))).EnsureSuccessStatusCode();
-        (await client.PostAsJsonAsync("/api/bookings/BKG-VOID-4/void", new { reason = "Wrong client" })).EnsureSuccessStatusCode();
+        (await client.PostAsJsonAsync("/api/bookings/BKG-VOID-4/void", new { reason = "Wrong client", revision = 1 })).EnsureSuccessStatusCode();
 
-        var again = await client.PostAsJsonAsync("/api/bookings/BKG-VOID-4/void", new { reason = "Again" });
+        var again = await client.PostAsJsonAsync("/api/bookings/BKG-VOID-4/void", new { reason = "Again", revision = 2 });
         Assert.Equal(HttpStatusCode.BadRequest, again.StatusCode);
     }
 
@@ -121,7 +131,7 @@ public class VoidAndAuditTests : IDisposable
     {
         var client = await SignedIn();
         (await client.PostAsJsonAsync("/api/bookings", NewBooking("BKG-VOID-5"))).EnsureSuccessStatusCode();
-        (await client.PostAsJsonAsync("/api/bookings/BKG-VOID-5/void", new { reason = "Recorded in error" })).EnsureSuccessStatusCode();
+        (await client.PostAsJsonAsync("/api/bookings/BKG-VOID-5/void", new { reason = "Recorded in error", revision = 1 })).EnsureSuccessStatusCode();
 
         var listing = await client.GetFromJsonAsync<JsonElement>("/api/bookings");
         var row = listing.GetProperty("bookings").EnumerateArray()
@@ -160,8 +170,9 @@ public class VoidAndAuditTests : IDisposable
         var client = await SignedIn();
 
         (await client.PostAsJsonAsync("/api/bookings", NewBooking("BKG-TRAIL-1", 90_000))).EnsureSuccessStatusCode();
-        (await client.PutAsJsonAsync("/api/bookings/BKG-TRAIL-1", NewBooking("BKG-TRAIL-1", 110_000))).EnsureSuccessStatusCode();
-        (await client.PostAsJsonAsync("/api/bookings/BKG-TRAIL-1/void", new { reason = "Superseded" })).EnsureSuccessStatusCode();
+        (await client.PutAsJsonAsync("/api/bookings/BKG-TRAIL-1", NewBooking("BKG-TRAIL-1", 110_000, revision: 1))).EnsureSuccessStatusCode();
+        var revision = await BookingRevision(client, "BKG-TRAIL-1");
+        (await client.PostAsJsonAsync("/api/bookings/BKG-TRAIL-1/void", new { reason = "Superseded", revision })).EnsureSuccessStatusCode();
 
         var trail = await client.GetFromJsonAsync<JsonElement>("/api/activity?entityType=Booking&entityCode=BKG-TRAIL-1");
         var actions = trail.EnumerateArray().Select(e => e.GetProperty("action").GetString()).ToList();
@@ -181,7 +192,7 @@ public class VoidAndAuditTests : IDisposable
         var client = await SignedIn();
 
         (await client.PostAsJsonAsync("/api/bookings", NewBooking("BKG-TRAIL-2"))).EnsureSuccessStatusCode();
-        (await client.PutAsJsonAsync("/api/bookings/BKG-TRAIL-2", NewBooking("BKG-TRAIL-2"))).EnsureSuccessStatusCode();
+        (await client.PutAsJsonAsync("/api/bookings/BKG-TRAIL-2", NewBooking("BKG-TRAIL-2", revision: 1))).EnsureSuccessStatusCode();
 
         var trail = await client.GetFromJsonAsync<JsonElement>("/api/activity?entityType=Booking&entityCode=BKG-TRAIL-2");
         var actions = trail.EnumerateArray().Select(e => e.GetProperty("action").GetString()).ToList();

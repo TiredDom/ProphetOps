@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 using ProphetOps.Api;
 using Xunit;
 
@@ -100,11 +101,22 @@ public class ImageUploadTests : IDisposable
         return client;
     }
 
-    private static MultipartFormDataContent FileNamed(string name, string contentType, byte[] content)
+    private static MultipartFormDataContent FileNamed(string name, string contentType, byte[] content, int? revision = null)
     {
         var part = new ByteArrayContent(content);
         part.Headers.ContentType = new MediaTypeHeaderValue(contentType);
-        return new MultipartFormDataContent { { part, "file", name } };
+        var form = new MultipartFormDataContent { { part, "file", name } };
+        if (revision is not null) form.Add(new StringContent(revision.Value.ToString()), "revision");
+        return form;
+    }
+
+    private static Task<HttpResponseMessage> DeleteImage(HttpClient client, string code, int revision)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Delete, $"/api/inventory/{code}/image")
+        {
+            Content = JsonContent.Create(new { revision }),
+        };
+        return client.SendAsync(request);
     }
 
     [Fact]
@@ -119,7 +131,7 @@ public class ImageUploadTests : IDisposable
         payload[1] = 0x5A;
 
         var response = await client.PostAsync("/api/inventory/PKG-101/image",
-            FileNamed("harmless.png", "image/png", payload));
+            FileNamed("harmless.png", "image/png", payload, revision: 1));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -133,8 +145,9 @@ public class ImageUploadTests : IDisposable
         new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }.CopyTo(png, 0);
 
         var upload = await client.PostAsync("/api/inventory/PKG-101/image",
-            FileNamed("photo.png", "image/png", png));
+            FileNamed("photo.png", "image/png", png, revision: 1));
         Assert.Equal(HttpStatusCode.OK, upload.StatusCode);
+        var uploaded = await upload.Content.ReadFromJsonAsync<JsonElement>();
 
         var listing = await client.GetFromJsonAsync<List<Dictionary<string, object?>>>("/api/inventory");
         var stored = listing!.Single(p => p["id"]?.ToString() == "PKG-101");
@@ -144,7 +157,7 @@ public class ImageUploadTests : IDisposable
         Assert.Equal(HttpStatusCode.OK, fetched.StatusCode);
         Assert.Equal("image/png", fetched.Content.Headers.ContentType?.MediaType);
 
-        var removed = await client.DeleteAsync("/api/inventory/PKG-101/image");
+        var removed = await DeleteImage(client, "PKG-101", uploaded.GetProperty("revision").GetInt32());
         Assert.Equal(HttpStatusCode.OK, removed.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound,
             (await client.GetAsync("/api/inventory/PKG-101/image")).StatusCode);

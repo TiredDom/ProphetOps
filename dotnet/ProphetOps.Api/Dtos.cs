@@ -19,11 +19,14 @@ public record BookingRequest(
     string? StaffAssigned,
     string? Source,
     string? Notes,
-    bool ConfirmUnusual = false);
+    bool ConfirmUnusual = false,
+    int? Revision = null);
 
-public record BulkRequest(string[]? Ids, string? Action);
+public record BulkRequest(string[]? Ids, string? Action, Dictionary<string, int>? Revisions = null);
 
-public record VoidRequest(string? Reason);
+public record VoidRequest(string? Reason, int? Revision = null);
+
+public record RevisionRequest(int? Revision);
 
 public record UserRequest(
     string? Name,

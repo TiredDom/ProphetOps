@@ -12,8 +12,17 @@ namespace ProphetOps.Api.Controllers;
 public class DashboardController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly IBusinessClock _clock;
+    private readonly IConfiguration _configuration;
+    private readonly IHostEnvironment _environment;
 
-    public DashboardController(AppDbContext db) => _db = db;
+    public DashboardController(AppDbContext db, IBusinessClock clock, IConfiguration configuration, IHostEnvironment environment)
+    {
+        _db = db;
+        _clock = clock;
+        _configuration = configuration;
+        _environment = environment;
+    }
 
     [HttpGet]
     public IActionResult Get()
@@ -21,17 +30,20 @@ public class DashboardController : ControllerBase
         var bookings = _db.Bookings.Where(b => b.VoidedAt == null).ToList();
         var packages = _db.TravelPackages.ToList();
 
-        var revenue = bookings.Sum(b => b.GrossRevenue);
-        var costs = _db.Expenses.Where(e => e.VoidedAt == null).Sum(e => e.Amount);
+        var revenue = bookings.Sum(b => (long)b.GrossRevenue);
+        var costs = _db.Expenses.Where(e => e.VoidedAt == null).Sum(e => (long)e.Amount);
 
-        var demand = DemandSeriesBuilder.Build(_db, DateOnly.FromDateTime(DateTime.Today));
+        var demand = DemandSeriesBuilder.Build(_db, _clock.Today, AllowSampleFallback());
         var anchor = demand.LastMonth;
         var series = demand.Values.ToList();
-        var forecast = HoltWintersForecaster.Forecast(series, DemandSeriesBuilder.SeasonLength, 6);
-        var mape = forecast.Ok ? forecast.Metrics!.Mape : 0;
-        var accuracy = forecast.Ok ? Math.Max(0, (int)Math.Round(100 - mape)) : 0;
+        var forecastAvailable = demand.UsingLiveRecords || demand.UsingSample;
+        var forecast = forecastAvailable
+            ? HoltWintersForecaster.Forecast(series, DemandSeriesBuilder.SeasonLength, 6)
+            : null;
+        var mape = forecast?.Ok == true ? forecast.Metrics!.Mape : 0;
+        var accuracy = forecast?.Ok == true ? Math.Max(0, (int)Math.Round(100 - mape)) : 0;
 
-        var forecastSteps = forecast.Forecast ?? new List<ForecastStep>();
+        var forecastSteps = forecast?.Forecast ?? new List<ForecastStep>();
         var recentMean = series.Count > 0 ? series.Skip(Math.Max(0, series.Count - 6)).Average() : 0;
         var forecastMean = forecastSteps.Count > 0 ? forecastSteps.Average(s => s.Value) : recentMean;
         var changePercent = recentMean != 0 ? Math.Round((forecastMean - recentMean) / recentMean * 100, 1) : 0;
@@ -62,7 +74,7 @@ public class DashboardController : ControllerBase
         var pendingPayments = new
         {
             count = unpaid.Count,
-            amount = unpaid.Sum(b => b.GrossRevenue),
+            amount = unpaid.Sum(b => (long)b.GrossRevenue),
         };
 
         var recentBookings = bookings
@@ -84,9 +96,11 @@ public class DashboardController : ControllerBase
 
         return Ok(new
         {
+            totalsScope = "lifetime",
+            excludesVoided = true,
             revenue,
             costs,
-            estimatedProfit = Math.Max(revenue - costs, 0),
+            estimatedProfit = revenue - costs,
             bookings = bookings.Count,
             packages = packages.Count,
             expenses = _db.Expenses.Count(e => e.VoidedAt == null),
@@ -94,18 +108,50 @@ public class DashboardController : ControllerBase
             {
                 method = "Holt-Winters",
                 horizon = 6,
+                ok = forecast?.Ok == true,
+                status = DemandStatus(demand),
                 accuracy,
                 mape,
-                nextValue = forecast.Ok ? forecast.Forecast![0].Value : 0,
+                nextValue = forecast?.Ok == true ? forecast.Forecast![0].Value : 0,
                 direction,
                 changePercent,
                 peakMonth,
                 peakValue,
+                dataSource = DataSource(demand),
             },
             lowStockPackages,
             pendingPayments,
             recentBookings,
-            lastUpdated = DateTime.UtcNow.ToString("MMM d, yyyy"),
+            lastUpdated = _clock.UtcNow.UtcDateTime.ToString("MMM d, yyyy"),
         });
     }
+
+    private bool AllowSampleFallback() =>
+        _configuration.GetValue<bool>("Demo:Enabled") && !_environment.IsProduction();
+
+    private static object DataSource(DemandSeries demand) => new
+    {
+        status = DemandStatus(demand),
+        usingLiveRecords = demand.UsingLiveRecords,
+        usingSample = demand.UsingSample,
+        label = demand.UsingSample
+            ? "Sample demonstration data"
+            : demand.UsingLiveRecords
+                ? "Live booking history"
+                : "Insufficient booking history",
+        liveMonthsAvailable = demand.LiveMonthsAvailable,
+        recordedMonths = demand.RecordedMonths,
+        minimumMonths = demand.MinimumMonths,
+        filledMonths = demand.FilledMonths,
+        lastRecordedMonth = demand.LiveMonthsAvailable > 0
+            ? demand.LastMonth.ToString("MMMM yyyy", CultureInfo.InvariantCulture)
+            : null,
+    };
+
+    private static string DemandStatus(DemandSeries demand) => demand.Source switch
+    {
+        DemandSeriesSource.LiveRecords => "live",
+        DemandSeriesSource.SampleSeries => "sample",
+        _ => "insufficient-history",
+    };
 }

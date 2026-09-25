@@ -1,9 +1,12 @@
 # ProphetOps Setup Guide
 
 Setup for ProphetOps, an internal Decision Support System for Renan-Tina Travels &
-Tours built on **ASP.NET Core 8 (C#) + Vue 3 + TypeScript**, with an in-house
-**Holt-Winters** demand forecast. The whole system runs as one process on one port:
+Tours built on **ASP.NET Core 10 (C#) + Vue 3 + TypeScript**, with an in-house
+**Holt-Winters** demand forecast. The whole system runs as one web process on one port:
 the .NET API serves the built Vue SPA.
+
+Application and test projects use .NET 10 pinned by `global.json`. The legacy
+`ProphetOps.Setup` installer intentionally remains `net8.0` and was left unchanged.
 
 The application and its detailed guide live in `dotnet/` — see **`dotnet/README.md`**.
 This file is the quick top-level reference.
@@ -11,7 +14,7 @@ This file is the quick top-level reference.
 ## Required tools
 
 ```text
-.NET 8 SDK        (dotnet --version prints 8.x)
+.NET 10 SDK       (pinned by global.json)
 Node.js 18+ and npm   (to build the SPA)
 Git
 ```
@@ -28,6 +31,8 @@ cd dotnet\client
 npm install
 npm run build
 cd ..
+$env:Storage__Root = (New-Item -ItemType Directory -Force .local-state).FullName
+$env:Business__TimeZone = "Asia/Manila"
 dotnet run --project ProphetOps.Api --urls http://localhost:5099
 ```
 
@@ -37,8 +42,10 @@ Open:
 http://localhost:5099/login
 ```
 
-The SQLite database (`prophetops.db`) is created next to the running app on first launch
-and seeded automatically — there is no manual migration step.
+The SQLite database (`prophetops.db`) is created under `Storage__Root` on first launch,
+along with upload, backup and authentication-key folders. Migrations run automatically,
+but accounts and demonstration records are not created. Set up the first agency owner
+using the one-shot command in `dotnet/README.md`.
 
 ## Development (live reload)
 
@@ -46,6 +53,8 @@ Two terminals, only when editing the front end:
 
 ```powershell
 # Terminal 1 — API
+$env:Storage__Root = (New-Item -ItemType Directory -Force dotnet\.local-state).FullName
+$env:Business__TimeZone = "Asia/Manila"
 dotnet run --project dotnet\ProphetOps.Api --urls http://localhost:5099
 
 # Terminal 2 — SPA with hot reload (proxies /api to 5099)
@@ -72,9 +81,24 @@ cd dotnet
 ```
 
 Produces a self-contained win-x64 build (no .NET install needed on the target). See
-`dotnet/README.md` for Windows Service installation and LAN / HTTPS / VPN notes.
+`dotnet/README.md` for the legacy/local Windows Service release path, LAN / HTTPS
+notes, and the separate planned hosted-container path. The hosted access layer,
+domain, backup storage and production cutover are not provisioned by this quickstart.
 
-## Demo accounts (seeded)
+## Demo accounts (explicit development mode)
+
+For a demonstration only, enable the following before starting the API against an empty
+development database. Production rejects this setting, and existing records are left alone.
+
+```powershell
+$env:ASPNETCORE_ENVIRONMENT = "Development"
+$env:Demo__Enabled = "true"
+$env:Storage__Root = (New-Item -ItemType Directory -Force dotnet\.local-state-demo).FullName
+$env:Business__TimeZone = "Asia/Manila"
+```
+
+Remove `Demo__Enabled` from the terminal environment when finished. Do not enable it for
+an agency installation.
 
 ```text
 owner@prophetops.local / owner123      Owner / Management — full access

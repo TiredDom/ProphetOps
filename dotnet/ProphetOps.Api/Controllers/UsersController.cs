@@ -9,6 +9,7 @@ namespace ProphetOps.Api.Controllers;
 [ApiController]
 [Route("api/users")]
 [Authorize(Policy = "Users")]
+[ServiceFilter(typeof(MutationTransaction))]
 public class UsersController : ControllerBase
 {
     private readonly AppDbContext _db;
@@ -40,6 +41,8 @@ public class UsersController : ControllerBase
         };
 
         _db.Users.Add(user);
+        AuditLog.Record(_db, User, AuditLog.Created, "User", user.Email,
+            $"{user.Name}, {user.Role}, {user.Status}");
         _db.SaveChanges();
 
         return Ok(Dto(user));
@@ -74,12 +77,25 @@ public class UsersController : ControllerBase
                 return BadRequest(new Dictionary<string, string> { ["role"] = "Keep at least one active owner account." });
         }
 
+        var passwordChanged = !string.IsNullOrWhiteSpace(request.Password);
+        var before = (user.Name, user.Role, user.Status);
+        if (request.Role != user.Role || nextStatus != user.Status || passwordChanged)
+            user.SessionVersion = checked(user.SessionVersion + 1);
+
         user.Name = request.Name!.Trim();
         user.Role = request.Role!;
         user.Status = nextStatus;
-        if (!string.IsNullOrWhiteSpace(request.Password))
+        if (passwordChanged)
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
 
+        var changed = AuditLog.Difference(
+            ("Name", before.Name, user.Name),
+            ("Role", before.Role, user.Role),
+            ("Status", before.Status, user.Status));
+        if (passwordChanged)
+            changed = string.IsNullOrWhiteSpace(changed) ? "Password reset" : changed + "; Password reset";
+        if (changed is not null)
+            AuditLog.Record(_db, User, AuditLog.Updated, "User", user.Email, changed);
         _db.SaveChanges();
 
         return Ok(Dto(user));

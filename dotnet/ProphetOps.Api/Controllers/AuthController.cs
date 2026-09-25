@@ -14,11 +14,13 @@ public class AuthController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly SignInThrottle _throttle;
+    private readonly MaintenanceGate _maintenance;
 
-    public AuthController(AppDbContext db, SignInThrottle throttle)
+    public AuthController(AppDbContext db, SignInThrottle throttle, MaintenanceGate maintenance)
     {
         _db = db;
         _throttle = throttle;
+        _maintenance = maintenance;
     }
 
     [HttpPost("login")]
@@ -46,6 +48,17 @@ public class AuthController : ControllerBase
                 : Unauthorized(new { message = "Use an authorized internal account." });
         }
 
+        if (!CloudflareAccessLogin.MatchesAccessEmail(HttpContext, user.Email))
+            return Unauthorized(new { message = "Use an authorized internal account." });
+
+        var admission = _maintenance.TryEnterMutation();
+        if (!admission.Allowed)
+        {
+            Response.Headers.RetryAfter = MaintenanceGate.RetryAfterSeconds.ToString();
+            return MaintenanceGate.RetryableResult();
+        }
+        using var maintenanceLease = admission.Lease!;
+
         _throttle.RecordSuccess(email, address);
 
         user.LastLoginAt = DateTime.UtcNow;
@@ -57,6 +70,7 @@ public class AuthController : ControllerBase
             new(ClaimTypes.Name, user.Name),
             new(ClaimTypes.Email, user.Email),
             new(ClaimTypes.Role, user.Role),
+            new(StaffCookieEvents.SessionVersionClaim, user.SessionVersion.ToString(System.Globalization.CultureInfo.InvariantCulture)),
         };
 
         var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);

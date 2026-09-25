@@ -119,9 +119,11 @@ public class ExportApiTests : IDisposable
         var client = await SignedIn();
 
         var listing = await client.GetFromJsonAsync<JsonElement>("/api/bookings");
-        var code = listing.GetProperty("bookings")[0].GetProperty("id").GetString()!;
+        var row = listing.GetProperty("bookings")[0];
+        var code = row.GetProperty("id").GetString()!;
+        var revision = row.GetProperty("revision").GetInt32();
 
-        var voided = await client.PostAsJsonAsync($"/api/bookings/{code}/void", new { reason = "Double entry" });
+        var voided = await client.PostAsJsonAsync($"/api/bookings/{code}/void", new { reason = "Double entry", revision });
         voided.EnsureSuccessStatusCode();
 
         var (_, text, _) = await Fetch(client, "/api/export/bookings.csv");

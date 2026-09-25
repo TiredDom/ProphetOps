@@ -1,0 +1,57 @@
+services:
+  - type: web
+    name: prophetops
+    runtime: docker
+    dockerfilePath: ./dotnet/Dockerfile
+    dockerContext: ./dotnet
+    plan: starter
+    autoDeploy: false
+    numInstances: 1
+    healthCheckPath: /health/live
+    disk:
+      name: prophetops-data
+      mountPath: /app/storage
+      sizeGB: 1
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: Hosted__Enabled
+        value: "true"
+      - key: Storage__Root
+        value: /app/storage
+      - key: Business__TimeZone
+        sync: false
+      - key: Bootstrap__Owner__Enabled
+        value: "false"
+      - key: CloudflareAccess__Enabled
+        value: "true"
+      - key: CloudflareAccess__Issuer
+        sync: false
+      - key: CloudflareAccess__Audience
+        sync: false
+      - key: CloudflareAccess__JwksUrl
+        sync: false
+      - key: Backup__Scheduled__Enabled
+        value: "true"
+      - key: Backup__Storage
+        value: r2
+      - key: Backup__Keep
+        value: "7"
+      - key: Backup__IntervalHours
+        value: "24"
+      - key: Backup__Encryption__Key
+        sync: false
+      - key: Backup__Encryption__KeyId
+        sync: false
+      - key: Backup__S3__Endpoint
+        sync: false
+      - key: Backup__S3__Bucket
+        sync: false
+      - key: Backup__S3__Region
+        value: auto
+      - key: Backup__S3__AccessKeyId
+        sync: false
+      - key: Backup__S3__SecretAccessKey
+        sync: false
+      - key: Backup__S3__Prefix
+        value: prophetops/production/

@@ -3,6 +3,7 @@ namespace ProphetOps.Domain;
 public class Booking
 {
     public int Id { get; set; }
+    public int Revision { get; set; } = 1;
     public string Code { get; set; } = "";
     public DateOnly BookingDate { get; set; }
     public int PassengerCount { get; set; }

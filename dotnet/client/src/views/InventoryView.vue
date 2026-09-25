@@ -361,6 +361,10 @@ import { api, ApiError, type PackageImportPreview, type PackageRow, type Package
 import { count, peso } from '../format';
 import MoneyField from '../components/MoneyField.vue';
 
+type PackageRecovery =
+  | { kind: 'create'; payload: PackageInput }
+  | { kind: 'stale-edit'; message: string };
+
 const toast = useToast();
 
 const packages = ref<PackageRow[]>([]);
@@ -370,6 +374,9 @@ const showForm = ref(false);
 const saving = ref(false);
 const formError = ref('');
 const editingCode = ref<string | null>(null);
+const pendingRecovery = ref<PackageRecovery | null>(null);
+const createRecoveryError = 'Could not confirm whether this package was saved. Check your connection, then try again before changing this form.';
+const staleRecoveryError = 'Could not reload the latest package after a conflict. Check your connection, then try again before saving.';
 
 const form = reactive<PackageInput>(blank());
 
@@ -417,27 +424,50 @@ const editingImage = computed(
   () => packages.value.find((p) => p.id === editingCode.value)?.imageUrl ?? null,
 );
 
+const editingPackage = computed(
+  () => packages.value.find((p) => p.id === editingCode.value) ?? null,
+);
+
 function replaceRow(updated: PackageRow) {
   const index = packages.value.findIndex((p) => p.id === updated.id);
   if (index >= 0) packages.value[index] = updated;
+}
+
+function replaceRowAndAdvanceDraft(updated: PackageRow, requestRevision: number) {
+  replaceRow(updated);
+  if (editingCode.value === updated.id && form.revision === requestRevision) {
+    form.revision = updated.revision;
+  }
+}
+
+function conflictMessage(error: ApiError, noun: string): string {
+  if (error.status !== 409) return Object.values(error.fields)[0] ?? error.message;
+  if (error.code === 'stale_revision' || error.code === 'write_conflict') {
+    return `This ${noun} changed while you were working. Review the refreshed record before saving again.`;
+  }
+  return Object.values(error.fields)[0] ?? error.message;
 }
 
 async function pickImage(event: Event) {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
   const code = editingCode.value;
+  const revision = form.revision;
   input.value = '';
-  if (!file || !code) return;
+  if (!file || !code || revision == null) return;
 
   imageError.value = '';
   imageBusy.value = true;
   try {
-    replaceRow(await api.uploadPackageImage(code, file));
+    replaceRowAndAdvanceDraft(await api.uploadPackageImage(code, file, revision), revision);
     toast.success('Photo updated.');
   } catch (error) {
+    if (error instanceof ApiError && error.status === 409) {
+      await refreshOpenPackageAfterConflict(conflictMessage(error, 'package'));
+    }
     imageError.value =
       error instanceof ApiError
-        ? error.fields.image ?? error.message
+        ? error.fields.image ?? conflictMessage(error, 'package')
         : 'Could not upload that photo.';
   } finally {
     imageBusy.value = false;
@@ -446,15 +476,19 @@ async function pickImage(event: Event) {
 
 async function dropImage() {
   const code = editingCode.value;
-  if (!code) return;
+  const revision = form.revision;
+  if (!code || revision == null) return;
 
   imageError.value = '';
   imageBusy.value = true;
   try {
-    replaceRow(await api.removePackageImage(code));
+    replaceRowAndAdvanceDraft(await api.removePackageImage(code, revision), revision);
     toast.success('Photo removed.');
-  } catch {
-    imageError.value = 'Could not remove that photo.';
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 409) {
+      await refreshOpenPackageAfterConflict(conflictMessage(error, 'package'));
+    }
+    imageError.value = error instanceof ApiError ? conflictMessage(error, 'package') : 'Could not remove that photo.';
   } finally {
     imageBusy.value = false;
   }
@@ -490,6 +524,7 @@ function blank(): PackageInput {
     soldCount: 0,
     reservedCount: 0,
     status: 'Normal',
+    revision: null,
   };
 }
 
@@ -499,10 +534,11 @@ function openForm() {
   editingCode.value = null;
   formError.value = '';
   imageError.value = '';
+  pendingRecovery.value = null;
   showForm.value = true;
 }
 
-function openEdit(p: PackageRow) {
+function loadPackageIntoForm(p: PackageRow) {
   Object.assign(form, {
     id: p.id,
     packageName: p.packageName,
@@ -514,10 +550,16 @@ function openEdit(p: PackageRow) {
     soldCount: p.soldCount,
     reservedCount: p.reservedCount,
     status: p.status,
+    revision: p.revision,
   });
+}
+
+function openEdit(p: PackageRow) {
+  loadPackageIntoForm(p);
   editingCode.value = p.id;
   formError.value = '';
   imageError.value = '';
+  pendingRecovery.value = null;
   showForm.value = true;
 }
 
@@ -579,10 +621,14 @@ async function commitImport() {
   }
 }
 
-async function load() {
+async function load(showErrorToast = true): Promise<boolean> {
   loading.value = true;
   try {
     packages.value = await api.packages();
+    return true;
+  } catch {
+    if (showErrorToast) toast.error('We could not load the packages. Please refresh and try again.');
+    return false;
   } finally {
     loading.value = false;
   }
@@ -590,26 +636,127 @@ async function load() {
 
 async function save() {
   if (saving.value) return;
+  if (pendingRecovery.value) {
+    formError.value = '';
+    saving.value = true;
+    try {
+      await continuePendingRecovery();
+    } finally {
+      saving.value = false;
+    }
+    return;
+  }
   formError.value = '';
   saving.value = true;
   const wasEditing = editingCode.value !== null;
   const name = form.packageName || 'Package';
+  const payload: PackageInput = { ...form };
   try {
     if (editingCode.value) {
-      await api.updatePackage(editingCode.value, { ...form });
+      await api.updatePackage(editingCode.value, payload);
     } else {
-      await api.createPackage({ ...form });
+      await api.createPackage(payload);
     }
     await load();
+    pendingRecovery.value = null;
     showForm.value = false;
     toast.success(wasEditing ? `${name} updated` : `Package ${name} added`);
   } catch (e) {
-    const message = e instanceof ApiError ? Object.values(e.fields)[0] ?? e.message : 'Could not save the package.';
+    if (!wasEditing && (!(e instanceof ApiError) || e.status >= 500 || e.status === 409)) {
+      if (await recoverCreatedPackage(payload, e)) return;
+    }
+    if (e instanceof ApiError && e.status === 409) {
+      const message = conflictMessage(e, 'package');
+      if (editingCode.value && (e.code === 'stale_revision' || e.code === 'write_conflict')) {
+        if (await refreshOpenPackageAfterConflict(message)) return;
+      }
+      await load();
+    }
+    const message = e instanceof ApiError ? conflictMessage(e, 'package') : 'Could not save the package.';
     formError.value = message;
-    toast.error(message);
   } finally {
     saving.value = false;
   }
+}
+
+function samePackage(saved: PackageRow, submitted: PackageInput): boolean {
+  return saved.id === submitted.id
+    && saved.packageName === submitted.packageName
+    && saved.destination === submitted.destination
+    && (saved.duration ?? '') === (submitted.duration ?? '')
+    && saved.basePrice === submitted.basePrice
+    && (saved.inclusions ?? '') === (submitted.inclusions ?? '')
+    && saved.availableSlots === submitted.availableSlots
+    && saved.soldCount === submitted.soldCount
+    && saved.reservedCount === submitted.reservedCount
+    && saved.status === submitted.status;
+}
+
+function applyCreatedPackageRecovery(payload: PackageInput): boolean {
+  const saved = packages.value.find((p) => p.id === payload.id);
+  if (!saved) return false;
+
+  imageError.value = '';
+  if (samePackage(saved, payload)) {
+    showForm.value = false;
+    toast.success(`Package ${saved.packageName} added`);
+    return true;
+  }
+
+  loadPackageIntoForm(saved);
+  editingCode.value = saved.id;
+  const message = 'A package with this code is already saved with different details. Review the saved package before changing it.';
+  formError.value = message;
+  return true;
+}
+
+async function recoverCreatedPackage(payload: PackageInput, error: unknown): Promise<boolean> {
+  if (!await load(false)) {
+    pendingRecovery.value = { kind: 'create', payload };
+    formError.value = createRecoveryError;
+    return true;
+  }
+  return applyCreatedPackageRecovery(payload);
+}
+
+function applyPackageConflictRefresh(message: string): boolean {
+  const saved = editingPackage.value;
+  if (!saved) return false;
+
+  loadPackageIntoForm(saved);
+  imageError.value = '';
+  formError.value = message;
+  return true;
+}
+
+async function refreshOpenPackageAfterConflict(message: string): Promise<boolean> {
+  if (!await load(false)) {
+    pendingRecovery.value = { kind: 'stale-edit', message };
+    formError.value = staleRecoveryError;
+    return true;
+  }
+  return applyPackageConflictRefresh(message);
+}
+
+async function continuePendingRecovery(): Promise<boolean> {
+  const pending = pendingRecovery.value;
+  if (!pending) return false;
+
+  if (!await load(false)) {
+    formError.value = pending.kind === 'create' ? createRecoveryError : staleRecoveryError;
+    return true;
+  }
+
+  pendingRecovery.value = null;
+  if (pending.kind === 'create') {
+    if (applyCreatedPackageRecovery(pending.payload)) return true;
+    formError.value = 'The package was not found after reloading. Review the draft, then save again if it still needs to be created.';
+    return true;
+  }
+
+  if (applyPackageConflictRefresh(pending.message)) return true;
+  formError.value = 'The package was not found after reloading. Refresh the page before making another change.';
+  return true;
 }
 
 onMounted(load);

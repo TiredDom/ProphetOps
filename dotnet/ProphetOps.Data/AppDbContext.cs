@@ -13,11 +13,36 @@ public class AppDbContext : DbContext
     public DbSet<Expense> Expenses => Set<Expense>();
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
 
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        AdvanceRevisions();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        AdvanceRevisions();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    private void AdvanceRevisions()
+    {
+        foreach (var entry in ChangeTracker.Entries().Where(e => e.State == EntityState.Modified
+            && (e.Entity is Booking || e.Entity is TravelPackage)))
+        {
+            var revision = entry.Property("Revision");
+            revision.CurrentValue = checked((int)revision.OriginalValue! + 1);
+        }
+    }
+
     protected override void OnModelCreating(ModelBuilder b)
     {
         b.Entity<User>().HasIndex(u => u.Email).IsUnique();
+        b.Entity<User>().Property(u => u.SessionVersion).HasDefaultValue(1);
 
         b.Entity<TravelPackage>().HasIndex(p => p.Code).IsUnique();
+        b.Entity<TravelPackage>().Property(p => p.Revision).IsConcurrencyToken().HasDefaultValue(1);
+        b.Entity<Booking>().Property(p => p.Revision).IsConcurrencyToken().HasDefaultValue(1);
 
         b.Entity<Booking>(e =>
         {

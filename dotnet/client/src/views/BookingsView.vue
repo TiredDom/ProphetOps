@@ -365,6 +365,9 @@ import MoneyField from '../components/MoneyField.vue';
 
 type BookingMode = 'package' | 'custom';
 type BookingForm = BookingInput & { mode: BookingMode };
+type BookingRecovery =
+  | { kind: 'create'; payload: BookingInput }
+  | { kind: 'stale-edit'; message: string };
 
 const toast = useToast();
 
@@ -397,6 +400,9 @@ const askVoid = ref(false);
 const voiding = ref(false);
 const voidReason = ref('');
 const voidError = ref('');
+const pendingRecovery = ref<BookingRecovery | null>(null);
+const createRecoveryError = 'Could not confirm whether this booking was saved. Check your connection, then try again before changing this form.';
+const staleRecoveryError = 'Could not reload the latest booking after a conflict. Check your connection, then try again before saving.';
 const editingVoided = computed(
   () => bookings.value.find((b) => b.id === originalCode.value)?.voided ?? false,
 );
@@ -405,6 +411,8 @@ const query = ref('');
 const paymentOptions = ['All', 'Paid', 'Partially Paid', 'Pending'];
 const paymentFilter = ref('All');
 
+const businessToday = ref('');
+const businessDateError = 'Could not load the business date. Refresh and try again.';
 const form = reactive<BookingForm>(blank());
 
 const totalPassengers = computed(() => bookings.value.reduce((sum, b) => sum + b.y, 0));
@@ -444,7 +452,7 @@ function isTailored(b: Booking): boolean {
 function blank(): BookingForm {
   return {
     id: '',
-    ds: new Date().toISOString().slice(0, 10),
+    ds: businessToday.value,
     y: 1,
     client: '',
     package: '',
@@ -457,6 +465,7 @@ function blank(): BookingForm {
     staffAssigned: 'Staff User',
     source: 'Package preset',
     notes: '',
+    revision: null,
     mode: 'package',
   };
 }
@@ -488,6 +497,11 @@ function setMode(next: BookingMode) {
 }
 
 function openForm() {
+  if (!businessToday.value) {
+    formError.value = businessDateError;
+    toast.error(businessDateError);
+    return;
+  }
   Object.assign(form, blank());
   form.id = 'BKG-' + (2400 + bookings.value.length + 1);
   form.packageId = packages.value[0]?.id ?? null;
@@ -501,10 +515,11 @@ function openForm() {
   askVoid.value = false;
   voidReason.value = '';
   voidError.value = '';
+  pendingRecovery.value = null;
   showForm.value = true;
 }
 
-function openEdit(b: Booking) {
+function loadBookingIntoForm(b: Booking) {
   Object.assign(form, {
     id: b.id,
     ds: b.ds,
@@ -520,8 +535,13 @@ function openEdit(b: Booking) {
     staffAssigned: b.staffAssigned,
     source: b.source,
     notes: b.notes ?? '',
+    revision: b.revision,
     mode: b.packageId == null ? 'custom' : 'package',
   } satisfies BookingForm);
+}
+
+function openEdit(b: Booking) {
+  loadBookingIntoForm(b);
   editing.value = true;
   originalCode.value = b.id;
   drawerTitle.value = 'Edit booking';
@@ -531,6 +551,7 @@ function openEdit(b: Booking) {
   askVoid.value = false;
   voidReason.value = '';
   voidError.value = '';
+  pendingRecovery.value = null;
   showForm.value = true;
 }
 
@@ -543,13 +564,20 @@ function validate(): string | null {
   return null;
 }
 
-async function load() {
+async function load(showErrorToast = true): Promise<boolean> {
   try {
+    const config = await api.appConfig();
+    businessToday.value = config.today;
     const payload = await api.bookings();
     bookings.value = payload.bookings;
     packages.value = payload.packages;
+    return true;
   } catch {
-    toast.error('We could not load the bookings. Please refresh and try again.');
+    if (showErrorToast) {
+      if (!businessToday.value) toast.error(businessDateError);
+      toast.error('We could not load the bookings. Please refresh and try again.');
+    }
+    return false;
   } finally {
     loading.value = false;
   }
@@ -600,18 +628,21 @@ async function commitImport() {
 
 async function confirmVoid() {
   if (voiding.value || !voidReason.value) return;
+  if (form.revision == null) {
+    voidError.value = 'Reload this booking before voiding it.';
+    return;
+  }
   voiding.value = true;
   voidError.value = '';
   try {
-    await api.voidBooking(originalCode.value, voidReason.value);
+    await api.voidBooking(originalCode.value, voidReason.value, form.revision);
     await load();
     askVoid.value = false;
     showForm.value = false;
     toast.success('Booking ' + originalCode.value + ' voided');
   } catch (e) {
-    voidError.value = e instanceof ApiError
-      ? Object.values(e.fields)[0] ?? e.message
-      : 'Could not void the booking.';
+    if (e instanceof ApiError && e.status === 409) await load();
+    voidError.value = e instanceof ApiError ? conflictMessage(e, 'booking') : 'Could not void the booking.';
   } finally {
     voiding.value = false;
   }
@@ -619,17 +650,131 @@ async function confirmVoid() {
 
 async function restore(b: Booking) {
   try {
-    await api.restoreBooking(b.id);
+    await api.restoreBooking(b.id, b.revision);
     await load();
     toast.success('Booking ' + b.id + ' restored');
   } catch (e) {
-    const message = e instanceof ApiError ? Object.values(e.fields)[0] ?? e.message : 'Could not restore the booking.';
+    if (e instanceof ApiError && e.status === 409) await load();
+    const message = e instanceof ApiError ? conflictMessage(e, 'booking') : 'Could not restore the booking.';
     toast.error(message);
   }
 }
 
+function conflictMessage(error: ApiError, noun: string): string {
+  if (error.status !== 409) return Object.values(error.fields)[0] ?? error.message;
+  if (error.code === 'duplicate_code') return error.message;
+  if (error.code === 'stale_revision' || error.code === 'write_conflict') {
+    return `This ${noun} changed while you were working. Review the refreshed record before saving again.`;
+  }
+  return Object.values(error.fields)[0] ?? error.message;
+}
+
+function sameBooking(saved: Booking, submitted: BookingInput): boolean {
+  return saved.id === submitted.id
+    && saved.ds === submitted.ds
+    && saved.y === submitted.y
+    && saved.client === submitted.client
+    && saved.package === submitted.package
+    && saved.packageId === submitted.packageId
+    && saved.entryType === submitted.entryType
+    && saved.destination === submitted.destination
+    && saved.grossRevenue === submitted.grossRevenue
+    && saved.paymentStatus === submitted.paymentStatus
+    && saved.bookingStatus === submitted.bookingStatus
+    && (saved.staffAssigned ?? '') === (submitted.staffAssigned ?? '')
+    && saved.source === submitted.source
+    && (saved.notes ?? '') === (submitted.notes ?? '');
+}
+
+function applyCreatedBookingRecovery(payload: BookingInput): boolean {
+  const saved = bookings.value.find((b) => b.id === payload.id);
+  if (!saved) return false;
+
+  unusualWarning.value = '';
+  confirmUnusual.value = false;
+  if (sameBooking(saved, payload)) {
+    showForm.value = false;
+    toast.success('Booking ' + saved.id + ' saved');
+    return true;
+  }
+
+  loadBookingIntoForm(saved);
+  editing.value = true;
+  originalCode.value = saved.id;
+  drawerTitle.value = 'Edit booking';
+  askVoid.value = false;
+  voidReason.value = '';
+  voidError.value = '';
+  const message = 'A booking with this ID is already saved with different details. Review the saved booking before changing it.';
+  formError.value = message;
+  return true;
+}
+
+async function recoverCreatedBooking(payload: BookingInput, error: unknown): Promise<boolean> {
+  if (!await load(false)) {
+    pendingRecovery.value = { kind: 'create', payload };
+    formError.value = createRecoveryError;
+    return true;
+  }
+  return applyCreatedBookingRecovery(payload);
+}
+
+function applyBookingConflictRefresh(message: string): boolean {
+  const saved = bookings.value.find((b) => b.id === originalCode.value);
+  if (!saved) return false;
+
+  loadBookingIntoForm(saved);
+  unusualWarning.value = '';
+  confirmUnusual.value = false;
+  askVoid.value = false;
+  voidReason.value = '';
+  voidError.value = '';
+  formError.value = message;
+  return true;
+}
+
+async function refreshOpenBookingAfterConflict(message: string): Promise<boolean> {
+  if (!await load(false)) {
+    pendingRecovery.value = { kind: 'stale-edit', message };
+    formError.value = staleRecoveryError;
+    return true;
+  }
+  return applyBookingConflictRefresh(message);
+}
+
+async function continuePendingRecovery(): Promise<boolean> {
+  const pending = pendingRecovery.value;
+  if (!pending) return false;
+
+  if (!await load(false)) {
+    formError.value = pending.kind === 'create' ? createRecoveryError : staleRecoveryError;
+    return true;
+  }
+
+  pendingRecovery.value = null;
+  if (pending.kind === 'create') {
+    if (applyCreatedBookingRecovery(pending.payload)) return true;
+    formError.value = 'The booking was not found after reloading. Review the draft, then save again if it still needs to be created.';
+    return true;
+  }
+
+  if (applyBookingConflictRefresh(pending.message)) return true;
+  formError.value = 'The booking was not found after reloading. Refresh the page before making another change.';
+  return true;
+}
+
 async function save() {
   if (saving.value) return;
+  if (pendingRecovery.value) {
+    formError.value = '';
+    saving.value = true;
+    try {
+      await continuePendingRecovery();
+    } finally {
+      saving.value = false;
+    }
+    return;
+  }
   const problem = validate();
   if (problem) {
     formError.value = problem;
@@ -652,27 +797,36 @@ async function save() {
     staffAssigned: form.staffAssigned,
     source: form.source,
     notes: form.notes,
+    revision: form.revision,
     confirmUnusual: confirmUnusual.value,
   };
   try {
     if (editing.value) await api.updateBooking(originalCode.value, payload);
     else await api.createBooking(payload);
     await load();
+    pendingRecovery.value = null;
     showForm.value = false;
     confirmUnusual.value = false;
     unusualWarning.value = '';
     toast.success('Booking ' + payload.id + ' saved');
   } catch (e) {
-    // 409 is the server asking whether an unusually large figure was meant, not a refusal.
-    if (e instanceof ApiError && e.status === 409) {
+    if (e instanceof ApiError && e.status === 409 && e.code === 'unusual_revenue') {
       unusualWarning.value = e.message;
       confirmUnusual.value = true;
       saving.value = false;
       return;
     }
-    const message = e instanceof ApiError ? Object.values(e.fields)[0] ?? e.message : 'Could not save the booking.';
+    if (!editing.value && (!(e instanceof ApiError) || e.status >= 500 || e.status === 409)) {
+      if (await recoverCreatedBooking(payload, e)) return;
+    }
+    if (e instanceof ApiError && e.status === 409) {
+      const message = conflictMessage(e, 'booking');
+      if (editing.value && (e.code === 'stale_revision' || e.code === 'write_conflict')
+        && await refreshOpenBookingAfterConflict(message)) return;
+      await load();
+    }
+    const message = e instanceof ApiError ? conflictMessage(e, 'booking') : 'Could not save the booking.';
     formError.value = message;
-    toast.error(message);
   } finally {
     saving.value = false;
   }

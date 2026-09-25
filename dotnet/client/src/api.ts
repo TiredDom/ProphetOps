@@ -5,9 +5,16 @@ export interface AuthUser {
   defaultPath: string;
 }
 
+export interface AppConfig {
+  today: string;
+  timeZone: string;
+}
+
 export interface DashboardForecast {
   method: string;
   horizon: number;
+  ok: boolean;
+  status: 'live' | 'sample' | 'insufficient-history';
   accuracy: number;
   mape: number;
   nextValue: number;
@@ -15,6 +22,7 @@ export interface DashboardForecast {
   changePercent: number;
   peakMonth: string;
   peakValue: number;
+  dataSource: ForecastDataSource;
 }
 
 export interface LowStockPackage {
@@ -42,6 +50,8 @@ export interface RecentBooking {
 }
 
 export interface DashboardData {
+  totalsScope: 'lifetime';
+  excludesVoided: true;
   revenue: number;
   costs: number;
   estimatedProfit: number;
@@ -58,6 +68,7 @@ export interface DashboardData {
 export interface Booking {
   id: string;
   backendId: number;
+  revision: number;
   ds: string;
   y: number;
   client: string;
@@ -141,6 +152,8 @@ export interface ActivityEntry {
 
 export interface PackageOption {
   id: string;
+  backendId: number;
+  revision: number;
   packageName: string;
   destination: string;
   basePrice: number;
@@ -153,11 +166,15 @@ export interface BookingsPayload {
   packages: PackageOption[];
 }
 
-export type BookingInput = Omit<Booking, 'backendId'> & { confirmUnusual?: boolean };
+export type BookingInput = Omit<Booking, 'backendId' | 'revision' | 'voided' | 'voidReason'> & {
+  revision?: number | null;
+  confirmUnusual?: boolean;
+};
 
 export interface PackageRow {
   id: string;
   backendId: number;
+  revision: number;
   packageName: string;
   destination: string;
   duration: string | null;
@@ -172,6 +189,7 @@ export interface PackageRow {
 
 export interface PackageInput {
   id: string;
+  revision?: number | null;
   packageName: string;
   destination: string;
   duration: string | null;
@@ -211,8 +229,25 @@ export interface AnalyticsPoint {
   value: number;
 }
 
+export interface MonthlyActualPoint extends AnalyticsPoint {
+  month: string;
+  bookingCount: number;
+  passengerCount: number;
+}
+
+export interface ActualsChartWindow {
+  fromMonth: string;
+  throughMonth: string;
+  revenuePhp: number;
+  bookingCount: number;
+  passengerCount: number;
+}
+
 export interface AnalyticsData {
-  salesHistory: AnalyticsPoint[];
+  totalsScope: 'lifetime';
+  excludesVoided: true;
+  chartWindow: ActualsChartWindow;
+  salesHistory: MonthlyActualPoint[];
   packageMix: AnalyticsPoint[];
   paymentBreakdown: AnalyticsPoint[];
   revenueByDestination: AnalyticsPoint[];
@@ -268,11 +303,15 @@ export interface ForecastInsight {
 }
 
 export interface ForecastDataSource {
+  status: 'live' | 'sample' | 'insufficient-history';
   usingLiveRecords: boolean;
+  usingSample: boolean;
+  label: string;
   liveMonthsAvailable: number;
   recordedMonths: number;
   minimumMonths: number;
   filledMonths: number;
+  lastRecordedMonth: string | null;
 }
 
 export interface ForecastData {
@@ -303,6 +342,8 @@ export interface ReportCounts {
 }
 
 export interface ReportsData {
+  totalsScope: 'lifetime';
+  excludesVoided: true;
   revenue: number;
   costs: number;
   profit: number;
@@ -336,11 +377,13 @@ export interface RoleOption {
 
 export class ApiError extends Error {
   status: number;
+  code?: string;
   fields: Record<string, string>;
-  constructor(status: number, message: string, fields: Record<string, string> = {}) {
+  constructor(status: number, message: string, fields: Record<string, string> = {}, code?: string) {
     super(message);
     this.status = status;
     this.fields = fields;
+    this.code = code;
   }
 }
 
@@ -353,14 +396,23 @@ async function unwrap<T>(response: Response): Promise<T> {
   if (!response.ok) {
     let message = 'Request failed.';
     let fields: Record<string, string> = {};
+    let code: string | undefined;
     try {
       const data = await response.json();
-      if (data && typeof data.message === 'string') message = data.message;
-      else if (data && typeof data === 'object') fields = data as Record<string, string>;
+      if (data && typeof data === 'object') {
+        const record = data as Record<string, unknown>;
+        if (typeof record.code === 'string') code = record.code;
+        if (typeof record.message === 'string') message = record.message;
+        fields = Object.fromEntries(
+          Object.entries(record).filter(
+            ([key, value]) => key !== 'code' && key !== 'message' && typeof value === 'string',
+          ),
+        ) as Record<string, string>;
+      }
     } catch {
       message = response.statusText;
     }
-    throw new ApiError(response.status, message, fields);
+    throw new ApiError(response.status, message, fields, code);
   }
 
   if (response.status === 204) return undefined as T;
@@ -400,6 +452,7 @@ async function upload<T>(url: string, file: File, fields?: Record<string, string
 }
 
 export const api = {
+  appConfig: () => request<AppConfig>('GET', '/api/app/config'),
   login: (email: string, password: string) =>
     request<AuthUser>('POST', '/api/auth/login', { email, password }),
   logout: () => request<void>('POST', '/api/auth/logout'),
@@ -409,10 +462,10 @@ export const api = {
   createBooking: (input: BookingInput) => request<Booking>('POST', '/api/bookings', input),
   updateBooking: (code: string, input: BookingInput) =>
     request<Booking>('PUT', `/api/bookings/${code}`, input),
-  voidBooking: (code: string, reason: string) =>
-    request<Booking>('POST', `/api/bookings/${encodeURIComponent(code)}/void`, { reason }),
-  restoreBooking: (code: string) =>
-    request<Booking>('POST', `/api/bookings/${encodeURIComponent(code)}/restore`, {}),
+  voidBooking: (code: string, reason: string, revision: number) =>
+    request<Booking>('POST', `/api/bookings/${encodeURIComponent(code)}/void`, { reason, revision }),
+  restoreBooking: (code: string, revision: number) =>
+    request<Booking>('POST', `/api/bookings/${encodeURIComponent(code)}/restore`, { revision }),
   voidExpense: (code: string, reason: string) =>
     request<ExpenseRow>('POST', `/api/expenses/${encodeURIComponent(code)}/void`, { reason }),
   restoreExpense: (code: string) =>
@@ -432,16 +485,16 @@ export const api = {
     upload<PackageImportPreview>('/api/import/packages/preview', file),
   importPackagesCommit: (file: File) =>
     upload<PackageImportResult>('/api/import/packages/commit', file, { confirm: 'true' }),
-  bulkBookings: (ids: string[], action: 'confirm' | 'paid') =>
-    request<{ updated: number }>('POST', '/api/bookings/bulk', { ids, action }),
+  bulkBookings: (ids: string[], action: 'confirm' | 'paid', revisions: Record<string, number>) =>
+    request<{ updated: number; bookings: Booking[] }>('POST', '/api/bookings/bulk', { ids, action, revisions }),
   packages: () => request<PackageRow[]>('GET', '/api/inventory'),
   createPackage: (input: PackageInput) => request<PackageRow>('POST', '/api/inventory', input),
   updatePackage: (code: string, input: PackageInput) =>
     request<PackageRow>('PUT', `/api/inventory/${code}`, input),
-  uploadPackageImage: (code: string, file: File) =>
-    upload<PackageRow>(`/api/inventory/${encodeURIComponent(code)}/image`, file),
-  removePackageImage: (code: string) =>
-    request<PackageRow>('DELETE', `/api/inventory/${encodeURIComponent(code)}/image`),
+  uploadPackageImage: (code: string, file: File, revision: number) =>
+    upload<PackageRow>(`/api/inventory/${encodeURIComponent(code)}/image`, file, { revision: String(revision) }),
+  removePackageImage: (code: string, revision: number) =>
+    request<PackageRow>('DELETE', `/api/inventory/${encodeURIComponent(code)}/image`, { revision }),
   expenses: () => request<ExpenseRow[]>('GET', '/api/expenses'),
   createExpense: (input: ExpenseInput) => request<ExpenseRow>('POST', '/api/expenses', input),
   updateExpense: (code: string, input: ExpenseInput) =>

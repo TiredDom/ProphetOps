@@ -19,8 +19,8 @@ public class ReportsController : ControllerBase
         var bookings = _db.Bookings.Where(b => b.VoidedAt == null).ToList();
         var expenses = _db.Expenses.Where(e => e.VoidedAt == null).ToList();
 
-        var revenue = bookings.Sum(b => b.GrossRevenue);
-        var costs = expenses.Sum(e => e.Amount);
+        var revenue = bookings.Sum(b => (long)b.GrossRevenue);
+        var costs = expenses.Sum(e => (long)e.Amount);
 
         var bookingsByStatus = bookings
             .GroupBy(b => b.BookingStatus)
@@ -30,18 +30,20 @@ public class ReportsController : ControllerBase
 
         var expensesByCategory = expenses
             .GroupBy(e => e.Category)
-            .Select(g => new { label = g.Key, value = g.Sum(e => e.Amount) })
+            .Select(g => new { label = g.Key, value = g.Sum(e => (long)e.Amount) })
             .OrderByDescending(x => x.value)
             .ToList();
 
         var revenueByPackage = bookings
             .GroupBy(b => b.PackageName)
-            .Select(g => new { label = g.Key, value = g.Sum(b => b.GrossRevenue) })
+            .Select(g => new { label = g.Key, value = g.Sum(b => (long)b.GrossRevenue) })
             .OrderByDescending(x => x.value)
             .ToList();
 
         return Ok(new
         {
+            totalsScope = "lifetime",
+            excludesVoided = true,
             revenue,
             costs,
             profit = revenue - costs,
