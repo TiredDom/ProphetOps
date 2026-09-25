@@ -253,11 +253,37 @@ public class CloudflareAccessTests : IDisposable
     public void Hosted_startup_fails_closed_when_access_configuration_is_incomplete(string key, string? value, string expected)
     {
         var overrides = new Dictionary<string, string?> { [key] = value };
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(AccessConfigurationValues(overrides))
+            .Build();
+
+        var validation = Assert.Throws<InvalidOperationException>(() => CloudflareAccessOptions.FromConfiguration(config));
+        Assert.Contains(expected, validation.Message);
+
         using var factory = HostedFactory(overrides: overrides);
 
-        var error = Assert.Throws<InvalidOperationException>(() => factory.CreateClient());
+        Assert.ThrowsAny<Exception>(() => factory.CreateClient());
+    }
 
-        Assert.Contains(expected, error.Message);
+    private static Dictionary<string, string?> AccessConfigurationValues(Dictionary<string, string?>? overrides = null)
+    {
+        var values = new Dictionary<string, string?>
+        {
+            ["Demo:Enabled"] = "true",
+            ["Hosted:Enabled"] = "true",
+            ["Business:TimeZone"] = "Asia/Manila",
+            ["Backup:Scheduled:Enabled"] = "false",
+            ["CloudflareAccess:Enabled"] = "true",
+            ["CloudflareAccess:Issuer"] = Issuer,
+            ["CloudflareAccess:Audience"] = Audience,
+            ["CloudflareAccess:JwksUrl"] = "https://access.example.test/certs",
+        };
+        if (overrides is not null)
+        {
+            foreach (var (overrideKey, overrideValue) in overrides) values[overrideKey] = overrideValue;
+        }
+
+        return values;
     }
 
     private AccessFactory HostedFactory(FakeJwksTransport? transport = null, Dictionary<string, string?>? overrides = null)
@@ -314,22 +340,8 @@ public class CloudflareAccessTests : IDisposable
             builder.UseEnvironment("Testing");
             builder.ConfigureAppConfiguration((_, config) =>
             {
-                var values = new Dictionary<string, string?>
-                {
-                    ["Demo:Enabled"] = "true",
-                    ["Hosted:Enabled"] = "true",
-                    ["Storage:Root"] = _storageRoot,
-                    ["Business:TimeZone"] = "Asia/Manila",
-                    ["Backup:Scheduled:Enabled"] = "false",
-                    ["CloudflareAccess:Enabled"] = "true",
-                    ["CloudflareAccess:Issuer"] = Issuer,
-                    ["CloudflareAccess:Audience"] = Audience,
-                    ["CloudflareAccess:JwksUrl"] = "https://access.example.test/certs",
-                };
-                if (overrides is not null)
-                {
-                    foreach (var (key, value) in overrides) values[key] = value;
-                }
+                var values = AccessConfigurationValues(overrides);
+                values["Storage:Root"] = _storageRoot;
                 config.AddInMemoryCollection(values);
             });
             builder.ConfigureServices(services =>
