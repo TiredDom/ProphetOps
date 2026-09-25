@@ -48,7 +48,7 @@ public class DemandSeriesTests
         using var db = NewDb();
         FillMonths(db, new DateOnly(2026, 1, 1), 6);
 
-        var series = DemandSeriesBuilder.Build(db, new DateOnly(2026, 8, 15));
+        var series = DemandSeriesBuilder.Build(db, new DateOnly(2026, 8, 15), allowSampleFallback: true);
 
         Assert.False(series.UsingLiveRecords);
         Assert.Equal(6, series.LiveMonthsAvailable);
@@ -157,14 +157,14 @@ public class DemandSeriesTests
         using var db = NewDb();
         FillMonths(db, new DateOnly(2024, 1, 1), 23);
 
-        var justShort = DemandSeriesBuilder.Build(db, new DateOnly(2025, 12, 10));
+        var justShort = DemandSeriesBuilder.Build(db, new DateOnly(2025, 12, 10), allowSampleFallback: true);
         Assert.False(justShort.UsingLiveRecords);
         Assert.Equal(23, justShort.LiveMonthsAvailable);
 
         AddBooking(db, 2025, 12, 100000);
         db.SaveChanges();
 
-        var crossed = DemandSeriesBuilder.Build(db, new DateOnly(2026, 1, 10));
+        var crossed = DemandSeriesBuilder.Build(db, new DateOnly(2026, 1, 10), allowSampleFallback: true);
         Assert.True(crossed.UsingLiveRecords);
         Assert.Equal(24, crossed.LiveMonthsAvailable);
     }
@@ -231,5 +231,19 @@ public class DemandSeriesTests
         var series = DemandSeriesBuilder.Build(db, new DateOnly(2026, 1, 9));
 
         Assert.Equal(150000, series.Values[^1]);
+    }
+
+    [Fact]
+    public void Widens_monthly_revenue_before_summing_for_forecast_input()
+    {
+        using var db = NewDb();
+        FillMonths(db, new DateOnly(2024, 1, 1), 24, 100000);
+        AddBooking(db, 2025, 12, int.MaxValue);
+        AddBooking(db, 2025, 12, 1);
+        db.SaveChanges();
+
+        var series = DemandSeriesBuilder.Build(db, new DateOnly(2026, 1, 9));
+
+        Assert.Equal(2147583648d, series.Values[^1]);
     }
 }

@@ -97,6 +97,7 @@ public class UnusualBookingTests : IDisposable
             bookingStatus = "Confirmed",
             entryType = "Custom quotation",
             source = "Manual quotation",
+            revision = 1,
         });
 
         Assert.Equal(HttpStatusCode.OK, edited.StatusCode);

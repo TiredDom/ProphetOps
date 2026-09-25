@@ -12,15 +12,51 @@ namespace ProphetOps.Api.Controllers;
 public class ForecastController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly IBusinessClock _clock;
+    private readonly IConfiguration _configuration;
+    private readonly IHostEnvironment _environment;
 
-    public ForecastController(AppDbContext db) => _db = db;
+    public ForecastController(AppDbContext db, IBusinessClock clock, IConfiguration configuration, IHostEnvironment environment)
+    {
+        _db = db;
+        _clock = clock;
+        _configuration = configuration;
+        _environment = environment;
+    }
 
     [HttpGet]
     public IActionResult Get()
     {
-        var demand = DemandSeriesBuilder.Build(_db, DateOnly.FromDateTime(DateTime.Today));
+        var demand = DemandSeriesBuilder.Build(_db, _clock.Today, AllowSampleFallback());
         var anchor = demand.LastMonth;
         var series = demand.Values.ToList();
+
+        if (!demand.UsingLiveRecords && !demand.UsingSample)
+        {
+            return Ok(new
+            {
+                method = "Holt-Winters",
+                seasonLength = 12,
+                horizon = 6,
+                ok = false,
+                accuracy = 0,
+                @params = new { alpha = 0, beta = 0, gamma = 0 },
+                metrics = new { mae = 0, rmse = 0, mape = 0, sampleSize = 0 },
+                baselines = new { seasonalNaiveMae = 0, naiveMae = 0 },
+                insight = new
+                {
+                    direction = "flat",
+                    changePercent = 0,
+                    peakMonth = "",
+                    peakValue = 0,
+                    notes = Array.Empty<object>(),
+                },
+                dataSource = DataSource(demand),
+                history = Array.Empty<object>(),
+                steps = Array.Empty<object>(),
+            });
+        }
+
         var forecast = HoltWintersForecaster.Forecast(series, DemandSeriesBuilder.SeasonLength, 6);
 
         var metrics = forecast.Metrics;
@@ -121,16 +157,38 @@ public class ForecastController : ControllerBase
                 peakValue,
                 notes = notes.Select(n => new { kind = n.Kind, text = n.Text }),
             },
-            dataSource = new
-            {
-                usingLiveRecords = demand.UsingLiveRecords,
-                liveMonthsAvailable = demand.LiveMonthsAvailable,
-                recordedMonths = demand.RecordedMonths,
-                minimumMonths = demand.MinimumMonths,
-                filledMonths = demand.FilledMonths,
-            },
+            dataSource = DataSource(demand),
             history,
             steps,
         });
     }
+
+    private bool AllowSampleFallback() =>
+        _configuration.GetValue<bool>("Demo:Enabled") && !_environment.IsProduction();
+
+    private static object DataSource(DemandSeries demand) => new
+    {
+        status = DemandStatus(demand),
+        usingLiveRecords = demand.UsingLiveRecords,
+        usingSample = demand.UsingSample,
+        label = demand.UsingSample
+            ? "Sample demonstration data"
+            : demand.UsingLiveRecords
+                ? "Live booking history"
+                : "Insufficient booking history",
+        liveMonthsAvailable = demand.LiveMonthsAvailable,
+        recordedMonths = demand.RecordedMonths,
+        minimumMonths = demand.MinimumMonths,
+        filledMonths = demand.FilledMonths,
+        lastRecordedMonth = demand.LiveMonthsAvailable > 0
+            ? demand.LastMonth.ToString("MMMM yyyy", CultureInfo.InvariantCulture)
+            : null,
+    };
+
+    private static string DemandStatus(DemandSeries demand) => demand.Source switch
+    {
+        DemandSeriesSource.LiveRecords => "live",
+        DemandSeriesSource.SampleSeries => "sample",
+        _ => "insufficient-history",
+    };
 }

@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - feature/**
+      - codex/**
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: dotnet/client/package-lock.json
+
+      - name: Install restore dependencies
+        run: sudo apt-get update && sudo apt-get install -y sqlite3
+
+      - name: Restore API
+        run: dotnet restore dotnet/ProphetOps.Api.Tests/ProphetOps.Api.Tests.csproj
+
+      - name: Build API tests
+        run: dotnet build dotnet/ProphetOps.Api.Tests/ProphetOps.Api.Tests.csproj --configuration Release --no-restore
+
+      - name: Test API
+        env:
+          RUN_OPERATOR_RESTORE_TESTS: "true"
+        run: dotnet test dotnet/ProphetOps.Api.Tests/ProphetOps.Api.Tests.csproj --configuration Release --no-build --logger trx --results-directory artifacts/test-results/api
+
+      - name: Test data layer
+        run: dotnet test dotnet/ProphetOps.Data.Tests/ProphetOps.Data.Tests.csproj --configuration Release --logger trx --results-directory artifacts/test-results/data
+
+      - name: Test forecasting
+        run: dotnet test dotnet/ProphetOps.Forecasting.Tests/ProphetOps.Forecasting.Tests.csproj --configuration Release --logger trx --results-directory artifacts/test-results/forecasting
+
+      - name: Install client dependencies
+        working-directory: dotnet/client
+        run: npm ci
+
+      - name: Build client
+        working-directory: dotnet/client
+        run: npm run build
+
+      - name: Audit client dependencies
+        working-directory: dotnet/client
+        run: npm audit --audit-level=moderate
+
+      - name: Docker build
+        run: docker build -f dotnet/Dockerfile dotnet -t prophetops-ci
+
+      - name: Docker preview smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run -d --name prophetops-preview \
+            -e PORT=8080 \
+            -e Demo__Enabled=false \
+            -e Hosted__Enabled=false \
+            -e Storage__Root=/tmp/prophetops \
+            -e Business__TimeZone=Asia/Manila \
+            -e Backup__Scheduled__Enabled=false \
+            -e Transport__PublicHttps=true \
+            -p 18080:8080 \
+            prophetops-ci
+          trap 'docker logs prophetops-preview || true; docker rm -f prophetops-preview || true' EXIT
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:18080/health/live; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+
+      - name: Docker mounted storage smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docker-storage
+          chmod 777 docker-storage
+          docker run -d --name prophetops-mounted \
+            -e PORT=8080 \
+            -e Demo__Enabled=false \
+            -e Hosted__Enabled=true \
+            -e Storage__Root=/app/storage \
+            -e Business__TimeZone=Asia/Manila \
+            -e Backup__Scheduled__Enabled=false \
+            -e CloudflareAccess__Enabled=true \
+            -e CloudflareAccess__Issuer=https://agency.cloudflareaccess.com \
+            -e CloudflareAccess__Audience=ci-audience \
+            -e CloudflareAccess__JwksUrl=https://access.example.test/certs \
+            -v "$PWD/docker-storage:/app/storage" \
+            -p 18081:8080 \
+            prophetops-ci
+          trap 'docker logs prophetops-mounted || true; docker rm -f prophetops-mounted || true' EXIT
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:18081/health/live; then exit 0; fi
+            sleep 2
+          done
+          exit 1

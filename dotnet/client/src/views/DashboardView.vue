@@ -20,24 +20,24 @@
           </div>
         </section>
 
-        <section class="stat-band" aria-label="Business totals">
+        <section class="stat-band" aria-label="Lifetime business totals, excluding voided records">
           <div class="stat-cell">
             <span class="stat-label">Revenue</span>
             <strong class="stat-value">{{ peso(data.revenue) }}</strong>
-            <span class="stat-note">Gross, all bookings</span>
+            <span class="stat-note">Lifetime gross, excluding voided bookings</span>
           </div>
           <div class="stat-cell">
             <span class="stat-label">Costs</span>
             <strong class="stat-value">{{ peso(data.costs) }}</strong>
-            <span class="stat-note">Recorded expenses</span>
+            <span class="stat-note">Lifetime expenses, excluding voided entries</span>
           </div>
           <div class="stat-cell">
             <span class="stat-label">Estimated profit</span>
-            <strong class="stat-value">{{ peso(data.estimatedProfit) }}</strong>
-            <span class="stat-note">Revenue minus costs</span>
+            <strong class="stat-value" :class="{ 'dash-error': data.estimatedProfit < 0 }">{{ peso(data.estimatedProfit) }}</strong>
+            <span class="stat-note">Lifetime gross revenue minus recorded costs</span>
           </div>
           <div class="stat-cell" :class="{ warn: pendingCount > 0 }">
-            <span class="stat-label">Awaiting payment</span>
+            <span class="stat-label">Unpaid booking value</span>
             <strong class="stat-value">{{ peso(data.pendingPayments.amount) }}</strong>
             <span class="stat-note">{{ pendingCount }} unpaid {{ pendingCount === 1 ? 'booking' : 'bookings' }}</span>
           </div>
@@ -101,7 +101,7 @@
             </div>
 
             <div class="attention-summary">
-              <span class="section-label">Awaiting payment</span>
+              <span class="section-label">Unpaid booking value</span>
               <div class="attention-summary-figure">
                 <strong>{{ peso(data.pendingPayments.amount) }}</strong>
                 <span>{{ pendingCount }} unpaid {{ pendingCount === 1 ? 'booking' : 'bookings' }}</span>
@@ -111,12 +111,14 @@
         </div>
 
         <section class="forecast-panel">
-          <p class="forecast-label">Demand forecast · {{ data.forecast.method }}</p>
+          <p class="forecast-label">Demand forecast · {{ forecastLabel }}</p>
           <p class="forecast-headline">{{ trajectorySentence }}</p>
-          <p class="forecast-detail">
+          <p v-if="data.forecast.ok" class="forecast-detail">
+            <span v-if="data.forecast.dataSource.usingSample">Sample demo data · </span>
             {{ data.forecast.accuracy }}% accuracy on past months · avg error {{ data.forecast.mape.toFixed(1) }}% ·
             next month ≈ {{ peso(data.forecast.nextValue) }}
           </p>
+          <p v-else class="forecast-detail">{{ unavailableDetail }}</p>
         </section>
 
         <p class="dash-foot">Updated {{ data.lastUpdated }}</p>
@@ -153,10 +155,31 @@ const reviewSentence = computed(() => {
 
 const trajectorySentence = computed(() => {
   if (!data.value) return '';
-  const { direction, peakMonth } = data.value.forecast;
+  const forecast = data.value.forecast;
+  if (!forecast.ok) {
+    const recorded = forecast.dataSource.recordedMonths;
+    if (recorded === 0) return 'Forecast unavailable until booking history is recorded.';
+    return `Forecast unavailable with ${recorded} of ${forecast.dataSource.minimumMonths} required booking months recorded.`;
+  }
+  const { direction, peakMonth } = forecast;
   if (direction === 'up') return `Demand is trending upward, peaking in ${peakMonth}.`;
   if (direction === 'down') return `Demand is easing off, with the high point in ${peakMonth}.`;
   return `Demand looks steady, peaking in ${peakMonth}.`;
+});
+
+const forecastLabel = computed(() => {
+  const forecast = data.value?.forecast;
+  if (!forecast) return '';
+  if (!forecast.ok) return 'Unavailable';
+  return forecast.dataSource.usingSample ? 'Sample data' : forecast.method;
+});
+
+const unavailableDetail = computed(() => {
+  const source = data.value?.forecast.dataSource;
+  if (!source) return '';
+  const need = Math.max(0, source.minimumMonths - source.recordedMonths);
+  const monthWord = need === 1 ? 'month' : 'months';
+  return `Record ${need} more ${monthWord} with bookings to enable a live Holt-Winters forecast.`;
 });
 
 

@@ -6,7 +6,7 @@
 
       <template v-else-if="data">
         <section class="forecast-brief" :class="`brief-${data.insight.direction}`">
-          <p class="brief-label">Demand forecast · {{ data.method }} · {{ data.horizon }}-month outlook</p>
+          <p class="brief-label">Demand forecast · {{ forecastLabel }} · {{ data.horizon }}-month outlook</p>
 
           <p class="brief-answer">
             <span v-if="data.ok" class="brief-mark" aria-hidden="true">{{ signalIcon }}</span>
@@ -36,7 +36,11 @@
           </div>
         </section>
 
-        <p class="source-note" :class="{ 'source-live': data.dataSource.usingLiveRecords }" role="note">
+        <p
+          class="source-note"
+          :class="{ 'source-live': data.dataSource.usingLiveRecords, 'source-sample': data.dataSource.usingSample }"
+          role="note"
+        >
           {{ sourceNote }}
         </p>
 
@@ -179,6 +183,13 @@ const headline = computed(() => {
 const supporting = computed(() => (data.value?.insight.notes ?? []).slice(1, 4));
 const furtherDetail = computed(() => (data.value?.insight.notes ?? []).slice(4));
 
+const forecastLabel = computed(() => {
+  const d = data.value;
+  if (!d) return '';
+  if (!d.ok) return 'Unavailable';
+  return d.dataSource.usingSample ? 'Sample data' : d.method;
+});
+
 const peakValue = computed(() => {
   const steps = data.value?.steps ?? [];
   return steps.length ? Math.max(...steps.map((s) => s.value)) : 0;
@@ -206,9 +217,13 @@ const sourceNote = computed(() => {
       : '';
     return `Based on your booking history — ${s.liveMonthsAvailable} months recorded.${gaps}`;
   }
-  const need = Math.max(1, s.minimumMonths - s.recordedMonths);
+  const need = Math.max(0, s.minimumMonths - s.recordedMonths);
   const have = s.recordedMonths === 1 ? '1 month' : `${s.recordedMonths} months`;
-  return `Based on a reference seasonal pattern, not your own bookings yet. You have ${have} with bookings on record; ${need} more will switch this to your own history.`;
+  if (s.usingSample) {
+    return `Sample demonstration data, not a live forecast. You have ${have} with bookings on record; ${need} more will switch this to your own history.`;
+  }
+  const more = need === 1 ? '1 more month' : `${need} more months`;
+  return `Forecast unavailable. You have ${have} with bookings on record; record ${more} to enable a live Holt-Winters forecast.`;
 });
 
 const signalIcon = computed(() => {

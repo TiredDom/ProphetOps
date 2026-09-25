@@ -9,6 +9,7 @@ namespace ProphetOps.Api.Controllers;
 [ApiController]
 [Route("api/expenses")]
 [Authorize(Policy = "Expenses")]
+[ServiceFilter(typeof(MutationTransaction))]
 public class ExpensesController : ControllerBase
 {
     private readonly AppDbContext _db;
@@ -38,6 +39,8 @@ public class ExpensesController : ControllerBase
         var expense = new Expense();
         Apply(expense, request);
         _db.Expenses.Add(expense);
+        AuditLog.Record(_db, User, AuditLog.Created, "Expense", expense.Code,
+            $"{expense.Category}, P{expense.Amount:N0}, {expense.PaymentStatus}");
         _db.SaveChanges();
 
         return Ok(Dto(expense));
@@ -52,7 +55,18 @@ public class ExpensesController : ControllerBase
         var errors = Validate(request);
         if (errors.Count > 0) return BadRequest(errors);
 
+        var before = (expense.ExpenseDate, expense.Category, expense.Amount,
+            expense.RelatedPackage, expense.PaymentStatus, expense.Notes);
         Apply(expense, request);
+        var changed = AuditLog.Difference(
+            ("Date", before.ExpenseDate, expense.ExpenseDate),
+            ("Category", before.Category, expense.Category),
+            ("Amount", before.Amount, expense.Amount),
+            ("Related package", before.RelatedPackage, expense.RelatedPackage),
+            ("Payment", before.PaymentStatus, expense.PaymentStatus),
+            ("Notes", before.Notes, expense.Notes));
+        if (changed is not null)
+            AuditLog.Record(_db, User, AuditLog.Updated, "Expense", expense.Code, changed);
         _db.SaveChanges();
 
         return Ok(Dto(expense));

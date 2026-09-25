@@ -5,29 +5,30 @@
       <p v-else-if="error" class="analytics-note analytics-error" role="alert">{{ error }}</p>
 
       <template v-else-if="data">
-        <section class="stat-band" aria-label="Sales totals">
+        <section class="stat-band" aria-label="Lifetime sales totals, excluding voided bookings">
           <div class="stat-cell">
             <span class="stat-label">Total revenue</span>
             <strong class="stat-value">{{ peso(data.totalRevenue) }}</strong>
-            <span class="stat-note">Gross, all bookings</span>
+            <span class="stat-note">Lifetime gross, excluding voided bookings</span>
           </div>
           <div class="stat-cell">
             <span class="stat-label">Total bookings</span>
             <strong class="stat-value">{{ data.totalBookings }}</strong>
-            <span class="stat-note">Saved records</span>
+            <span class="stat-note">Lifetime, excluding voided bookings</span>
           </div>
           <div class="stat-cell">
             <span class="stat-label">Average booking</span>
             <strong class="stat-value">{{ peso(data.averageBooking) }}</strong>
-            <span class="stat-note">Revenue per booking</span>
+            <span class="stat-note">Lifetime gross revenue per booking</span>
           </div>
         </section>
 
         <section ref="chartBox" class="analytics-panel">
           <div class="analytics-panel-head">
-            <p class="analytics-panel-label">Sales history</p>
-            <p class="analytics-panel-meta">Last {{ data.salesHistory.length }} months of revenue</p>
+            <p class="analytics-panel-label">Recorded gross revenue</p>
+            <p class="analytics-panel-meta">{{ data.salesHistory[0]?.label }} to {{ data.salesHistory[data.salesHistory.length - 1]?.label }}</p>
           </div>
+          <p class="analytics-panel-meta">Chart total: {{ peso(data.chartWindow.revenuePhp) }} · {{ data.chartWindow.bookingCount }} bookings · By booking month, excluding voided records</p>
           <svg class="sales-chart" :viewBox="`0 0 ${chartWidth} ${chartHeight}`" preserveAspectRatio="xMidYMid meet" role="img" :aria-label="chartAriaLabel">
             <line class="sales-axis-line" x1="56" y1="18" x2="56" y2="180" />
             <g v-for="line in gridLines" :key="'grid-' + line.value">
@@ -52,7 +53,8 @@
         <div class="analytics-grid">
           <section class="analytics-panel">
             <div class="analytics-panel-head">
-              <p class="analytics-panel-label">Package mix</p>
+            <p class="analytics-panel-label">Package mix</p>
+            <p class="analytics-panel-meta">Lifetime, excluding voided bookings</p>
             </div>
             <div class="bar-rows">
               <div v-for="row in packageBars" :key="row.label" class="bar-row">
@@ -65,7 +67,8 @@
 
           <section class="analytics-panel">
             <div class="analytics-panel-head">
-              <p class="analytics-panel-label">Payment status</p>
+            <p class="analytics-panel-label">Payment status</p>
+            <p class="analytics-panel-meta">Lifetime, excluding voided bookings</p>
             </div>
             <div class="bar-rows">
               <div v-for="row in paymentBars" :key="row.label" class="bar-row">
@@ -80,6 +83,7 @@
         <section class="analytics-panel">
           <div class="analytics-panel-head">
             <p class="analytics-panel-label">Revenue by destination</p>
+            <p class="analytics-panel-meta">Lifetime gross, excluding voided bookings</p>
           </div>
           <div class="bar-rows">
             <div v-for="row in destinationBars" :key="row.label" class="bar-row">
@@ -170,9 +174,9 @@ const salesBars = computed(() => {
   const span = plotBottom - plotTop;
   const band = count ? (plotRight.value - plotLeft) / count : 0;
   const barWidth = Math.min(38, band * 0.56);
-  const stride = band > 0 && band < 40 ? 2 : 1;
+  const stride = band > 0 ? Math.max(1, Math.ceil(64 / band)) : 1;
   return points.map((p, i) => {
-    const height = max > 0 ? Math.max(1, (p.value / max) * span) : 1;
+    const height = max > 0 ? (p.value / max) * span : 0;
     const center = plotLeft + band * i + band / 2;
     return {
       label: p.label,
@@ -223,6 +227,7 @@ onMounted(async () => {
 }
 .analytics-panel-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
   gap: 1rem;

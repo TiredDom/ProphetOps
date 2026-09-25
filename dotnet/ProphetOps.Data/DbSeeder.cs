@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using ProphetOps.Domain;
 
 namespace ProphetOps.Data;
@@ -7,12 +8,17 @@ public static class DbSeeder
 {
     public static void Seed(AppDbContext db)
     {
-        if (!db.Users.Any()) SeedUsers(db);
-        if (!db.TravelPackages.Any()) SeedOperations(db);
+        using var transaction = db.Database.BeginTransaction();
+        if (db.Users.Any() || db.TravelPackages.Any() || db.Bookings.Any()
+            || db.Expenses.Any() || db.AuditEntries.Any()) return;
+
+        SeedUsers(db);
+        SeedOperations(db);
         db.SaveChanges();
 
-        if (!db.AuditEntries.Any()) SeedHistory(db);
+        SeedHistory(db);
         db.SaveChanges();
+        transaction.Commit();
     }
 
     private static void SeedUsers(AppDbContext db)

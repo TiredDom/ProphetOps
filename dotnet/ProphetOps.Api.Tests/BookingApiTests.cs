@@ -142,7 +142,7 @@ public class BookingApiTests : IDisposable
         var after = await Body(await client.GetAsync("/api/bookings"));
         var pkgAfter = after.GetProperty("packages").EnumerateArray()
             .First(p => p.GetProperty("id").GetString() == "PKG-101");
-        Assert.Equal(Math.Max(0, slotsBefore - 4), pkgAfter.GetProperty("availableSlots").GetInt32());
+        Assert.Equal(slotsBefore - 4, pkgAfter.GetProperty("availableSlots").GetInt32());
         Assert.Equal(soldBefore + 4, pkgAfter.GetProperty("soldCount").GetInt32());
     }
 
@@ -153,7 +153,15 @@ public class BookingApiTests : IDisposable
             .First(p => p.GetProperty("id").GetString() == code);
     }
 
-    private static object BookingPayload(string id, string packageId, int passengers) => new
+    private static async Task<int> BookingRevision(HttpClient client, string code)
+    {
+        var body = await Body(await client.GetAsync("/api/bookings"));
+        return body.GetProperty("bookings").EnumerateArray()
+            .First(b => b.GetProperty("id").GetString() == code)
+            .GetProperty("revision").GetInt32();
+    }
+
+    private static object BookingPayload(string id, string? packageId, int passengers, int? revision = null) => new
     {
         id,
         ds = "2026-07-14",
@@ -169,6 +177,7 @@ public class BookingApiTests : IDisposable
         staffAssigned = "Staff User",
         source = packageId is null ? "Manual quotation" : "Package preset",
         notes = "",
+        revision,
     };
 
     [Fact]
@@ -179,8 +188,8 @@ public class BookingApiTests : IDisposable
         var slots = before.GetProperty("availableSlots").GetInt32();
         var sold = before.GetProperty("soldCount").GetInt32();
 
-        await client.PostAsJsonAsync("/api/bookings", BookingPayload("BKG-EDIT1", "PKG-102", 4));
-        var edit = await client.PutAsJsonAsync("/api/bookings/BKG-EDIT1", BookingPayload("BKG-EDIT1", "PKG-102", 6));
+        (await client.PostAsJsonAsync("/api/bookings", BookingPayload("BKG-EDIT1", "PKG-102", 4))).EnsureSuccessStatusCode();
+        var edit = await client.PutAsJsonAsync("/api/bookings/BKG-EDIT1", BookingPayload("BKG-EDIT1", "PKG-102", 6, 1));
         Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
 
         var after = await Package(client, "PKG-102");
@@ -197,8 +206,8 @@ public class BookingApiTests : IDisposable
         var aSlots = a0.GetProperty("availableSlots").GetInt32();
         var bSlots = b0.GetProperty("availableSlots").GetInt32();
 
-        await client.PostAsJsonAsync("/api/bookings", BookingPayload("BKG-EDIT2", "PKG-101", 3));
-        await client.PutAsJsonAsync("/api/bookings/BKG-EDIT2", BookingPayload("BKG-EDIT2", "PKG-102", 3));
+        (await client.PostAsJsonAsync("/api/bookings", BookingPayload("BKG-EDIT2", "PKG-101", 3))).EnsureSuccessStatusCode();
+        (await client.PutAsJsonAsync("/api/bookings/BKG-EDIT2", BookingPayload("BKG-EDIT2", "PKG-102", 3, 1))).EnsureSuccessStatusCode();
 
         var a1 = await Package(client, "PKG-101");
         var b1 = await Package(client, "PKG-102");
@@ -213,8 +222,8 @@ public class BookingApiTests : IDisposable
         var before = await Package(client, "PKG-102");
         var slots = before.GetProperty("availableSlots").GetInt32();
 
-        await client.PostAsJsonAsync("/api/bookings", BookingPayload("BKG-EDIT3", "PKG-102", 5));
-        await client.PutAsJsonAsync("/api/bookings/BKG-EDIT3", BookingPayload("BKG-EDIT3", null, 5));
+        (await client.PostAsJsonAsync("/api/bookings", BookingPayload("BKG-EDIT3", "PKG-102", 5))).EnsureSuccessStatusCode();
+        (await client.PutAsJsonAsync("/api/bookings/BKG-EDIT3", BookingPayload("BKG-EDIT3", null, 5, 1))).EnsureSuccessStatusCode();
 
         var after = await Package(client, "PKG-102");
         Assert.Equal(slots, after.GetProperty("availableSlots").GetInt32());
@@ -230,7 +239,7 @@ public class BookingApiTests : IDisposable
         var response = await client.PostAsJsonAsync("/api/bookings",
             BookingPayload("BKG-OVER1", "PKG-101", slots + 2));
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.True((await Body(response)).TryGetProperty("y", out _));
 
         var after = await Package(client, "PKG-101");
@@ -243,11 +252,11 @@ public class BookingApiTests : IDisposable
         var client = await LoginAs("owner@prophetops.local", "owner123");
         var slots = (await Package(client, "PKG-105")).GetProperty("availableSlots").GetInt32();
 
-        await client.PostAsJsonAsync("/api/bookings", BookingPayload("BKG-OVER2", "PKG-105", 2));
+        (await client.PostAsJsonAsync("/api/bookings", BookingPayload("BKG-OVER2", "PKG-105", 2))).EnsureSuccessStatusCode();
         var edit = await client.PutAsJsonAsync("/api/bookings/BKG-OVER2",
-            BookingPayload("BKG-OVER2", "PKG-105", slots + 1));
+            BookingPayload("BKG-OVER2", "PKG-105", slots + 1, 1));
 
-        Assert.Equal(HttpStatusCode.BadRequest, edit.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, edit.StatusCode);
         var after = await Package(client, "PKG-105");
         Assert.Equal(slots - 2, after.GetProperty("availableSlots").GetInt32());
     }
@@ -257,7 +266,7 @@ public class BookingApiTests : IDisposable
     {
         var client = await LoginAs("owner@prophetops.local", "owner123");
 
-        await client.PostAsJsonAsync("/api/bookings", new
+        (await client.PostAsJsonAsync("/api/bookings", new
         {
             id = "BKG-BULK1",
             ds = "2026-07-10",
@@ -270,10 +279,11 @@ public class BookingApiTests : IDisposable
             bookingStatus = "Pending",
             entryType = "Manual quotation",
             source = "Manual quotation",
-        });
+        })).EnsureSuccessStatusCode();
+        var revision = await BookingRevision(client, "BKG-BULK1");
 
         var bulk = await client.PostAsJsonAsync("/api/bookings/bulk",
-            new { ids = new[] { "BKG-BULK1" }, action = "confirm" });
+            new { ids = new[] { "BKG-BULK1" }, action = "confirm", revisions = new Dictionary<string, int> { ["BKG-BULK1"] = revision } });
         Assert.Equal(HttpStatusCode.OK, bulk.StatusCode);
 
         var body = await Body(await client.GetAsync("/api/bookings"));

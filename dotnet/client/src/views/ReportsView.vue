@@ -16,41 +16,41 @@
             <div class="panel-title-group">
               <h2>Money at a glance</h2>
             </div>
-            <span class="panel-meta">All bookings and recorded costs</span>
+            <span class="panel-meta">Lifetime totals, excluding voided records</span>
           </div>
 
           <div class="report-money">
             <div class="report-money-figure">
               <span class="report-money-label">Revenue</span>
               <strong class="report-money-value">{{ peso(data.revenue) }}</strong>
-              <span class="report-money-note">Money coming in</span>
+              <span class="report-money-note">Gross booking revenue</span>
             </div>
             <div class="report-money-figure">
               <span class="report-money-label">Costs</span>
               <strong class="report-money-value">{{ peso(data.costs) }}</strong>
-              <span class="report-money-note">Money going out</span>
+              <span class="report-money-note">Recorded expenses</span>
             </div>
             <div class="report-money-figure">
               <span class="report-money-label">Profit</span>
               <strong class="report-money-value" :class="isLoss ? 'is-loss' : 'is-gain'">{{ peso(data.profit) }}</strong>
-              <span class="report-money-note">{{ isLoss ? 'Costs are above revenue' : 'What is left over' }}</span>
+              <span class="report-money-note">Gross revenue minus recorded costs</span>
             </div>
           </div>
 
           <div class="report-split" aria-hidden="true">
             <div class="report-split-track">
-              <i class="report-split-seg seg-costs" :style="{ width: costsPct + '%' }"></i>
+              <i class="report-split-seg seg-costs" :style="{ width: Math.min(costsPct ?? 0, 100) + '%' }"></i>
               <i class="report-split-seg seg-profit" :style="{ width: profitPct + '%' }"></i>
             </div>
           </div>
           <div class="report-split-legend">
             <span class="report-split-key">
               <i class="report-key-dot dot-costs"></i>
-              Costs take {{ costsPct }}% of revenue
+              {{ costsPct === null ? 'No revenue recorded' : 'Costs take ' + costsPct + '% of revenue' }}
             </span>
             <span class="report-split-key">
               <i class="report-key-dot dot-profit"></i>
-              {{ isLoss ? 'No profit left' : 'Profit is ' + profitPct + '% of revenue' }}
+              {{ isLoss ? 'Costs exceed revenue' : costsPct === null ? 'Profit share unavailable' : 'Profit is ' + profitPct + '% of revenue' }}
             </span>
           </div>
         </section>
@@ -59,7 +59,7 @@
           <div class="stat-cell">
             <span class="stat-label">Bookings</span>
             <strong class="stat-value">{{ data.counts.bookings }}</strong>
-            <span class="stat-note">Saved records</span>
+            <span class="stat-note">Lifetime, excluding voided bookings</span>
           </div>
           <div class="stat-cell">
             <span class="stat-label">Packages</span>
@@ -69,7 +69,7 @@
           <div class="stat-cell">
             <span class="stat-label">Expenses</span>
             <strong class="stat-value">{{ data.counts.expenses }}</strong>
-            <span class="stat-note">Cost entries</span>
+            <span class="stat-note">Lifetime, excluding voided entries</span>
           </div>
           <div class="stat-cell">
             <span class="stat-label">Users</span>
@@ -84,7 +84,7 @@
               <div class="panel-title-group">
                 <h2>Revenue by package</h2>
               </div>
-              <span class="panel-meta">Where the money comes from</span>
+              <span class="panel-meta">Lifetime gross booking revenue</span>
             </div>
 
             <ul v-if="data.revenueByPackage.length" class="report-bars tone-primary">
@@ -97,7 +97,7 @@
             <EmptyState
               v-else
               title="No package revenue yet"
-              message="Paid bookings will show up here once they are recorded."
+              message="No non-voided bookings recorded."
             />
           </section>
 
@@ -193,8 +193,8 @@ const isLoss = computed(() => (data.value?.profit ?? 0) < 0);
 
 const costsPct = computed(() => {
   const d = data.value;
-  if (!d || d.revenue <= 0) return 0;
-  return Math.round(Math.min((d.costs / d.revenue) * 100, 100));
+  if (!d || d.revenue <= 0) return null;
+  return Math.round((d.costs / d.revenue) * 100);
 });
 
 const profitPct = computed(() => {

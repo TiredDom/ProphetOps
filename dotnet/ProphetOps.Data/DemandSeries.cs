@@ -2,6 +2,7 @@ namespace ProphetOps.Data;
 
 public enum DemandSeriesSource
 {
+    InsufficientLiveRecords,
     LiveRecords,
     SampleSeries,
 }
@@ -28,6 +29,8 @@ public class DemandSeries
     public required int MinimumMonths { get; init; }
 
     public bool UsingLiveRecords => Source == DemandSeriesSource.LiveRecords;
+
+    public bool UsingSample => Source == DemandSeriesSource.SampleSeries;
 }
 
 public static class DemandSeriesBuilder
@@ -40,8 +43,8 @@ public static class DemandSeriesBuilder
     private static readonly DateOnly SampleAnchor = new(2026, 7, 1);
 
     /// Builds the monthly revenue series the forecaster consumes. Live history is preferred once
-    /// it covers MinimumMonths; below that the sample series is used and the caller is told which.
-    public static DemandSeries Build(AppDbContext db, DateOnly today)
+    /// it covers MinimumMonths. Sample history is only returned when the caller explicitly opts in.
+    public static DemandSeries Build(AppDbContext db, DateOnly today, bool allowSampleFallback = false)
     {
         // The running month is still accumulating bookings. Including it would read as a demand
         // collapse every time someone opens the page mid-month, so the series stops last month.
@@ -52,7 +55,7 @@ public static class DemandSeriesBuilder
             .Where(b => b.BookingDate <= lastComplete.AddMonths(1).AddDays(-1))
             .AsEnumerable()
             .GroupBy(b => new DateOnly(b.BookingDate.Year, b.BookingDate.Month, 1))
-            .ToDictionary(g => g.Key, g => (double)g.Sum(b => b.GrossRevenue));
+            .ToDictionary(g => g.Key, g => (double)g.Sum(b => (long)b.GrossRevenue));
 
         var liveMonths = 0;
         var filled = 0;
@@ -92,6 +95,21 @@ public static class DemandSeriesBuilder
                 Values = live,
                 LastMonth = new DateOnly(monthly.Keys.Min().Year, monthly.Keys.Min().Month, 1).AddMonths(liveMonths - 1),
                 Source = DemandSeriesSource.LiveRecords,
+                LiveMonthsAvailable = liveMonths,
+                FilledMonths = filled,
+                MinimumMonths = MinimumMonths,
+            };
+        }
+
+        if (!allowSampleFallback)
+        {
+            return new DemandSeries
+            {
+                Values = [],
+                LastMonth = monthly.Count > 0
+                    ? monthly.Keys.Max()
+                    : lastComplete,
+                Source = DemandSeriesSource.InsufficientLiveRecords,
                 LiveMonthsAvailable = liveMonths,
                 FilledMonths = filled,
                 MinimumMonths = MinimumMonths,

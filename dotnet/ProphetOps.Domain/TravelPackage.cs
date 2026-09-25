@@ -3,6 +3,7 @@ namespace ProphetOps.Domain;
 public class TravelPackage
 {
     public int Id { get; set; }
+    public int Revision { get; set; } = 1;
     public string Code { get; set; } = "";
     public string PackageName { get; set; } = "";
     public string Destination { get; set; } = "";

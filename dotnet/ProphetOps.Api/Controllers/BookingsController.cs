@@ -9,11 +9,17 @@ namespace ProphetOps.Api.Controllers;
 [ApiController]
 [Route("api/bookings")]
 [Authorize(Policy = "Bookings")]
+[ServiceFilter(typeof(MutationTransaction))]
 public class BookingsController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly BookingMutationService _mutations;
 
-    public BookingsController(AppDbContext db) => _db = db;
+    public BookingsController(AppDbContext db, BookingMutationService mutations)
+    {
+        _db = db;
+        _mutations = mutations;
+    }
 
     [HttpGet]
     public IActionResult Index()
@@ -31,6 +37,7 @@ public class BookingsController : ControllerBase
             {
                 id = p.Code,
                 backendId = p.Id,
+                revision = p.Revision,
                 packageName = p.PackageName,
                 destination = p.Destination,
                 duration = p.Duration,
@@ -50,20 +57,22 @@ public class BookingsController : ControllerBase
     {
         var errors = Validate(request);
         if (errors.Count > 0) return BadRequest(errors);
+        var packageErrors = ValidatePackageReference(request);
+        if (packageErrors.Count > 0) return BadRequest(packageErrors);
         if (_db.Bookings.Any(b => b.Code == request.Id))
-            return BadRequest(new Dictionary<string, string> { ["id"] = "Booking ID already exists." });
+            return Conflict(new { code = "duplicate_code", message = "Booking ID already exists. Check the saved booking before trying again." });
 
         var stock = ValidateAvailability(request, null);
-        if (stock.Count > 0) return BadRequest(stock);
+        if (stock.Count > 0) return Conflict(stock);
 
         var unusual = UnusualRevenue(request, null);
-        if (unusual is not null) return Conflict(new { message = unusual });
+        if (unusual is not null) return Conflict(new { code = "unusual_revenue", message = unusual });
 
         var booking = new Booking();
         Apply(booking, request);
         _db.Bookings.Add(booking);
 
-        ReserveSlots(booking.TravelPackageId, booking.PassengerCount);
+        _mutations.Reserve(booking.TravelPackageId, booking.PassengerCount);
 
         AuditLog.Record(_db, User, AuditLog.Created, "Booking", booking.Code,
             $"{booking.Client}, {booking.PassengerCount} pax, P{booking.GrossRevenue:N0}");
@@ -77,15 +86,19 @@ public class BookingsController : ControllerBase
     {
         var booking = _db.Bookings.SingleOrDefault(b => b.Code == code);
         if (booking is null) return NotFound();
+        if (request.Revision != booking.Revision) return MutationTransaction.Stale();
+        if (request.Id != code) return BadRequest(new { id = "Booking ID cannot be changed." });
 
         var errors = Validate(request);
         if (errors.Count > 0) return BadRequest(errors);
+        var packageErrors = ValidatePackageReference(request);
+        if (packageErrors.Count > 0) return BadRequest(packageErrors);
 
         var stock = ValidateAvailability(request, booking);
-        if (stock.Count > 0) return BadRequest(stock);
+        if (!booking.IsVoided && stock.Count > 0) return Conflict(stock);
 
         var unusual = UnusualRevenue(request, booking);
-        if (unusual is not null) return Conflict(new { message = unusual });
+        if (unusual is not null) return Conflict(new { code = "unusual_revenue", message = unusual });
 
         var previousPackageId = booking.TravelPackageId;
         var previousPassengers = booking.PassengerCount;
@@ -94,8 +107,11 @@ public class BookingsController : ControllerBase
 
         Apply(booking, request);
 
-        ReleaseSlots(previousPackageId, previousPassengers);
-        ReserveSlots(booking.TravelPackageId, booking.PassengerCount);
+        if (!booking.IsVoided)
+        {
+            _mutations.Release(previousPackageId, previousPassengers);
+            _mutations.Reserve(booking.TravelPackageId, booking.PassengerCount);
+        }
 
         var changed = AuditLog.Difference(
             ("Client", before.Client, booking.Client),
@@ -121,13 +137,14 @@ public class BookingsController : ControllerBase
 
         if (string.IsNullOrWhiteSpace(request.Reason))
             return BadRequest(new Dictionary<string, string> { ["reason"] = "Say why this is being voided." });
+        if (request.Revision != booking.Revision) return MutationTransaction.Stale();
 
         booking.VoidedAt = DateTime.UtcNow;
         booking.VoidedBy = User.FindFirst(ClaimTypes.Email)?.Value;
         booking.VoidReason = request.Reason.Trim();
 
         // The seats go back. A voided booking is not holding anything.
-        ReleaseSlots(booking.TravelPackageId, booking.PassengerCount);
+        _mutations.Release(booking.TravelPackageId, booking.PassengerCount);
 
         AuditLog.Record(_db, User, AuditLog.Voided, "Booking", booking.Code, booking.VoidReason);
         _db.SaveChanges();
@@ -136,16 +153,17 @@ public class BookingsController : ControllerBase
     }
 
     [HttpPost("{code}/restore")]
-    public IActionResult Restore(string code)
+    public IActionResult Restore(string code, [FromBody] RevisionRequest request)
     {
         var booking = _db.Bookings.SingleOrDefault(b => b.Code == code);
         if (booking is null) return NotFound();
         if (!booking.IsVoided) return BadRequest(new Dictionary<string, string> { ["reason"] = "This booking is not voided." });
+        if (request.Revision != booking.Revision) return MutationTransaction.Stale();
 
         var package = booking.TravelPackageId is int id ? _db.TravelPackages.Find(id) : null;
         if (package is not null && package.AvailableSlots < booking.PassengerCount)
         {
-            return BadRequest(new Dictionary<string, string>
+            return Conflict(new Dictionary<string, string>
             {
                 ["reason"] = $"Only {package.AvailableSlots} slots are free, and this booking needs {booking.PassengerCount}.",
             });
@@ -154,7 +172,7 @@ public class BookingsController : ControllerBase
         booking.VoidedAt = null;
         booking.VoidedBy = null;
         booking.VoidReason = null;
-        ReserveSlots(booking.TravelPackageId, booking.PassengerCount);
+        _mutations.Reserve(booking.TravelPackageId, booking.PassengerCount);
 
         AuditLog.Record(_db, User, AuditLog.Restored, "Booking", booking.Code);
         _db.SaveChanges();
@@ -170,10 +188,10 @@ public class BookingsController : ControllerBase
         var package = _db.TravelPackages.FirstOrDefault(p => p.Code == request.PackageId);
         if (package is null) return errors;
 
-        var alreadyHeld = existing is not null && existing.TravelPackageId == package.Id
+        var alreadyHeld = existing is not null && !existing.IsVoided && existing.TravelPackageId == package.Id
             ? existing.PassengerCount
             : 0;
-        var capacity = package.AvailableSlots + alreadyHeld;
+        var capacity = (long)package.AvailableSlots + alreadyHeld;
 
         if (request.Y > capacity)
             errors["y"] = capacity == 1
@@ -183,26 +201,13 @@ public class BookingsController : ControllerBase
         return errors;
     }
 
-    private void ReserveSlots(int? packageId, int passengers)
+    private Dictionary<string, string> ValidatePackageReference(BookingRequest request)
     {
-        if (packageId is not int id) return;
-        var package = _db.TravelPackages.Find(id);
-        if (package is null) return;
-
-        package.AvailableSlots = Math.Max(0, package.AvailableSlots - passengers);
-        package.SoldCount += passengers;
-        package.LastUpdatedAt = DateOnly.FromDateTime(DateTime.UtcNow);
-    }
-
-    private void ReleaseSlots(int? packageId, int passengers)
-    {
-        if (packageId is not int id) return;
-        var package = _db.TravelPackages.Find(id);
-        if (package is null) return;
-
-        package.AvailableSlots += passengers;
-        package.SoldCount = Math.Max(0, package.SoldCount - passengers);
-        package.LastUpdatedAt = DateOnly.FromDateTime(DateTime.UtcNow);
+        var errors = new Dictionary<string, string>();
+        if (!string.IsNullOrWhiteSpace(request.PackageId)
+            && !_db.TravelPackages.Any(p => p.Code == request.PackageId))
+            errors["packageId"] = "Choose a package that still exists.";
+        return errors;
     }
 
     [HttpPost("bulk")]
@@ -212,14 +217,32 @@ public class BookingsController : ControllerBase
             return BadRequest();
 
         var bookings = _db.Bookings.Where(b => request.Ids.Contains(b.Code)).ToList();
+        if (bookings.Count != request.Ids.Distinct().Count()) return NotFound();
+        if (bookings.Any(b => b.IsVoided || request.Revisions is null
+            || !request.Revisions.TryGetValue(b.Code, out var revision) || revision != b.Revision))
+            return MutationTransaction.Stale();
         foreach (var booking in bookings)
         {
-            if (request.Action == "confirm") booking.BookingStatus = "Confirmed";
-            else booking.PaymentStatus = "Paid";
+            if (request.Action == "confirm")
+            {
+                var before = booking.BookingStatus;
+                booking.BookingStatus = "Confirmed";
+                if (before != booking.BookingStatus)
+                    AuditLog.Record(_db, User, AuditLog.Updated, "Booking", booking.Code,
+                        $"Status {before} → {booking.BookingStatus} (bulk)");
+            }
+            else
+            {
+                var before = booking.PaymentStatus;
+                booking.PaymentStatus = "Paid";
+                if (before != booking.PaymentStatus)
+                    AuditLog.Record(_db, User, AuditLog.Updated, "Booking", booking.Code,
+                        $"Payment {before} → {booking.PaymentStatus} (bulk)");
+            }
         }
         _db.SaveChanges();
 
-        return Ok(new { updated = bookings.Count });
+        return Ok(new { updated = bookings.Count, bookings = bookings.Select(Dto) });
     }
 
     private void Apply(Booking booking, BookingRequest request)
@@ -248,6 +271,7 @@ public class BookingsController : ControllerBase
     private static Dictionary<string, string> Validate(BookingRequest request)
     {
         var errors = new Dictionary<string, string>();
+        if (string.IsNullOrWhiteSpace(request.Id)) errors["id"] = "Enter a booking ID.";
         if (string.IsNullOrWhiteSpace(request.Ds) || !DateOnly.TryParse(request.Ds, out _))
             errors["ds"] = "Choose the booking date.";
         if (string.IsNullOrWhiteSpace(request.Client))
@@ -275,7 +299,7 @@ public class BookingsController : ControllerBase
 
         var others = _db.Bookings
             .Where(b => existing == null || b.Id != existing.Id)
-            .Select(b => b.GrossRevenue)
+            .Select(b => (long)b.GrossRevenue)
             .ToList();
 
         if (others.Count < UnusualSample) return null;
@@ -296,6 +320,7 @@ public class BookingsController : ControllerBase
     {
         id = b.Code,
         backendId = b.Id,
+        revision = b.Revision,
         ds = b.BookingDate.ToString("yyyy-MM-dd"),
         y = b.PassengerCount,
         client = b.Client,
