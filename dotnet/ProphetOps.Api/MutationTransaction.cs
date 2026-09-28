@@ -4,13 +4,18 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.Sqlite;
+using Npgsql;
 using ProphetOps.Data;
 
 namespace ProphetOps.Api;
 
-public sealed class MutationTransaction(AppDbContext db, MaintenanceGate gate, ILogger<MutationTransaction> logger) : IAsyncActionFilter
+public sealed class MutationTransaction(
+    AppDbContext db,
+    DatabaseRuntimeOptions database,
+    MaintenanceGate gate,
+    ILogger<MutationTransaction> logger) : IAsyncActionFilter
 {
     private readonly List<Action> _afterCommit = new();
     private readonly List<Action> _afterRollback = new();
@@ -46,12 +51,7 @@ public sealed class MutationTransaction(AppDbContext db, MaintenanceGate gate, I
             }
             maintenanceLease = admission.Lease;
 
-            var connection = (SqliteConnection)db.Database.GetDbConnection();
-            connection.DefaultTimeout = 5;
-            await db.Database.OpenConnectionAsync(request.HttpContext.RequestAborted);
-            // Take the writer lock before reading stock or active owners, across processes too.
-            await using var transaction = connection.BeginTransaction(deferred: false);
-            await using var enlisted = await db.Database.UseTransactionAsync(transaction, request.HttpContext.RequestAborted);
+            await using var transaction = await DatabaseWriteScope.BeginAsync(db, database.Provider, request.HttpContext.RequestAborted);
 
             var principal = context.HttpContext.User;
             var id = principal.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -101,12 +101,13 @@ public sealed class MutationTransaction(AppDbContext db, MaintenanceGate gate, I
         }
     }
 
-    private static bool IsConflict(Exception? exception) => exception is DbUpdateConcurrencyException
+    public static bool IsConflict(Exception? exception) => exception is DbUpdateConcurrencyException
         or MutationConflictException || exception is SqliteException { SqliteErrorCode: 5 or 6 }
         or SqliteException { SqliteExtendedErrorCode: 1555 or 2067 }
+        or PostgresException { SqlState: PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected or PostgresErrorCodes.LockNotAvailable or PostgresErrorCodes.UniqueViolation }
         || exception is DbUpdateException { InnerException: not null } update && IsConflict(update.InnerException);
 
-    private static ConflictObjectResult WriteConflict() => new(new
+    public static ConflictObjectResult WriteConflict() => new(new
     {
         code = "write_conflict", message = "The change could not be saved. Reload the record and check its current state before trying again.",
     });

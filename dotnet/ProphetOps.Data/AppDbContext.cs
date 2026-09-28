@@ -37,6 +37,9 @@ public class AppDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder b)
     {
+        if (Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL")
+            b.HasDefaultSchema("prophetops");
+
         b.Entity<User>().HasIndex(u => u.Email).IsUnique();
         b.Entity<User>().Property(u => u.SessionVersion).HasDefaultValue(1);
 

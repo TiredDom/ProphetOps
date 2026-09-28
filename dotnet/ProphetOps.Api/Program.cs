@@ -14,10 +14,11 @@ using ProphetOps.Domain;
 var baseDir = AppContext.BaseDirectory;
 var standalone = Directory.Exists(Path.Combine(baseDir, "wwwroot"));
 var bootstrapOwner = args.Contains("--bootstrap-owner", StringComparer.Ordinal);
+var migrateDatabase = args.Contains("--migrate-database", StringComparer.Ordinal);
 
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 {
-    Args = args.Where(arg => arg != "--bootstrap-owner").ToArray(),
+    Args = args.Where(arg => arg != "--bootstrap-owner" && arg != "--migrate-database").ToArray(),
     ContentRootPath = standalone ? baseDir : null,
 });
 
@@ -30,6 +31,11 @@ var containerHosted = HostedRuntime.IsEnabled(builder.Configuration);
 builder.Services.AddSingleton(sp => StoragePaths.FromConfiguration(
     sp.GetRequiredService<IConfiguration>(),
     sp.GetRequiredService<IHostEnvironment>()));
+builder.Services.AddSingleton(sp =>
+{
+    var storage = sp.GetRequiredService<StoragePaths>();
+    return DatabaseRuntimeOptions.FromConfiguration(sp.GetRequiredService<IConfiguration>(), storage.DatabaseConnectionString);
+});
 builder.Services.AddSingleton(sp => CloudflareAccessOptions.FromConfiguration(sp.GetRequiredService<IConfiguration>()));
 builder.Services.AddSingleton(sp => PublicTransportOptions.FromConfiguration(sp.GetRequiredService<IConfiguration>()));
 builder.Services.AddSingleton(TimeProvider.System);
@@ -47,9 +53,8 @@ if (builder.Environment.IsProduction() && containerHosted)
 
 builder.Services.AddDbContext<AppDbContext>((sp, options) =>
 {
-    var dbConnection = sp.GetRequiredService<IConfiguration>().GetConnectionString("Default")
-        ?? sp.GetRequiredService<StoragePaths>().DatabaseConnectionString;
-    options.UseSqlite(dbConnection);
+    var database = sp.GetRequiredService<DatabaseRuntimeOptions>();
+    DatabaseConfiguration.Configure(options, database.Provider, database.ConnectionString, database.MigrationsAssembly);
 });
 builder.Services.AddScoped<StaffCookieEvents>();
 builder.Services.AddScoped<MutationTransaction>();
@@ -114,23 +119,34 @@ var demoEnabled = app.Configuration.GetValue<bool>("Demo:Enabled");
 if (demoEnabled && app.Environment.IsProduction())
     throw new InvalidOperationException("Production cannot run with demonstration data enabled.");
 
-static void CreateBootstrapOwner(AppDbContext db)
+static AppDbContext CreateCommandDb(IServiceProvider services, bool useMaintenanceConnection, out DatabaseRuntimeOptions database)
 {
-    ProductionBootstrap.CreateOwner(db,
+    var storage = services.GetRequiredService<StoragePaths>();
+    database = DatabaseRuntimeOptions.FromConfiguration(
+        services.GetRequiredService<IConfiguration>(),
+        storage.DatabaseConnectionString,
+        useMaintenanceConnection);
+    var options = new DbContextOptionsBuilder<AppDbContext>();
+    DatabaseConfiguration.Configure(options, database.Provider, database.ConnectionString, database.MigrationsAssembly);
+    return new AppDbContext(options.Options);
+}
+
+static Task CreateBootstrapOwner(AppDbContext db, DatabaseProviderKind provider, CancellationToken cancellationToken) =>
+    ProductionBootstrap.CreateOwnerAsync(db, provider,
         Environment.GetEnvironmentVariable("Bootstrap__OwnerName"),
         Environment.GetEnvironmentVariable("Bootstrap__OwnerEmail"),
-        Environment.GetEnvironmentVariable("Bootstrap__OwnerPassword"));
-}
+        Environment.GetEnvironmentVariable("Bootstrap__OwnerPassword"),
+        cancellationToken);
 
 if (bootstrapOwner)
 {
     try
     {
         if (demoEnabled) throw new InvalidOperationException("Owner setup cannot run in demonstration mode.");
-        using var scope = app.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        db.Database.Migrate();
-        CreateBootstrapOwner(db);
+        await using var db = CreateCommandDb(app.Services, useMaintenanceConnection: true, out var database);
+        if (database.Provider == DatabaseProviderKind.Sqlite)
+            await db.Database.MigrateAsync();
+        await CreateBootstrapOwner(db, database.Provider, CancellationToken.None);
         app.Logger.LogInformation("Owner setup completed. Remove the setup credentials before starting the application.");
     }
     catch (InvalidOperationException ex)
@@ -142,23 +158,51 @@ if (bootstrapOwner)
     return;
 }
 
+if (migrateDatabase)
+{
+    try
+    {
+        if (demoEnabled) throw new InvalidOperationException("Database migration cannot run in demonstration mode.");
+        await using var db = CreateCommandDb(app.Services, useMaintenanceConnection: true, out _);
+        await db.Database.MigrateAsync();
+        app.Logger.LogInformation("Database migration completed.");
+    }
+    catch (InvalidOperationException ex)
+    {
+        app.Logger.LogError("Database migration failed: {Reason}", ex.Message);
+        Console.Error.WriteLine("Database migration failed: " + ex.Message);
+        Environment.ExitCode = 1;
+    }
+    return;
+}
+
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.Migrate();
-    if (app.Configuration.GetValue("Bootstrap:Owner:Enabled", false))
+    var database = scope.ServiceProvider.GetRequiredService<DatabaseRuntimeOptions>();
+    var startupPlan = DatabaseStartupPlan.ForWeb(database.Provider);
+    if (startupPlan.Migrate)
+        db.Database.Migrate();
+    if (startupPlan.ValidateSchemaOnly)
+        await DatabaseReadiness.EnsureReadyAsync(db, CancellationToken.None);
+    if (startupPlan.AllowAutomaticOwnerBootstrap && app.Configuration.GetValue("Bootstrap:Owner:Enabled", false))
     {
         if (demoEnabled) throw new InvalidOperationException("Owner setup cannot run in demonstration mode.");
-        var result = ProductionBootstrap.CreateOwnerIfEmpty(db,
+        var result = await ProductionBootstrap.CreateOwnerIfEmptyAsync(db, database.Provider,
             Environment.GetEnvironmentVariable("Bootstrap__OwnerName"),
             Environment.GetEnvironmentVariable("Bootstrap__OwnerEmail"),
-            Environment.GetEnvironmentVariable("Bootstrap__OwnerPassword"));
+            Environment.GetEnvironmentVariable("Bootstrap__OwnerPassword"),
+            CancellationToken.None);
         if (result.Created)
             app.Logger.LogInformation("Owner setup completed. For durable environments, remove Bootstrap:Owner:Enabled and the setup credentials after first start.");
         else
             app.Logger.LogInformation("Owner setup skipped because an account already exists. Existing account credentials were left unchanged.");
     }
-    else if (demoEnabled) DbSeeder.Seed(db);
+    else if (startupPlan.AllowDemoSeed && demoEnabled) DbSeeder.Seed(db);
+    else if (!startupPlan.AllowAutomaticOwnerBootstrap && app.Configuration.GetValue("Bootstrap:Owner:Enabled", false))
+    {
+        throw new InvalidOperationException("Hosted PostgreSQL startup does not bootstrap an owner automatically. Run --bootstrap-owner after schema migration instead.");
+    }
 }
 
 if (ForwardedHeadersSetup.HasTrustedBoundary(app.Configuration))
@@ -231,6 +275,15 @@ app.Use(async (context, next) =>
 });
 
 app.MapGet(CloudflareAccessOptions.HealthPath, () => Results.Json(new { status = "ok" }));
+app.MapGet(CloudflareAccessOptions.ReadyPath, async (IServiceProvider services, CancellationToken cancellationToken) =>
+{
+    await using var scope = services.CreateAsyncScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var readiness = await DatabaseReadiness.CheckAsync(db, cancellationToken);
+    return readiness.Ready
+        ? Results.Json(new { status = readiness.Status })
+        : Results.Json(new { status = readiness.Status }, statusCode: StatusCodes.Status503ServiceUnavailable);
+});
 app.MapControllers();
 app.MapFallbackToFile("index.html");
 app.Run();
