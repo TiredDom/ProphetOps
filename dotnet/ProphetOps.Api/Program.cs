@@ -67,8 +67,18 @@ builder.Services.AddScoped<IBackupStorage>(BackupStorageFactory.Create);
 builder.Services.AddScoped<IBackupPackageFileOperations, BackupPackageFileOperations>();
 builder.Services.AddDataProtection()
     .SetApplicationName("ProphetOps");
-builder.Services.AddOptions<KeyManagementOptions>().Configure<StoragePaths>((options, paths) =>
-    options.XmlRepository = new FileSystemXmlRepository(new DirectoryInfo(paths.KeysPath), NullLoggerFactory.Instance));
+builder.Services.AddSingleton<PostgresXmlRepository>();
+builder.Services.AddOptions<KeyManagementOptions>().Configure<DatabaseRuntimeOptions, StoragePaths, IServiceProvider>((options, database, paths, sp) =>
+{
+    if (database.Provider == DatabaseProviderKind.Postgres)
+    {
+        options.XmlRepository = sp.GetRequiredService<PostgresXmlRepository>();
+    }
+    else
+    {
+        options.XmlRepository = new FileSystemXmlRepository(new DirectoryInfo(paths.KeysPath), NullLoggerFactory.Instance);
+    }
+});
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
@@ -190,6 +200,11 @@ using (var scope = app.Services.CreateScope())
         db.Database.Migrate();
     if (startupPlan.ValidateSchemaOnly)
         await DatabaseReadiness.EnsureReadyAsync(db, CancellationToken.None);
+    if (database.Provider == DatabaseProviderKind.Postgres)
+    {
+        var keyRepo = scope.ServiceProvider.GetRequiredService<PostgresXmlRepository>();
+        keyRepo.GetAllElements();
+    }
     if (startupPlan.AllowAutomaticOwnerBootstrap && app.Configuration.GetValue("Bootstrap:Owner:Enabled", false))
     {
         if (demoEnabled) throw new InvalidOperationException("Owner setup cannot run in demonstration mode.");

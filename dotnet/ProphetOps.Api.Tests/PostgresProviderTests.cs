@@ -1,5 +1,9 @@
 using System.Diagnostics;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 using ProphetOps.Api;
 using ProphetOps.Data;
@@ -26,8 +30,10 @@ public sealed class PostgresProviderTests
         var secondMigrations = (await secondDb.Database.GetAppliedMigrationsAsync()).ToList();
         Assert.Contains(firstMigrations, migration => migration.Contains("InitialPostgres", StringComparison.Ordinal));
         Assert.Contains(firstMigrations, migration => migration.Contains("AddObjectCleanupEntries", StringComparison.Ordinal));
+        Assert.Contains(firstMigrations, migration => migration.Contains("AddDataProtectionKeys", StringComparison.Ordinal));
         Assert.Contains(secondMigrations, migration => migration.Contains("InitialPostgres", StringComparison.Ordinal));
         Assert.Contains(secondMigrations, migration => migration.Contains("AddObjectCleanupEntries", StringComparison.Ordinal));
+        Assert.Contains(secondMigrations, migration => migration.Contains("AddDataProtectionKeys", StringComparison.Ordinal));
     }
 
     [PostgresFact]
@@ -138,6 +144,61 @@ public sealed class PostgresProviderTests
         Assert.Single(verify.Users);
         Assert.Single(results, result => result is null);
         Assert.Single(results, result => result is InvalidOperationException);
+    }
+
+    [PostgresFact]
+    public async Task Postgres_data_protection_keys_round_trip_across_independent_service_providers()
+    {
+        await using var fixture = await OpenFixture();
+        await using (var db = Context(fixture.ConnectionString!))
+            await db.Database.MigrateAsync();
+
+        const string plaintext = "durable-staff-session-secret";
+        string protectedData;
+
+        // First independent service provider: protects data and saves key to postgres
+        using (var firstProvider = BuildPostgresServiceProvider(fixture.ConnectionString!))
+        {
+            var protector = firstProvider.GetRequiredService<IDataProtectionProvider>().CreateProtector("auth-cookie-test");
+            protectedData = protector.Protect(plaintext);
+        }
+
+        // Verify key exists in PostgreSQL table
+        await using (var verifyDb = Context(fixture.ConnectionString!))
+        {
+            var storedKeys = await verifyDb.DataProtectionKeys.AsNoTracking().ToListAsync();
+            Assert.NotEmpty(storedKeys);
+            Assert.All(storedKeys, key =>
+            {
+                Assert.False(string.IsNullOrWhiteSpace(key.FriendlyName));
+                Assert.False(string.IsNullOrWhiteSpace(key.Xml));
+            });
+        }
+
+        // Second independent service provider: reads key from postgres and unprotects
+        using (var secondProvider = BuildPostgresServiceProvider(fixture.ConnectionString!))
+        {
+            var protector = secondProvider.GetRequiredService<IDataProtectionProvider>().CreateProtector("auth-cookie-test");
+            var roundtrip = protector.Unprotect(protectedData);
+            Assert.Equal(plaintext, roundtrip);
+        }
+    }
+
+    private static ServiceProvider BuildPostgresServiceProvider(string connectionString)
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddDbContext<AppDbContext>(options =>
+            DatabaseConfiguration.Configure(
+                options,
+                DatabaseProviderKind.Postgres,
+                connectionString,
+                DatabaseRuntimeOptions.PostgresMigrationsAssembly));
+        services.AddDataProtection().SetApplicationName("ProphetOps");
+        services.AddSingleton<PostgresXmlRepository>();
+        services.AddOptions<KeyManagementOptions>().Configure<IServiceProvider>((options, sp) =>
+            options.XmlRepository = sp.GetRequiredService<PostgresXmlRepository>());
+        return services.BuildServiceProvider();
     }
 
     private static async Task<PostgresFixture> OpenFixture()

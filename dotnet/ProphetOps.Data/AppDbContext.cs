@@ -13,6 +13,7 @@ public class AppDbContext : DbContext
     public DbSet<Expense> Expenses => Set<Expense>();
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
     public DbSet<ObjectCleanupEntry> ObjectCleanupEntries => Set<ObjectCleanupEntry>();
+    public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
@@ -74,6 +75,11 @@ public class AppDbContext : DbContext
             e.HasIndex(x => x.ObjectKey);
             e.Property(x => x.ObjectKey).IsRequired();
             e.Property(x => x.Reason).IsRequired();
+        });
+
+        b.Entity<DataProtectionKey>(e =>
+        {
+            e.HasKey(x => x.Id);
         });
     }
 }
