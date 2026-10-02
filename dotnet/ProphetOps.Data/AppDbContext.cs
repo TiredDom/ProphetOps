@@ -12,6 +12,7 @@ public class AppDbContext : DbContext
     public DbSet<Booking> Bookings => Set<Booking>();
     public DbSet<Expense> Expenses => Set<Expense>();
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
+    public DbSet<ObjectCleanupEntry> ObjectCleanupEntries => Set<ObjectCleanupEntry>();
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
@@ -65,6 +66,14 @@ public class AppDbContext : DbContext
         {
             e.HasIndex(x => x.At);
             e.HasIndex(x => new { x.EntityType, x.EntityCode });
+        });
+
+        b.Entity<ObjectCleanupEntry>(e =>
+        {
+            e.HasIndex(x => x.EligibleAtUtc);
+            e.HasIndex(x => x.ObjectKey);
+            e.Property(x => x.ObjectKey).IsRequired();
+            e.Property(x => x.Reason).IsRequired();
         });
     }
 }

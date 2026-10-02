@@ -120,6 +120,96 @@ public sealed class HostedDatabaseConfigurationTests : IDisposable
         Assert.Contains("prophetops.db", options.ConnectionString, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void Hosted_postgres_application_login_requires_private_object_storage()
+    {
+        var config = Config(
+            ("Hosted:Enabled", "true"),
+            ("Hosted:AccessMode", "ApplicationLogin"),
+            ("Database:Provider", "postgres"),
+            ("Storage:Root", _root));
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            ObjectStorageFactory.ValidateHostedConfiguration(config));
+
+        Assert.Contains("ObjectStorage:Provider=supabase-s3", error.Message);
+    }
+
+    [Fact]
+    public void Hosted_postgres_application_login_accepts_supabase_s3_object_storage()
+    {
+        var config = Config(
+            ("Hosted:Enabled", "true"),
+            ("Hosted:AccessMode", "ApplicationLogin"),
+            ("Database:Provider", "postgres"),
+            ("ObjectStorage:Provider", "supabase-s3"),
+            ("ObjectStorage:S3:Endpoint", "https://project.supabase.co/storage/v1/s3"),
+            ("ObjectStorage:S3:Bucket", "package-images"),
+            ("ObjectStorage:S3:Region", "auto"),
+            ("ObjectStorage:S3:AccessKeyId", "access-key"),
+            ("ObjectStorage:S3:SecretAccessKey", "secret-key"),
+            ("ObjectStorage:S3:Prefix", "prophetops/private/"),
+            ("Storage:Root", _root));
+
+        ObjectStorageFactory.ValidateHostedConfiguration(config);
+    }
+
+    [Theory]
+    [InlineData(" postgres ")]
+    [InlineData("PostgreSQL")]
+    [InlineData("POSTGRESQL")]
+    public void Hosted_application_login_normalizes_postgres_provider_for_object_storage_requirement(string provider)
+    {
+        var config = Config(
+            ("Hosted:Enabled", "true"),
+            ("Hosted:AccessMode", " ApplicationLogin "),
+            ("Database:Provider", provider),
+            ("Storage:Root", _root));
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            ObjectStorageFactory.ValidateHostedConfiguration(config));
+
+        Assert.Contains("ObjectStorage:Provider=supabase-s3", error.Message);
+    }
+
+    [Fact]
+    public void Hosted_application_login_rejects_insecure_object_storage_endpoint()
+    {
+        var config = Config(
+            ("Hosted:Enabled", "true"),
+            ("Hosted:AccessMode", "ApplicationLogin"),
+            ("Database:Provider", "postgresql"),
+            ("ObjectStorage:Provider", " supabase-s3 "),
+            ("ObjectStorage:S3:Endpoint", "http://project.supabase.co/storage/v1/s3"),
+            ("ObjectStorage:S3:Bucket", "package-images"),
+            ("ObjectStorage:S3:Region", "auto"),
+            ("ObjectStorage:S3:AccessKeyId", "access-key"),
+            ("ObjectStorage:S3:SecretAccessKey", "secret-key"),
+            ("Storage:Root", _root));
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            ObjectStorageFactory.ValidateHostedConfiguration(config));
+
+        Assert.Contains("HTTPS", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Local_mode_allows_insecure_object_storage_endpoint_for_isolated_tests()
+    {
+        var config = Config(
+            ("ObjectStorage:S3:Endpoint", "http://127.0.0.1:9000"),
+            ("ObjectStorage:S3:AllowInsecureHttp", "true"),
+            ("ObjectStorage:S3:Bucket", "package-images"),
+            ("ObjectStorage:S3:Region", "auto"),
+            ("ObjectStorage:S3:AccessKeyId", "access-key"),
+            ("ObjectStorage:S3:SecretAccessKey", "secret-key"),
+            ("Storage:Root", _root));
+
+        var options = SupabaseS3ObjectStorageOptions.FromConfiguration(config);
+
+        Assert.Equal("http://127.0.0.1:9000/", options.Endpoint.ToString());
+    }
+
     private IConfiguration Config(params (string Key, string? Value)[] values) =>
         new ConfigurationBuilder().AddInMemoryCollection(values.ToDictionary(pair => pair.Key, pair => pair.Value)).Build();
 

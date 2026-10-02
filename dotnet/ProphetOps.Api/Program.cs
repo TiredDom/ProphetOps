@@ -59,6 +59,9 @@ builder.Services.AddDbContext<AppDbContext>((sp, options) =>
 builder.Services.AddScoped<StaffCookieEvents>();
 builder.Services.AddScoped<MutationTransaction>();
 builder.Services.AddScoped<BookingMutationService>();
+builder.Services.AddSingleton<IObjectStorage>(ObjectStorageFactory.Create);
+builder.Services.AddSingleton<IObjectRetentionPolicy, ConservativeObjectRetentionPolicy>();
+builder.Services.AddScoped<ObjectCleanupService>();
 builder.Services.AddScoped<BackupPackageWriter>();
 builder.Services.AddScoped<IBackupStorage>(BackupStorageFactory.Create);
 builder.Services.AddScoped<IBackupPackageFileOperations, BackupPackageFileOperations>();
@@ -113,7 +116,6 @@ _ = app.Services.GetRequiredService<StoragePaths>();
 _ = app.Services.GetRequiredService<IBusinessClock>();
 _ = app.Services.GetRequiredService<CloudflareAccessOptions>();
 var publicTransport = app.Services.GetRequiredService<PublicTransportOptions>();
-BackupStorageFactory.ValidateHostedSchedule(app.Configuration);
 
 var demoEnabled = app.Configuration.GetValue<bool>("Demo:Enabled");
 if (demoEnabled && app.Environment.IsProduction())
@@ -175,6 +177,9 @@ if (migrateDatabase)
     }
     return;
 }
+
+BackupStorageFactory.ValidateHostedSchedule(app.Configuration);
+ObjectStorageFactory.ValidateHostedConfiguration(app.Configuration);
 
 using (var scope = app.Services.CreateScope())
 {

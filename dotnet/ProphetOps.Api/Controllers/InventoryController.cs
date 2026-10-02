@@ -12,16 +12,23 @@ namespace ProphetOps.Api.Controllers;
 public class InventoryController : ControllerBase
 {
     private readonly AppDbContext _db;
-    private readonly StoragePaths _storage;
+    private readonly IObjectStorage _objects;
     private readonly IBusinessClock _clock;
     private readonly MutationTransaction _transaction;
+    private readonly IServiceScopeFactory _scopes;
 
-    public InventoryController(AppDbContext db, StoragePaths storage, IBusinessClock clock, MutationTransaction transaction)
+    public InventoryController(
+        AppDbContext db,
+        IObjectStorage objects,
+        IBusinessClock clock,
+        MutationTransaction transaction,
+        IServiceScopeFactory scopes)
     {
         _db = db;
-        _storage = storage;
+        _objects = objects;
         _clock = clock;
         _transaction = transaction;
+        _scopes = scopes;
     }
 
     [HttpGet]
@@ -85,19 +92,19 @@ public class InventoryController : ControllerBase
     }
 
     [HttpGet("{code}/image")]
-    public IActionResult GetImage(string code)
+    public async Task<IActionResult> GetImage(string code, CancellationToken cancellationToken)
     {
         var package = _db.TravelPackages.SingleOrDefault(p => p.Code == code);
         if (package?.ImagePath is null) return NotFound();
 
-        var stored = Path.GetFileName(package.ImagePath);
-        var contentType = ImageUpload.ContentTypeFor(stored);
+        var stored = package.ImagePath;
+        var contentType = ImageUpload.ContentTypeFor(Path.GetFileName(stored));
         if (contentType is null) return NotFound();
 
-        var path = Path.Combine(ImageFolder(), stored);
-        if (!System.IO.File.Exists(path)) return NotFound();
+        var storedObject = await _objects.OpenReadAsync(stored, cancellationToken);
+        if (storedObject is null) return NotFound();
 
-        return PhysicalFile(path, contentType);
+        return File(storedObject.Content, contentType);
     }
 
     [HttpPost("{code}/image")]
@@ -121,19 +128,20 @@ public class InventoryController : ControllerBase
         if (extension is null)
             return BadRequest(new Dictionary<string, string> { ["image"] = "Upload a JPEG, PNG, or WebP image." });
 
-        var folder = ImageFolder();
-        Directory.CreateDirectory(folder);
-
-        var stored = ImageUpload.NewStoredName(extension);
-        _transaction.AfterRollback(() => DiscardStored(stored));
+        var stored = ImageUpload.NewObjectKey(extension);
         buffer.Position = 0;
-        await using (var target = System.IO.File.Create(Path.Combine(folder, stored)))
+        try
         {
-            await buffer.CopyToAsync(target);
+            await _objects.PutAsync(stored, buffer, ImageUpload.ContentTypeFor(stored)!, HttpContext.RequestAborted);
         }
+        catch (ObjectStorageUnavailable)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "Image storage is temporarily unavailable." });
+        }
+        _transaction.AfterRollback(cancellationToken => RecordUploadRollbackCleanup(stored, cancellationToken));
 
         var previous = package.ImagePath;
-        _transaction.AfterCommit(() => QuarantineStored(previous));
+        EnqueueCleanup(previous, ObjectCleanupReasons.PackageImageReplaced);
         package.ImagePath = stored;
         package.LastUpdatedAt = _clock.Today;
         AuditLog.Record(_db, User, AuditLog.Updated, "TravelPackage", package.Code,
@@ -151,7 +159,7 @@ public class InventoryController : ControllerBase
         if (request.Revision != package.Revision) return MutationTransaction.Stale();
 
         var previous = package.ImagePath;
-        _transaction.AfterCommit(() => QuarantineStored(previous));
+        EnqueueCleanup(previous, ObjectCleanupReasons.PackageImageDeleted);
         package.ImagePath = null;
         package.LastUpdatedAt = _clock.Today;
         if (previous is not null)
@@ -161,27 +169,21 @@ public class InventoryController : ControllerBase
         return Ok(Dto(package));
     }
 
-    private string ImageFolder() => _storage.PackageImagesPath;
-
-    private void DiscardStored(string? storedName)
+    private void EnqueueCleanup(string? storedName, string reason)
     {
         if (string.IsNullOrWhiteSpace(storedName)) return;
-
-        var path = Path.Combine(ImageFolder(), Path.GetFileName(storedName));
-        if (System.IO.File.Exists(path)) System.IO.File.Delete(path);
+        _db.ObjectCleanupEntries.Add(ObjectCleanupEntry.Create(storedName, DateTimeOffset.UtcNow.AddHours(1), reason));
     }
 
-    private void QuarantineStored(string? storedName)
+    private async Task RecordUploadRollbackCleanup(string storedName, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(storedName)) return;
-
-        var source = Path.Combine(ImageFolder(), Path.GetFileName(storedName));
-        if (!System.IO.File.Exists(source)) return;
-        var quarantine = Path.Combine(ImageFolder(), ".quarantine");
-        Directory.CreateDirectory(quarantine);
-        var target = Path.Combine(quarantine, Path.GetFileName(storedName));
-        if (System.IO.File.Exists(target)) return;
-        System.IO.File.Move(source, target);
+        await using var scope = _scopes.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        db.ObjectCleanupEntries.Add(ObjectCleanupEntry.Create(
+            storedName,
+            DateTimeOffset.UtcNow,
+            ObjectCleanupReasons.PackageImageUploadRolledBack));
+        await db.SaveChangesAsync(CancellationToken.None);
     }
 
     private void Apply(TravelPackage package, PackageRequest request)

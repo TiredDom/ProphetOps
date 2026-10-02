@@ -19,9 +19,13 @@ public sealed class MutationTransaction(
 {
     private readonly List<Action> _afterCommit = new();
     private readonly List<Action> _afterRollback = new();
+    private readonly List<Func<CancellationToken, Task>> _afterCommitAsync = new();
+    private readonly List<Func<CancellationToken, Task>> _afterRollbackAsync = new();
 
     public void AfterCommit(Action action) => _afterCommit.Add(action);
     public void AfterRollback(Action action) => _afterRollback.Add(action);
+    public void AfterCommit(Func<CancellationToken, Task> action) => _afterCommitAsync.Add(action);
+    public void AfterRollback(Func<CancellationToken, Task> action) => _afterRollbackAsync.Add(action);
 
     public static ConflictObjectResult Stale() => new(new
     {
@@ -90,10 +94,19 @@ public sealed class MutationTransaction(
         finally
         {
             maintenanceLease?.Dispose();
+            var cancellationToken = CancellationToken.None;
             foreach (var cleanup in committed ? _afterCommit : _afterRollback)
             {
                 try { cleanup(); }
-                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ObjectStorageUnavailable)
+                {
+                    logger.LogWarning(exception, "Package image cleanup could not finish.");
+                }
+            }
+            foreach (var cleanup in committed ? _afterCommitAsync : _afterRollbackAsync)
+            {
+                try { await cleanup(cancellationToken); }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ObjectStorageUnavailable)
                 {
                     logger.LogWarning(exception, "Package image cleanup could not finish.");
                 }

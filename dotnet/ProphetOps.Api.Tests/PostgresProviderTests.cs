@@ -22,8 +22,12 @@ public sealed class PostgresProviderTests
         await firstDb.Database.MigrateAsync();
         await secondDb.Database.MigrateAsync();
 
-        Assert.Contains("InitialPostgres", (await firstDb.Database.GetAppliedMigrationsAsync()).Single());
-        Assert.Contains("InitialPostgres", (await secondDb.Database.GetAppliedMigrationsAsync()).Single());
+        var firstMigrations = (await firstDb.Database.GetAppliedMigrationsAsync()).ToList();
+        var secondMigrations = (await secondDb.Database.GetAppliedMigrationsAsync()).ToList();
+        Assert.Contains(firstMigrations, migration => migration.Contains("InitialPostgres", StringComparison.Ordinal));
+        Assert.Contains(firstMigrations, migration => migration.Contains("AddObjectCleanupEntries", StringComparison.Ordinal));
+        Assert.Contains(secondMigrations, migration => migration.Contains("InitialPostgres", StringComparison.Ordinal));
+        Assert.Contains(secondMigrations, migration => migration.Contains("AddObjectCleanupEntries", StringComparison.Ordinal));
     }
 
     [PostgresFact]
