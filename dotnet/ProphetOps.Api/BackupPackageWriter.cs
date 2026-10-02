@@ -16,6 +16,7 @@ public sealed class BackupPackageWriter(
     IBusinessClock clock,
     MaintenanceGate gate,
     IBackupStorage backupStorage,
+    IObjectStorage objectStorage,
     IBackupPackageFileOperations files,
     ILogger<BackupPackageWriter> log)
 {
@@ -100,7 +101,7 @@ public sealed class BackupPackageWriter(
             File.Delete(stagedDb + "-shm");
             File.Delete(stagedDb + "-journal");
 
-            var imageFiles = CopyReferencedImages(db, working);
+            var imageFiles = await CopyReferencedImages(db, working, cancellationToken);
             var keyFiles = CopyDataProtectionKeys(working);
             var config = ConfigurationInventory();
             var migrations = await db.Database.GetAppliedMigrationsAsync(cancellationToken);
@@ -283,7 +284,7 @@ public sealed class BackupPackageWriter(
         return check.ExecuteScalar() as string ?? "unknown";
     }
 
-    private List<string> CopyReferencedImages(AppDbContext db, string working)
+    private async Task<List<string>> CopyReferencedImages(AppDbContext db, string working, CancellationToken cancellationToken)
     {
         var copied = new List<string>();
         var images = db.TravelPackages
@@ -295,13 +296,16 @@ public sealed class BackupPackageWriter(
 
         foreach (var image in images)
         {
-            var source = storage.UploadedPackageImage(image);
-            if (!File.Exists(source))
+            await using var source = await objectStorage.OpenReadAsync(image, cancellationToken);
+            if (source is null)
                 throw new FileNotFoundException("A referenced package image is missing.");
             var relative = Path.Combine("uploads", "packages", Path.GetFileName(image));
             var target = Path.Combine(working, relative);
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-            File.Copy(source, target, overwrite: true);
+            await using (var output = File.Create(target))
+            {
+                await source.Content.CopyToAsync(output, cancellationToken);
+            }
             copied.Add(relative);
         }
         return copied;

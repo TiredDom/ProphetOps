@@ -12,6 +12,8 @@ public class AppDbContext : DbContext
     public DbSet<Booking> Bookings => Set<Booking>();
     public DbSet<Expense> Expenses => Set<Expense>();
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
+    public DbSet<ObjectCleanupEntry> ObjectCleanupEntries => Set<ObjectCleanupEntry>();
+    public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
@@ -37,6 +39,9 @@ public class AppDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder b)
     {
+        if (Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL")
+            b.HasDefaultSchema("prophetops");
+
         b.Entity<User>().HasIndex(u => u.Email).IsUnique();
         b.Entity<User>().Property(u => u.SessionVersion).HasDefaultValue(1);
 
@@ -62,6 +67,19 @@ public class AppDbContext : DbContext
         {
             e.HasIndex(x => x.At);
             e.HasIndex(x => new { x.EntityType, x.EntityCode });
+        });
+
+        b.Entity<ObjectCleanupEntry>(e =>
+        {
+            e.HasIndex(x => x.EligibleAtUtc);
+            e.HasIndex(x => x.ObjectKey);
+            e.Property(x => x.ObjectKey).IsRequired();
+            e.Property(x => x.Reason).IsRequired();
+        });
+
+        b.Entity<DataProtectionKey>(e =>
+        {
+            e.HasKey(x => x.Id);
         });
     }
 }

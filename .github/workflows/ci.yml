@@ -11,9 +11,29 @@ on:
 jobs:
   build-test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres-version: ["17", "18"]
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres-version }}
+        env:
+          POSTGRES_DB: prophetops_ci
+          POSTGRES_USER: prophetops
+          POSTGRES_PASSWORD: prophetops
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U prophetops -d prophetops_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
       DOTNET_NOLOGO: true
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+      PROPHETOPS_TEST_POSTGRES: Host=localhost;Port=5432;Database=prophetops_ci;Username=prophetops;Password=prophetops
+      PROPHETOPS_REQUIRE_POSTGRES: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,7 +62,9 @@ jobs:
       - name: Test API
         env:
           RUN_OPERATOR_RESTORE_TESTS: "true"
-        run: dotnet test dotnet/ProphetOps.Api.Tests/ProphetOps.Api.Tests.csproj --configuration Release --no-build --logger trx --results-directory artifacts/test-results/api
+          PROPHETOPS_TEST_POSTGRES: ${{ env.PROPHETOPS_TEST_POSTGRES }}
+          PROPHETOPS_REQUIRE_POSTGRES: ${{ env.PROPHETOPS_REQUIRE_POSTGRES }}
+        run: dotnet test dotnet/ProphetOps.Api.Tests/ProphetOps.Api.Tests.csproj --configuration Release --no-build --logger trx --results-directory artifacts/test-results/api-pg${{ matrix.postgres-version }}
 
       - name: Test data layer
         run: dotnet test dotnet/ProphetOps.Data.Tests/ProphetOps.Data.Tests.csproj --configuration Release --logger trx --results-directory artifacts/test-results/data

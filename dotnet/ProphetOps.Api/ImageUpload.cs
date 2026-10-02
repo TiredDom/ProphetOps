@@ -45,4 +45,7 @@ public static class ImageUpload
 
     public static string NewStoredName(string extension) =>
         Guid.NewGuid().ToString("N") + extension;
+
+    public static string NewObjectKey(string extension) =>
+        "packages/" + NewStoredName(extension);
 }

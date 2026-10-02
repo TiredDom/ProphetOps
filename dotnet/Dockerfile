@@ -15,12 +15,14 @@ WORKDIR /src
 COPY ProphetOps.Domain/*.csproj ProphetOps.Domain/
 COPY ProphetOps.Forecasting/*.csproj ProphetOps.Forecasting/
 COPY ProphetOps.Data/*.csproj ProphetOps.Data/
+COPY ProphetOps.PostgresMigrations/*.csproj ProphetOps.PostgresMigrations/
 COPY ProphetOps.Api/*.csproj ProphetOps.Api/
 RUN dotnet restore ProphetOps.Api/ProphetOps.Api.csproj
 
 COPY ProphetOps.Domain/ ProphetOps.Domain/
 COPY ProphetOps.Forecasting/ ProphetOps.Forecasting/
 COPY ProphetOps.Data/ ProphetOps.Data/
+COPY ProphetOps.PostgresMigrations/ ProphetOps.PostgresMigrations/
 COPY ProphetOps.Api/ ProphetOps.Api/
 COPY --from=client-build /src/ProphetOps.Api/wwwroot ProphetOps.Api/wwwroot
 RUN dotnet publish ProphetOps.Api/ProphetOps.Api.csproj -c Release -o /app/publish --no-restore /p:UseAppHost=false

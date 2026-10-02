@@ -6,6 +6,7 @@ public sealed class CloudflareAccessOptions
     public const string AssertionHeader = "Cf-Access-Jwt-Assertion";
     public const string ContextEmailKey = "CloudflareAccess.Email";
     public static readonly PathString HealthPath = new("/health/live");
+    public static readonly PathString ReadyPath = new("/health/ready");
 
     private CloudflareAccessOptions(bool enabled, string issuer, string audience, Uri jwksUrl)
     {
@@ -26,8 +27,15 @@ public sealed class CloudflareAccessOptions
         var section = configuration.GetSection(SectionName);
         var hosted = HostedRuntime.IsEnabled(configuration);
         var enabled = section.GetValue<bool>("Enabled");
+        var applicationLogin = string.Equals(
+            configuration["Hosted:AccessMode"],
+            "ApplicationLogin",
+            StringComparison.OrdinalIgnoreCase);
         if (!hosted)
             return new CloudflareAccessOptions(enabled, "", "", new Uri("https://localhost/.well-known/cdn-cgi/access/certs"));
+
+        if (applicationLogin && !enabled)
+            return new CloudflareAccessOptions(false, "", "", new Uri("https://localhost/.well-known/cdn-cgi/access/certs"));
 
         if (!enabled)
             throw new InvalidOperationException("Hosted mode requires CloudflareAccess:Enabled=true.");

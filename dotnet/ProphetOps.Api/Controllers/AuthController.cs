@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using ProphetOps.Data;
 using ProphetOps.Domain;
 
@@ -13,12 +14,14 @@ namespace ProphetOps.Api.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly DatabaseRuntimeOptions _database;
     private readonly SignInThrottle _throttle;
     private readonly MaintenanceGate _maintenance;
 
-    public AuthController(AppDbContext db, SignInThrottle throttle, MaintenanceGate maintenance)
+    public AuthController(AppDbContext db, DatabaseRuntimeOptions database, SignInThrottle throttle, MaintenanceGate maintenance)
     {
         _db = db;
+        _database = database;
         _throttle = throttle;
         _maintenance = maintenance;
     }
@@ -34,7 +37,7 @@ public class AuthController : ControllerBase
         var wait = _throttle.RetryAfter(email, address);
         if (wait > TimeSpan.Zero) return TooManyAttempts(wait);
 
-        var user = _db.Users.SingleOrDefault(u => u.Email == email && u.Status == "Active");
+        var user = await _db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Email == email && u.Status == "Active", HttpContext.RequestAborted);
 
         if (user is null || !BCrypt.Net.BCrypt.Verify(request.Password ?? "", user.PasswordHash))
         {
@@ -59,24 +62,46 @@ public class AuthController : ControllerBase
         }
         using var maintenanceLease = admission.Lease!;
 
-        _throttle.RecordSuccess(email, address);
-
-        user.LastLoginAt = DateTime.UtcNow;
-        _db.SaveChanges();
-
-        var claims = new List<Claim>
+        DatabaseWriteScope writeScope;
+        try
         {
-            new(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new(ClaimTypes.Name, user.Name),
-            new(ClaimTypes.Email, user.Email),
-            new(ClaimTypes.Role, user.Role),
-            new(StaffCookieEvents.SessionVersionClaim, user.SessionVersion.ToString(System.Globalization.CultureInfo.InvariantCulture)),
-        };
+            writeScope = await DatabaseWriteScope.BeginAsync(_db, _database.Provider, HttpContext.RequestAborted);
+        }
+        catch (Exception exception) when (MutationTransaction.IsConflict(exception))
+        {
+            return MutationTransaction.WriteConflict();
+        }
+        await using (writeScope)
+        {
+            var currentUser = await LoginAdmission.LoadFreshAuthorizedUserAsync(
+                _db,
+                user,
+                request.Password ?? "",
+                HttpContext.RequestAborted);
+            if (currentUser is null)
+                return Unauthorized(new { message = "Use an authorized internal account." });
 
-        var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
-        await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
+            _throttle.RecordSuccess(email, address);
 
-        return Ok(new AuthUser(user.Name, user.Email, user.Role, Roles.DefaultPathForRole(user.Role)));
+            var writableUser = await _db.Users.SingleAsync(u => u.Id == currentUser.Id, HttpContext.RequestAborted);
+            writableUser.LastLoginAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(HttpContext.RequestAborted);
+            await writeScope.CommitAsync(HttpContext.RequestAborted);
+
+            var claims = new List<Claim>
+            {
+                new(ClaimTypes.NameIdentifier, currentUser.Id.ToString()),
+                new(ClaimTypes.Name, currentUser.Name),
+                new(ClaimTypes.Email, currentUser.Email),
+                new(ClaimTypes.Role, currentUser.Role),
+                new(StaffCookieEvents.SessionVersionClaim, currentUser.SessionVersion.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+            };
+
+            var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+            await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
+
+            return Ok(new AuthUser(currentUser.Name, currentUser.Email, currentUser.Role, Roles.DefaultPathForRole(currentUser.Role)));
+        }
     }
 
     /// Says plainly that the wait is a wait and how long is left. A locked-out colleague who is
