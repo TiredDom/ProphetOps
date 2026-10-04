@@ -347,6 +347,11 @@ namespace ProphetOps.PostgresMigrations.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid>("SecurityStamp")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
                     b.Property<int>("SessionVersion")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")

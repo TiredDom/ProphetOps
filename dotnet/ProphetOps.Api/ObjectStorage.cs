@@ -9,6 +9,7 @@ namespace ProphetOps.Api;
 public interface IObjectStorage
 {
     Task PutAsync(string key, Stream body, string contentType, CancellationToken cancellationToken);
+    Task<bool> PutIfNotExistsAsync(string key, Stream body, string contentType, CancellationToken cancellationToken);
     Task<StoredObject?> OpenReadAsync(string key, CancellationToken cancellationToken);
     Task DeleteAsync(string key, CancellationToken cancellationToken);
 }
@@ -90,6 +91,36 @@ public sealed class LocalObjectStorage(StoragePaths storage, Action<string>? del
         catch
         {
             DeleteQuietly(partial);
+            throw;
+        }
+    }
+
+    public async Task<bool> PutIfNotExistsAsync(string key, Stream body, string contentType, CancellationToken cancellationToken)
+    {
+        var path = PathFor(key);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        FileStream target;
+        try
+        {
+            target = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, useAsync: true);
+        }
+        catch (IOException) when (File.Exists(path))
+        {
+            return false;
+        }
+
+        try
+        {
+            await using (target)
+            {
+                await body.CopyToAsync(target, cancellationToken);
+                await target.FlushAsync(cancellationToken);
+            }
+            return true;
+        }
+        catch
+        {
+            // Retain destination file conservatively on failure without unsafe deletion
             throw;
         }
     }
@@ -191,7 +222,7 @@ public sealed record SupabaseS3ObjectStorageOptions(
         return value;
     }
 
-    private static string NormalizePrefix(string? prefix)
+    public static string NormalizePrefix(string? prefix)
     {
         if (string.IsNullOrWhiteSpace(prefix)) return "";
         return string.Join('/', prefix.Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries)) + "/";
@@ -201,6 +232,7 @@ public sealed record SupabaseS3ObjectStorageOptions(
 public interface ISupabaseS3ObjectClient : IDisposable
 {
     Task PutAsync(string key, Stream body, string contentType, long length, CancellationToken cancellationToken);
+    Task<bool> PutIfNotExistsAsync(string key, Stream body, string contentType, long length, CancellationToken cancellationToken);
     Task<StoredObject?> OpenReadAsync(string key, CancellationToken cancellationToken);
     Task DeleteAsync(string key, CancellationToken cancellationToken);
 }
@@ -239,6 +271,22 @@ public sealed class AwsSupabaseS3ObjectClient : ISupabaseS3ObjectClient
 
     public Task PutAsync(string key, Stream body, string contentType, long length, CancellationToken cancellationToken) =>
         _client.PutObjectAsync(SupabaseS3ObjectStorage.CreatePutRequest(_options.Bucket, key, body, contentType, length), cancellationToken);
+
+    public async Task<bool> PutIfNotExistsAsync(string key, Stream body, string contentType, long length, CancellationToken cancellationToken)
+    {
+        var request = SupabaseS3ObjectStorage.CreatePutRequest(_options.Bucket, key, body, contentType, length);
+        request.IfNoneMatch = "*";
+        try
+        {
+            await _client.PutObjectAsync(request, cancellationToken);
+            return true;
+        }
+        catch (AmazonS3Exception ex) when (ex.StatusCode == HttpStatusCode.PreconditionFailed
+            || string.Equals(ex.ErrorCode, "PreconditionFailed", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+    }
 
     public async Task<StoredObject?> OpenReadAsync(string key, CancellationToken cancellationToken)
     {
@@ -301,7 +349,7 @@ public sealed class SupabaseS3ObjectStorage(
     SupabaseS3ObjectStorageOptions options,
     ISupabaseS3ObjectClient client,
     ILogger<SupabaseS3ObjectStorage> log,
-    bool ownsClient = false) : IObjectStorage, IDisposable
+    bool ownsClient = false) : IObjectStorage, IDisposable, IPrefixRecoverableObjectStorage
 {
     public async Task PutAsync(string key, Stream body, string contentType, CancellationToken cancellationToken)
     {
@@ -309,6 +357,18 @@ public sealed class SupabaseS3ObjectStorage(
         var length = body.CanSeek ? body.Length : -1;
         await Guard("upload", () => client.PutAsync(normalized, body, contentType, length, cancellationToken));
     }
+
+    public async Task<bool> PutIfNotExistsAsync(string key, Stream body, string contentType, CancellationToken cancellationToken)
+    {
+        var normalized = ObjectKey(key);
+        var length = body.CanSeek ? body.Length : -1;
+        return await Guard("conditional-upload", () => client.PutIfNotExistsAsync(normalized, body, contentType, length, cancellationToken));
+    }
+
+    public SupabaseS3ObjectStorage WithPrefix(string newPrefix) =>
+        new(options with { Prefix = SupabaseS3ObjectStorageOptions.NormalizePrefix(newPrefix) }, client, log, ownsClient: false);
+
+    IObjectStorage IPrefixRecoverableObjectStorage.WithPrefix(string prefix) => WithPrefix(prefix);
 
     public async Task<StoredObject?> OpenReadAsync(string key, CancellationToken cancellationToken) =>
         await Guard("open", () => client.OpenReadAsync(ObjectKey(key), cancellationToken));
@@ -341,10 +401,14 @@ public sealed class SupabaseS3ObjectStorage(
         {
             await action();
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception ex) when (IsStorageException(ex))
         {
-            log.LogWarning(ex, "Object storage {Operation} failed.", operation);
-            throw new ObjectStorageUnavailable("Object storage " + operation + " failed.", ex);
+            LogSafeStorageWarning(operation, ex);
+            throw new ObjectStorageUnavailable("Object storage " + operation + " failed.");
         }
     }
 
@@ -354,10 +418,28 @@ public sealed class SupabaseS3ObjectStorage(
         {
             return await action();
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception ex) when (IsStorageException(ex))
         {
-            log.LogWarning(ex, "Object storage {Operation} failed.", operation);
-            throw new ObjectStorageUnavailable("Object storage " + operation + " failed.", ex);
+            LogSafeStorageWarning(operation, ex);
+            throw new ObjectStorageUnavailable("Object storage " + operation + " failed.");
+        }
+    }
+
+    private void LogSafeStorageWarning(string operation, Exception ex)
+    {
+        var exceptionType = ex.GetType().Name;
+        var statusCode = (ex as AmazonServiceException)?.StatusCode;
+        if (statusCode.HasValue)
+        {
+            log.LogWarning("Object storage {Operation} failed: {ExceptionType} (HTTP {StatusCode}).", operation, exceptionType, (int)statusCode.Value);
+        }
+        else
+        {
+            log.LogWarning("Object storage {Operation} failed: {ExceptionType}.", operation, exceptionType);
         }
     }
 

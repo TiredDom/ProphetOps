@@ -20,6 +20,8 @@ public static class LoginAdmission
         if (fresh.Email != initiallyVerified.Email
             || fresh.Role != initiallyVerified.Role
             || fresh.SessionVersion != initiallyVerified.SessionVersion
+            || fresh.SecurityStamp == Guid.Empty
+            || fresh.SecurityStamp != initiallyVerified.SecurityStamp
             || fresh.PasswordHash != initiallyVerified.PasswordHash)
             return null;
         return BCrypt.Net.BCrypt.Verify(password, fresh.PasswordHash) ? fresh : null;

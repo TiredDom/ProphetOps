@@ -31,9 +31,11 @@ public sealed class PostgresProviderTests
         Assert.Contains(firstMigrations, migration => migration.Contains("InitialPostgres", StringComparison.Ordinal));
         Assert.Contains(firstMigrations, migration => migration.Contains("AddObjectCleanupEntries", StringComparison.Ordinal));
         Assert.Contains(firstMigrations, migration => migration.Contains("AddDataProtectionKeys", StringComparison.Ordinal));
+        Assert.Contains(firstMigrations, migration => migration.Contains("AddUserSecurityStamp", StringComparison.Ordinal));
         Assert.Contains(secondMigrations, migration => migration.Contains("InitialPostgres", StringComparison.Ordinal));
         Assert.Contains(secondMigrations, migration => migration.Contains("AddObjectCleanupEntries", StringComparison.Ordinal));
         Assert.Contains(secondMigrations, migration => migration.Contains("AddDataProtectionKeys", StringComparison.Ordinal));
+        Assert.Contains(secondMigrations, migration => migration.Contains("AddUserSecurityStamp", StringComparison.Ordinal));
     }
 
     [PostgresFact]

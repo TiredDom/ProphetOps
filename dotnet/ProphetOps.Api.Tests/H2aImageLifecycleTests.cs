@@ -393,6 +393,26 @@ public sealed class RecordingObjectStorage : IObjectStorage
         PutKeys.Add(key);
     }
 
+    public async Task<bool> PutIfNotExistsAsync(string key, Stream body, string contentType, CancellationToken cancellationToken)
+    {
+        if (FailNextPut)
+        {
+            FailNextPut = false;
+            throw new ObjectStorageUnavailable("Synthetic upload interruption.");
+        }
+
+        if (_objects.ContainsKey(key))
+        {
+            return false;
+        }
+
+        using var copy = new MemoryStream();
+        await body.CopyToAsync(copy, cancellationToken);
+        _objects[key] = (copy.ToArray(), contentType);
+        PutKeys.Add(key);
+        return true;
+    }
+
     public Task<StoredObject?> OpenReadAsync(string key, CancellationToken cancellationToken)
     {
         LastOpenedStreamDisposed = false;

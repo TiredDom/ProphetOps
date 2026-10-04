@@ -60,11 +60,16 @@ public sealed class MutationTransaction(
             var principal = context.HttpContext.User;
             var id = principal.FindFirstValue(ClaimTypes.NameIdentifier);
             var version = principal.FindFirstValue(StaffCookieEvents.SessionVersionClaim);
-            var actor = int.TryParse(id, out var userId)
+            var stampClaim = principal.FindFirstValue(StaffCookieEvents.SecurityStampClaim);
+            var hasStamp = Guid.TryParse(stampClaim, out var claimStamp) && claimStamp != Guid.Empty;
+            var actor = int.TryParse(id, out var userId) && hasStamp
                 ? await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == userId, request.HttpContext.RequestAborted)
                 : null;
             if (actor is null || actor.Status != "Active" || !int.TryParse(version, out var sessionVersion)
-                || actor.SessionVersion != sessionVersion || actor.Role != principal.FindFirstValue(ClaimTypes.Role)
+                || actor.SessionVersion != sessionVersion
+                || actor.SecurityStamp == Guid.Empty
+                || actor.SecurityStamp != claimStamp
+                || actor.Role != principal.FindFirstValue(ClaimTypes.Role)
                 || actor.Email != principal.FindFirstValue(ClaimTypes.Email))
             {
                 await context.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);

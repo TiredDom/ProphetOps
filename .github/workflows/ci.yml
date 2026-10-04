@@ -6,11 +6,10 @@ on:
     branches:
       - main
       - feature/**
-      - codex/**
 
 jobs:
   build-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -51,7 +50,13 @@ jobs:
           cache-dependency-path: dotnet/client/package-lock.json
 
       - name: Install restore dependencies
-        run: sudo apt-get update && sudo apt-get install -y sqlite3
+        run: |
+          sudo install -d -m 0755 /etc/apt/keyrings
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/keyrings/postgresql.gpg
+          sudo chmod a+r /etc/apt/keyrings/postgresql.gpg
+          echo "deb [signed-by=/etc/apt/keyrings/postgresql.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y sqlite3 postgresql-client-18
 
       - name: Restore API
         run: dotnet restore dotnet/ProphetOps.Api.Tests/ProphetOps.Api.Tests.csproj
@@ -64,6 +69,7 @@ jobs:
           RUN_OPERATOR_RESTORE_TESTS: "true"
           PROPHETOPS_TEST_POSTGRES: ${{ env.PROPHETOPS_TEST_POSTGRES }}
           PROPHETOPS_REQUIRE_POSTGRES: ${{ env.PROPHETOPS_REQUIRE_POSTGRES }}
+          Backup__Postgres__ClientToolsPath: /usr/lib/postgresql/18/bin
         run: dotnet test dotnet/ProphetOps.Api.Tests/ProphetOps.Api.Tests.csproj --configuration Release --no-build --logger trx --results-directory artifacts/test-results/api-pg${{ matrix.postgres-version }}
 
       - name: Test data layer
@@ -86,6 +92,12 @@ jobs:
 
       - name: Docker build
         run: docker build -f dotnet/Dockerfile dotnet -t prophetops-ci
+
+      - name: Docker client tools smoke
+        run: |
+          docker run --rm --entrypoint /usr/lib/postgresql/18/bin/pg_dump prophetops-ci --version
+          docker run --rm --entrypoint /usr/lib/postgresql/18/bin/pg_restore prophetops-ci --version
+          docker run --rm --entrypoint /usr/lib/postgresql/18/bin/psql prophetops-ci --version
 
       - name: Docker preview smoke
         shell: bash

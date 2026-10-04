@@ -1,9 +1,11 @@
+using System.Globalization;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using ProphetOps.Data;
 using ProphetOps.Domain;
 
@@ -17,13 +19,20 @@ public class AuthController : ControllerBase
     private readonly DatabaseRuntimeOptions _database;
     private readonly SignInThrottle _throttle;
     private readonly MaintenanceGate _maintenance;
+    private readonly ILogger<AuthController> _logger;
 
-    public AuthController(AppDbContext db, DatabaseRuntimeOptions database, SignInThrottle throttle, MaintenanceGate maintenance)
+    public AuthController(
+        AppDbContext db,
+        DatabaseRuntimeOptions database,
+        SignInThrottle throttle,
+        MaintenanceGate maintenance,
+        ILogger<AuthController>? logger = null)
     {
         _db = db;
         _database = database;
         _throttle = throttle;
         _maintenance = maintenance;
+        _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<AuthController>.Instance;
     }
 
     [HttpPost("login")]
@@ -95,6 +104,7 @@ public class AuthController : ControllerBase
                 new(ClaimTypes.Email, currentUser.Email),
                 new(ClaimTypes.Role, currentUser.Role),
                 new(StaffCookieEvents.SessionVersionClaim, currentUser.SessionVersion.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                new(StaffCookieEvents.SecurityStampClaim, currentUser.SecurityStamp.ToString("D")),
             };
 
             var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
@@ -120,8 +130,83 @@ public class AuthController : ControllerBase
     [HttpPost("logout")]
     public async Task<IActionResult> Logout()
     {
+        // Preserve local cookie clearing across all paths
         await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-        return NoContent();
+
+        var idClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!int.TryParse(idClaim, NumberStyles.None, CultureInfo.InvariantCulture, out var userId))
+        {
+            return NoContent();
+        }
+
+        var admission = _maintenance.TryEnterMutation();
+        if (!admission.Allowed)
+        {
+            Response.Headers.RetryAfter = MaintenanceGate.RetryAfterSeconds.ToString(CultureInfo.InvariantCulture);
+            return MaintenanceGate.RetryableResult();
+        }
+        using var maintenanceLease = admission.Lease!;
+
+        try
+        {
+            await using var writeScope = await DatabaseWriteScope.BeginAsync(_db, _database.Provider, HttpContext.RequestAborted);
+
+            var versionClaim = User.FindFirstValue(StaffCookieEvents.SessionVersionClaim);
+            var stampClaim = User.FindFirstValue(StaffCookieEvents.SecurityStampClaim);
+            var hasStamp = Guid.TryParse(stampClaim, out var claimStamp) && claimStamp != Guid.Empty;
+            var hasVersion = int.TryParse(versionClaim, NumberStyles.None, CultureInfo.InvariantCulture, out var sessionVersion);
+
+            var freshUser = await _db.Users.SingleOrDefaultAsync(u => u.Id == userId, HttpContext.RequestAborted);
+            if (freshUser is null)
+            {
+                return NoContent();
+            }
+
+            // Revalidate fresh actor cookie/stamp inside write lock before rotating.
+            // A request admitted before another revocation must not rotate newer sessions.
+            if (!hasStamp || !hasVersion || freshUser.SecurityStamp != claimStamp || freshUser.SessionVersion != sessionVersion)
+            {
+                _logger.LogInformation("Logout called with stale credentials for user {UserId}; newer session preserved.", userId);
+                return NoContent();
+            }
+
+            freshUser.SecurityStamp = Guid.NewGuid();
+            freshUser.SessionVersion = freshUser.SessionVersion == int.MaxValue ? 1 : freshUser.SessionVersion + 1;
+            await _db.SaveChangesAsync(HttpContext.RequestAborted);
+            await writeScope.CommitAsync(HttpContext.RequestAborted);
+
+            return NoContent();
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogWarning("Logout revocation cancelled for user {UserId}.", userId);
+            Response.Headers.RetryAfter = "1";
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new
+            {
+                code = "revocation_cancelled",
+                message = "Session revocation was cancelled. Please retry.",
+            });
+        }
+        catch (Exception exception) when (MutationTransaction.IsConflict(exception))
+        {
+            _logger.LogWarning("Logout revocation encountered write conflict for user {UserId}.", userId);
+            Response.Headers.RetryAfter = "1";
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new
+            {
+                code = "write_conflict",
+                message = "Logout revocation encountered a concurrency conflict. Please retry.",
+            });
+        }
+        catch (Exception)
+        {
+            _logger.LogWarning("Logout revocation failed due to a database error for user {UserId}.", userId);
+            Response.Headers.RetryAfter = MaintenanceGate.RetryAfterSeconds.ToString(CultureInfo.InvariantCulture);
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new
+            {
+                code = "revocation_failed",
+                message = "Session could not be revoked on the server. Try again.",
+            });
+        }
     }
 
     [HttpGet("me")]

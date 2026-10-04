@@ -44,6 +44,18 @@ public class AppDbContext : DbContext
 
         b.Entity<User>().HasIndex(u => u.Email).IsUnique();
         b.Entity<User>().Property(u => u.SessionVersion).HasDefaultValue(1);
+        b.Entity<User>().Property(u => u.SecurityStamp).IsRequired();
+        if (Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL")
+        {
+            b.Entity<User>().Property(u => u.SecurityStamp)
+                .HasColumnType("uuid")
+                .HasDefaultValueSql("gen_random_uuid()");
+        }
+        else
+        {
+            b.Entity<User>().Property(u => u.SecurityStamp)
+                .HasColumnType("TEXT");
+        }
 
         b.Entity<TravelPackage>().HasIndex(p => p.Code).IsUnique();
         b.Entity<TravelPackage>().Property(p => p.Revision).IsConcurrencyToken().HasDefaultValue(1);

@@ -26,46 +26,77 @@ public sealed class ObjectCleanupService(
     IObjectStorage objects,
     IObjectRetentionPolicy retention,
     TimeProvider time,
-    ILogger<ObjectCleanupService> log)
+    ILogger<ObjectCleanupService> log,
+    MaintenanceGate? gate = null,
+    DatabaseRuntimeOptions? database = null)
 {
     public async Task<int> RunOnceAsync(CancellationToken cancellationToken)
     {
-        await using var scope = scopes.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var now = time.GetUtcNow().UtcDateTime;
-        var entries = await db.ObjectCleanupEntries
-            .Where(entry => entry.EligibleAtUtc <= now)
-            .OrderBy(entry => entry.Id)
-            .Take(25)
-            .ToListAsync(cancellationToken);
-        var deleted = 0;
-
-        foreach (var entry in entries)
+        IDisposable? gateLease = null;
+        if (gate is not null)
         {
-            if (await db.TravelPackages.AsNoTracking().AnyAsync(package => package.ImagePath == entry.ObjectKey, cancellationToken))
-                continue;
-
-            var decision = await retention.CanDeleteAsync(entry.ObjectKey, cancellationToken);
-            if (decision != ObjectRetentionDecision.SafeToDelete)
-                continue;
-
-            try
+            var admission = gate.TryEnterMutation();
+            if (!admission.Allowed)
             {
-                await objects.DeleteAsync(entry.ObjectKey, cancellationToken);
-                db.ObjectCleanupEntries.Remove(entry);
-                await db.SaveChangesAsync(cancellationToken);
-                deleted++;
+                log.LogInformation("Object cleanup deferred because MaintenanceGate is closed for backup/maintenance.");
+                return 0;
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ObjectStorageUnavailable)
-            {
-                entry.Attempts++;
-                entry.LastError = ex.Message.Length > 500 ? ex.Message[..500] : ex.Message;
-                entry.EligibleAtUtc = now.AddMinutes(Math.Min(60, entry.Attempts));
-                await db.SaveChangesAsync(cancellationToken);
-                log.LogWarning(ex, "Object cleanup failed for {ObjectKey}.", entry.ObjectKey);
-            }
+            gateLease = admission.Lease;
         }
 
-        return deleted;
+        try
+        {
+            await using var scope = scopes.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var now = time.GetUtcNow().UtcDateTime;
+            var entries = await db.ObjectCleanupEntries
+                .Where(entry => entry.EligibleAtUtc <= now)
+                .OrderBy(entry => entry.Id)
+                .Take(25)
+                .ToListAsync(cancellationToken);
+            var deleted = 0;
+
+            var provider = database?.Provider ?? (db.Database.ProviderName?.Contains("Npgsql", StringComparison.OrdinalIgnoreCase) == true
+                ? DatabaseProviderKind.Postgres
+                : DatabaseProviderKind.Sqlite);
+
+            foreach (var entry in entries)
+            {
+                if (await db.TravelPackages.AsNoTracking().AnyAsync(package => package.ImagePath == entry.ObjectKey, cancellationToken))
+                    continue;
+
+                var decision = await retention.CanDeleteAsync(entry.ObjectKey, cancellationToken);
+                if (decision != ObjectRetentionDecision.SafeToDelete)
+                    continue;
+
+                try
+                {
+                    await using var writeScope = await DatabaseWriteScope.BeginAsync(db, provider, cancellationToken);
+
+                    if (await db.TravelPackages.AsNoTracking().AnyAsync(package => package.ImagePath == entry.ObjectKey, cancellationToken))
+                        continue;
+
+                    await objects.DeleteAsync(entry.ObjectKey, cancellationToken);
+                    db.ObjectCleanupEntries.Remove(entry);
+                    await db.SaveChangesAsync(cancellationToken);
+                    await writeScope.CommitAsync(cancellationToken);
+                    deleted++;
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ObjectStorageUnavailable)
+                {
+                    entry.Attempts++;
+                    entry.LastError = ex.Message.Length > 500 ? ex.Message[..500] : ex.Message;
+                    entry.EligibleAtUtc = now.AddMinutes(Math.Min(60, entry.Attempts));
+                    await db.SaveChangesAsync(cancellationToken);
+                    log.LogWarning(ex, "Object cleanup failed for {ObjectKey}.", entry.ObjectKey);
+                }
+            }
+
+            return deleted;
+        }
+        finally
+        {
+            gateLease?.Dispose();
+        }
     }
 }
