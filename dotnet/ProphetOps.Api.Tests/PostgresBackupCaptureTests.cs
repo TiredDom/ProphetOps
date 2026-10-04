@@ -188,13 +188,29 @@ public class PostgresBackupCaptureTests : IDisposable
     {
         var toolsDir = Path.Combine(_tempDir, "tools-cancel");
         Directory.CreateDirectory(toolsDir);
-        var scriptPath = Path.Combine(toolsDir, "pg_dump.cmd");
-        File.WriteAllLines(scriptPath, [
-            "@echo off",
-            ":loop",
-            "ping 127.0.0.1 -n 2 >nul",
-            "goto loop"
-        ]);
+        var scriptPath = Path.Combine(toolsDir, OperatingSystem.IsWindows() ? "pg_dump.cmd" : "pg_dump");
+        if (OperatingSystem.IsWindows())
+        {
+            File.WriteAllLines(scriptPath, [
+                "@echo off",
+                ":loop",
+                "ping 127.0.0.1 -n 2 >nul",
+                "goto loop"
+            ]);
+        }
+        else
+        {
+            File.WriteAllLines(scriptPath, [
+                "#!/bin/sh",
+                "while true; do",
+                "  sleep 1",
+                "done"
+            ]);
+            var mode = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
+                       UnixFileMode.GroupRead | UnixFileMode.GroupExecute |
+                       UnixFileMode.OtherRead | UnixFileMode.OtherExecute;
+            File.SetUnixFileMode(scriptPath, mode);
+        }
 
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -519,7 +535,7 @@ public class PostgresBackupCaptureTests : IDisposable
         var options = new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(connString).Options;
         await using var db = new AppDbContext(options);
 
-        var config = new ConfigurationBuilder().Build();
+        var config = new ConfigurationBuilder().AddEnvironmentVariables().Build();
         var storage = CreateStoragePaths(Path.Combine(_tempDir, "storage-pg-live"));
         var runner = new PostgresProcessRunner(config, NullLogger<PostgresProcessRunner>.Instance);
         var capture = new PostgresBackupCapture(storage, config, runner, NullLogger<PostgresBackupCapture>.Instance);
@@ -546,7 +562,7 @@ public class PostgresBackupCaptureTests : IDisposable
         var options = new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(connString).Options;
         await using var db = new AppDbContext(options);
 
-        var config = new ConfigurationBuilder().Build();
+        var config = new ConfigurationBuilder().AddEnvironmentVariables().Build();
         var storage = CreateStoragePaths(Path.Combine(_tempDir, "storage-pg-lock"));
         var runner = new PostgresProcessRunner(config, NullLogger<PostgresProcessRunner>.Instance);
         var capture = new PostgresBackupCapture(storage, config, runner, NullLogger<PostgresBackupCapture>.Instance);
@@ -584,7 +600,7 @@ public class PostgresBackupCaptureTests : IDisposable
         await fixture.InitializeAsync();
         fixture.RequireAvailable();
 
-        var config = new ConfigurationBuilder().Build();
+        var config = new ConfigurationBuilder().AddEnvironmentVariables().Build();
         var runner = new PostgresProcessRunner(config, NullLogger<PostgresProcessRunner>.Instance);
         try
         {
@@ -598,7 +614,9 @@ public class PostgresBackupCaptureTests : IDisposable
         }
 
         var connString = fixture.ConnectionString!;
-        var options = new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(connString).Options;
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseNpgsql(connString, b => b.MigrationsAssembly(DatabaseRuntimeOptions.PostgresMigrationsAssembly))
+            .Options;
         await using var db = new AppDbContext(options);
 
         // Migrate database
@@ -634,7 +652,8 @@ public class PostgresBackupCaptureTests : IDisposable
 
         var services = new ServiceCollection();
         services.AddSingleton(storage);
-        services.AddDbContext<AppDbContext>(opts => opts.UseNpgsql(connString));
+        services.AddDbContext<AppDbContext>(opts =>
+            opts.UseNpgsql(connString, b => b.MigrationsAssembly(DatabaseRuntimeOptions.PostgresMigrationsAssembly)));
         using var sp = services.BuildServiceProvider();
 
         var capture = new PostgresBackupCapture(storage, config, runner, NullLogger<PostgresBackupCapture>.Instance);
@@ -801,20 +820,49 @@ public class PostgresBackupCaptureTests : IDisposable
         var dataFile = Path.Combine(toolsDir, "chunk_data.txt");
         await File.WriteAllTextAsync(dataFile, chunkData);
 
-        var immediateExitScript = Path.Combine(toolsDir, "immediate.cmd");
-        File.WriteAllLines(immediateExitScript, [
-            "@echo off",
-            $"type \"{dataFile}\"",
-            "exit /b 0"
-        ]);
+        string immediateExitScript;
+        string lagExitScript;
 
-        var lagExitScript = Path.Combine(toolsDir, "lag.cmd");
-        File.WriteAllLines(lagExitScript, [
-            "@echo off",
-            $"type \"{dataFile}\"",
-            "ping 127.0.0.1 -n 1 -w 50 >nul",
-            "exit /b 0"
-        ]);
+        if (OperatingSystem.IsWindows())
+        {
+            immediateExitScript = Path.Combine(toolsDir, "immediate.cmd");
+            File.WriteAllLines(immediateExitScript, [
+                "@echo off",
+                $"type \"{dataFile}\"",
+                "exit /b 0"
+            ]);
+
+            lagExitScript = Path.Combine(toolsDir, "lag.cmd");
+            File.WriteAllLines(lagExitScript, [
+                "@echo off",
+                $"type \"{dataFile}\"",
+                "ping 127.0.0.1 -n 1 -w 50 >nul",
+                "exit /b 0"
+            ]);
+        }
+        else
+        {
+            var mode = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
+                       UnixFileMode.GroupRead | UnixFileMode.GroupExecute |
+                       UnixFileMode.OtherRead | UnixFileMode.OtherExecute;
+
+            immediateExitScript = Path.Combine(toolsDir, "immediate.sh");
+            File.WriteAllLines(immediateExitScript, [
+                "#!/bin/sh",
+                $"cat \"{dataFile}\"",
+                "exit 0"
+            ]);
+            File.SetUnixFileMode(immediateExitScript, mode);
+
+            lagExitScript = Path.Combine(toolsDir, "lag.sh");
+            File.WriteAllLines(lagExitScript, [
+                "#!/bin/sh",
+                $"cat \"{dataFile}\"",
+                "sleep 0.05",
+                "exit 0"
+            ]);
+            File.SetUnixFileMode(lagExitScript, mode);
+        }
 
         var runner = new PostgresProcessRunner(new ConfigurationBuilder().Build(), NullLogger<PostgresProcessRunner>.Instance);
 

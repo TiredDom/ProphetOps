@@ -57,6 +57,7 @@ jobs:
           echo "deb [signed-by=/etc/apt/keyrings/postgresql.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update
           sudo apt-get install -y sqlite3 postgresql-client-18
+          echo "/usr/lib/postgresql/18/bin" >> $GITHUB_PATH
 
       - name: Restore API
         run: dotnet restore dotnet/ProphetOps.Api.Tests/ProphetOps.Api.Tests.csproj
@@ -70,6 +71,8 @@ jobs:
           PROPHETOPS_TEST_POSTGRES: ${{ env.PROPHETOPS_TEST_POSTGRES }}
           PROPHETOPS_REQUIRE_POSTGRES: ${{ env.PROPHETOPS_REQUIRE_POSTGRES }}
           Backup__Postgres__ClientToolsPath: /usr/lib/postgresql/18/bin
+          NO_COLOR: "1"
+          COLUMNS: "1000"
         run: dotnet test dotnet/ProphetOps.Api.Tests/ProphetOps.Api.Tests.csproj --configuration Release --no-build --logger trx --results-directory artifacts/test-results/api-pg${{ matrix.postgres-version }}
 
       - name: Test data layer

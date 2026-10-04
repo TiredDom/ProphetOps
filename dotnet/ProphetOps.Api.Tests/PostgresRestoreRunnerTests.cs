@@ -143,7 +143,10 @@ public class PostgresRestoreRunnerTests : IDisposable
         var secret = "super_confidential_secret_token";
         var psi = OperatingSystem.IsWindows()
             ? new ProcessStartInfo("cmd.exe", $"/c echo secret: {secret} & echo err: {secret} 1>&2")
-            : new ProcessStartInfo("sh", $"-c 'echo secret: {secret}; echo err: {secret} >&2'");
+            : new ProcessStartInfo("sh")
+            {
+                ArgumentList = { "-c", $"echo \"secret: {secret}\"; echo \"err: {secret}\" >&2" }
+            };
         psi.RedirectStandardOutput = true;
         psi.RedirectStandardError = true;
         psi.UseShellExecute = false;

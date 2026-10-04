@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -1077,6 +1078,8 @@ public sealed class PrivateObjectRecoveryTests : IDisposable
             psi.ArgumentList.Add("localhost:5432/test_db");
 
             psi.Environment["PATH"] = stubBin + Path.PathSeparator + Environment.GetEnvironmentVariable("PATH");
+            psi.Environment["NO_COLOR"] = "1";
+            psi.Environment["COLUMNS"] = "1000";
             ConfigureDotnetEnvironment(psi, ResolveDotnetSdk());
 
 
@@ -1098,10 +1101,12 @@ public sealed class PrivateObjectRecoveryTests : IDisposable
 
             var outStr = await stdoutTask;
             var errStr = await stderrTask;
+            var combined = Regex.Replace(Regex.Replace(outStr + errStr, @"\x1B\[[^@-~]*[@-~]", ""), @"\r?\n\s*\|\s*", " ");
 
             // Script must fail activation (exit code != 0) with explicit activation blocker
             Assert.NotEqual(0, proc.ExitCode);
-            Assert.Contains("application activation is BLOCKED", outStr + errStr);
+            Assert.True(combined.Contains("application activation is BLOCKED", StringComparison.OrdinalIgnoreCase),
+                $"Actual output: {outStr}\nSTDERR: {errStr}");
 
             // Recovery manifest must exist
             var recoveryManifestPath = Path.Combine(destRoot, "recovery", "recovery-manifest.json");
@@ -2021,8 +2026,8 @@ public sealed class PrivateObjectRecoveryTests : IDisposable
     private static void EnsureScriptStubs(string stubDir)
     {
         Directory.CreateDirectory(stubDir);
-        var pgRestore = Path.Combine(stubDir, "pg_restore.exe");
-        var psql = Path.Combine(stubDir, "psql.exe");
+        var pgRestore = OperatingSystem.IsWindows() ? Path.Combine(stubDir, "pg_restore.exe") : Path.Combine(stubDir, "pg_restore");
+        var psql = OperatingSystem.IsWindows() ? Path.Combine(stubDir, "psql.exe") : Path.Combine(stubDir, "psql");
         if (File.Exists(pgRestore) && File.Exists(psql)) return;
 
         var sdkPath = ResolveDotnetSdk();
@@ -2115,6 +2120,18 @@ class Program
                 var stdout = proc.StandardOutput.ReadToEnd();
                 var err = proc.StandardError.ReadToEnd();
                 throw new InvalidOperationException($"Failed to build required test stub {name} (ExitCode {proc.ExitCode}): STDOUT: {stdout} STDERR: {err}");
+            }
+
+            if (!OperatingSystem.IsWindows())
+            {
+                var builtFile = Path.Combine(stubDir, name);
+                if (File.Exists(builtFile))
+                {
+                    var mode = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
+                               UnixFileMode.GroupRead | UnixFileMode.GroupExecute |
+                               UnixFileMode.OtherRead | UnixFileMode.OtherExecute;
+                    File.SetUnixFileMode(builtFile, mode);
+                }
             }
         }
     }

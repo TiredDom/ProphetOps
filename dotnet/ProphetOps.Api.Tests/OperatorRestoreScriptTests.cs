@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -219,7 +220,7 @@ public sealed class OperatorRestoreScriptTests : IDisposable
         var result = await RunRestore(pwsh, package, destination, keyFile, extraParams: extra);
 
         Assert.NotEqual(0, result.ExitCode);
-        Assert.Contains("exceeds maximum in-memory decryption limit", result.Output, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.Output.Contains("exceeds maximum in-memory decryption limit", StringComparison.OrdinalIgnoreCase), $"Actual output: {result.Output}");
     }
 
     [PostgresRestoreFact]
@@ -307,8 +308,8 @@ public sealed class OperatorRestoreScriptTests : IDisposable
         var result = await RunRestore(shell, package, destination, extraParams: extra);
 
         Assert.NotEqual(0, result.ExitCode);
-        Assert.Contains("Explicit target confirmation failed", result.Output, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Expected '-ConfirmTarget localhost:5432/target_db'", result.Output, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.Output.Contains("Explicit target confirmation failed", StringComparison.OrdinalIgnoreCase), $"Actual output: {result.Output}");
+        Assert.True(result.Output.Contains("Expected '-ConfirmTarget localhost:5432/target_db'", StringComparison.OrdinalIgnoreCase), $"Actual output: {result.Output}");
     }
 
     [Fact]
@@ -331,7 +332,7 @@ public sealed class OperatorRestoreScriptTests : IDisposable
         var result = await RunRestore(shell, package, destination, extraParams: extra);
 
         Assert.NotEqual(0, result.ExitCode);
-        Assert.Contains("strictly restricted to application schema 'prophetops'", result.Output, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.Output.Contains("strictly restricted to application schema 'prophetops'", StringComparison.OrdinalIgnoreCase), $"Actual output: {result.Output}");
     }
 
     [Fact]
@@ -376,7 +377,7 @@ public sealed class OperatorRestoreScriptTests : IDisposable
         var result = await RunRestore(shell, package, destination, extraParams: extra);
 
         Assert.NotEqual(0, result.ExitCode);
-        Assert.Contains("exceeds maximum staging expansion limit", result.Output, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.Output.Contains("exceeds maximum staging expansion limit", StringComparison.OrdinalIgnoreCase), $"Actual output: {result.Output}");
     }
 
     [Fact]
@@ -615,7 +616,21 @@ public sealed class OperatorRestoreScriptTests : IDisposable
         Directory.CreateDirectory(databaseDir);
         var dbFileName = provider == "sqlite" ? "prophetops.db" : "prophetops.dump";
         var dumpPath = Path.Combine(databaseDir, dbFileName);
-        await File.WriteAllTextAsync(dumpPath, "dummy-db-content-for-test");
+
+        IReadOnlyList<string> migrations;
+        string integrityCheck;
+        if (provider == "sqlite")
+        {
+            migrations = await CreateDatabase(dumpPath);
+            integrityCheck = Integrity(dumpPath);
+        }
+        else
+        {
+            await File.WriteAllTextAsync(dumpPath, "dummy-db-content-for-test");
+            migrations = ["20260927132038_InitialPostgres"];
+            integrityCheck = "verified";
+        }
+
         var hash = await BackupPackageWriter.Sha256File(dumpPath, CancellationToken.None);
         var size = new FileInfo(dumpPath).Length;
         var relPath = "database/" + dbFileName;
@@ -624,6 +639,7 @@ public sealed class OperatorRestoreScriptTests : IDisposable
         var providerField = string.IsNullOrWhiteSpace(provider) ? "null" : $"\"{provider}\"";
         var formatField = string.IsNullOrWhiteSpace(dumpFormat) ? "null" : $"\"{dumpFormat}\"";
         var serverMajorField = string.IsNullOrWhiteSpace(serverMajor) ? "null" : serverMajor;
+        var migrationsJson = JsonSerializer.Serialize(migrations);
 
         var json = $$"""
         {
@@ -638,7 +654,7 @@ public sealed class OperatorRestoreScriptTests : IDisposable
                 "Path": "{{relPath}}",
                 "Size": {{size}},
                 "Sha256": "{{hash}}",
-                "IntegrityCheck": "verified",
+                "IntegrityCheck": "{{integrityCheck}}",
                 "Provider": {{providerField}},
                 "DumpFormat": {{formatField}},
                 "ServerMajor": {{serverMajorField}}
@@ -648,7 +664,7 @@ public sealed class OperatorRestoreScriptTests : IDisposable
             ],
             "Counts": { "Users": 1, "TravelPackages": 0, "Bookings": 0, "Expenses": 0, "AuditEntries": 0, "DataProtectionKeys": 0 },
             "Configuration": [],
-            "EfMigrations": ["20260927132038_InitialPostgres"]
+            "EfMigrations": {{migrationsJson}}
         }
         """;
 
@@ -796,6 +812,8 @@ public sealed class OperatorRestoreScriptTests : IDisposable
         };
         EnsureDotnetRootForProcess(start);
         IsolatePowerShellRuntimeEnvironment(start, shell);
+        start.Environment["NO_COLOR"] = "1";
+        start.Environment["COLUMNS"] = "1000";
         start.ArgumentList.Add("-NoProfile");
         start.ArgumentList.Add("-File");
         start.ArgumentList.Add(script);
@@ -837,7 +855,17 @@ public sealed class OperatorRestoreScriptTests : IDisposable
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
         try { await process.WaitForExitAsync(timeout.Token); }
         catch (OperationCanceledException) { process.Kill(entireProcessTree: true); await process.WaitForExitAsync(); throw; }
-        return (process.ExitCode, await stdout + await stderr);
+        var rawOutput = await stdout + await stderr;
+        var normalized = NormalizePowerShellOutput(rawOutput);
+        return (process.ExitCode, normalized);
+    }
+
+    private static string NormalizePowerShellOutput(string output)
+    {
+        if (string.IsNullOrWhiteSpace(output)) return "";
+        var cleaned = Regex.Replace(output, @"\x1B\[[^@-~]*[@-~]", "");
+        cleaned = Regex.Replace(cleaned, @"\r?\n\s*\|\s*", " ");
+        return cleaned;
     }
 
     private async Task<(int ExitCode, HelperOutput Output)> RunHelper(
