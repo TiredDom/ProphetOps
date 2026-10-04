@@ -614,10 +614,9 @@ public class PostgresBackupCaptureTests : IDisposable
         }
 
         var connString = fixture.ConnectionString!;
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseNpgsql(connString, b => b.MigrationsAssembly(DatabaseRuntimeOptions.PostgresMigrationsAssembly))
-            .Options;
-        await using var db = new AppDbContext(options);
+        var options = new DbContextOptionsBuilder<AppDbContext>();
+        DatabaseConfiguration.Configure(options, DatabaseProviderKind.Postgres, connString, DatabaseRuntimeOptions.PostgresMigrationsAssembly);
+        await using var db = new AppDbContext(options.Options);
 
         // Migrate database
         await db.Database.MigrateAsync();
@@ -653,7 +652,7 @@ public class PostgresBackupCaptureTests : IDisposable
         var services = new ServiceCollection();
         services.AddSingleton(storage);
         services.AddDbContext<AppDbContext>(opts =>
-            opts.UseNpgsql(connString, b => b.MigrationsAssembly(DatabaseRuntimeOptions.PostgresMigrationsAssembly)));
+            DatabaseConfiguration.Configure(opts, DatabaseProviderKind.Postgres, connString, DatabaseRuntimeOptions.PostgresMigrationsAssembly));
         using var sp = services.BuildServiceProvider();
 
         var capture = new PostgresBackupCapture(storage, config, runner, NullLogger<PostgresBackupCapture>.Instance);

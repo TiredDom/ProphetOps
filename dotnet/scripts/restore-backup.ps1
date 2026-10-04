@@ -769,7 +769,7 @@ try {
         if ($tableRes.ExitCode -ne 0) {
             throw "Target database restored table verification failed (Category: $($tableRes.DiagnosticCategory), ExitCode: $($tableRes.ExitCode))."
         }
-        $restoredTables = $tableRes.StandardOutput.Split("`r`n", [StringSplitOptions]::RemoveEmptyEntries) | ForEach-Object { $_.Trim() }
+        $restoredTables = $tableRes.StandardOutput.Split([char[]]@("`r", "`n"), [StringSplitOptions]::RemoveEmptyEntries) | ForEach-Object { $_.Trim() }
         foreach ($tbl in @("Users", "TravelPackages", "Bookings", "Expenses", "AuditEntries", "__EFMigrationsHistory")) {
             if ($restoredTables -notcontains $tbl) {
                 throw "The restored PostgreSQL database is missing core table '$tbl'."
@@ -783,7 +783,7 @@ try {
         if ($migRes.ExitCode -ne 0) {
             throw "Target database restored migration history verification failed (Category: $($migRes.DiagnosticCategory), ExitCode: $($migRes.ExitCode))."
         }
-        $restoredMigs = $migRes.StandardOutput.Split("`r`n", [StringSplitOptions]::RemoveEmptyEntries) | ForEach-Object { $_.Trim() }
+        $restoredMigs = $migRes.StandardOutput.Split([char[]]@("`r", "`n"), [StringSplitOptions]::RemoveEmptyEntries) | ForEach-Object { $_.Trim() }
         if ($restoredMigs.Count -ne $manifest.EfMigrations.Count) {
             throw "The restored database migration history count ($($restoredMigs.Count)) does not match the manifest ($($manifest.EfMigrations.Count))."
         }

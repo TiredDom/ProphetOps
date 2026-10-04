@@ -983,8 +983,10 @@ public sealed class PrivateObjectRecoveryTests : IDisposable
         Assert.Contains("Destination confirmation mismatch", err);
     }
 
-    [Fact]
-    public async Task Recovery_operator_script_contract_zero_one_and_multiple_images()
+    [Theory]
+    [InlineData("\n")]
+    [InlineData("\r\n")]
+    public async Task Recovery_operator_script_contract_zero_one_and_multiple_images(string newline)
     {
         var stubBin = Path.Combine(_testDir, "fixture-bin");
         EnsureScriptStubs(stubBin);
@@ -1080,6 +1082,7 @@ public sealed class PrivateObjectRecoveryTests : IDisposable
             psi.Environment["PATH"] = stubBin + Path.PathSeparator + Environment.GetEnvironmentVariable("PATH");
             psi.Environment["NO_COLOR"] = "1";
             psi.Environment["COLUMNS"] = "1000";
+            psi.Environment["TEST_STUB_NEWLINE"] = newline;
             ConfigureDotnetEnvironment(psi, ResolveDotnetSdk());
 
 
@@ -2047,6 +2050,15 @@ class Program
 {
     static int Main(string[] args)
     {
+        var stubNl = Environment.GetEnvironmentVariable("TEST_STUB_NEWLINE");
+        if (stubNl == "LF" || stubNl == "\n")
+        {
+            Console.Out.NewLine = "\n";
+        }
+        else if (stubNl == "CRLF" || stubNl == "\r\n")
+        {
+            Console.Out.NewLine = "\r\n";
+        }
         var line = string.Join(" ", args);
         if (line.Contains("--version"))
         {

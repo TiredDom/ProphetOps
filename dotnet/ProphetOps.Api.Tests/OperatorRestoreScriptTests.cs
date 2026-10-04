@@ -6,6 +6,10 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
 using ProphetOps.Api;
 using ProphetOps.Data;
 using ProphetOps.Domain;
@@ -15,6 +19,7 @@ namespace ProphetOps.Api.Tests;
 
 public sealed class OperatorRestoreScriptTests : IDisposable
 {
+    private static readonly Guid SeededSecurityStamp = Guid.Parse("11111111-2222-3333-4444-555555555555");
     private readonly string _root = Path.Combine(Path.GetTempPath(), "prophetops-operator-restore-" + Guid.NewGuid().ToString("N"));
 
     public OperatorRestoreScriptTests() => Directory.CreateDirectory(_root);
@@ -228,29 +233,88 @@ public sealed class OperatorRestoreScriptTests : IDisposable
     {
         // Opt-in live test requiring PROPHETOPS_TEST_POSTGRES and client tools
         var shell = AvailablePowerShellPath();
-        var connectionString = Environment.GetEnvironmentVariable("PROPHETOPS_TEST_POSTGRES")!;
-        var builder = new Npgsql.NpgsqlConnectionStringBuilder(connectionString);
 
-        var package = await CreatePostgresPackage("synthetic-live-pg");
-        var destination = Path.Combine(_root, "live-pg-dest");
-
-        var extra = new Dictionary<string, string>
+        // 1. Create dedicated isolated source database fixture and real synthetic package
+        string package;
+        await using (var sourceFixture = new PostgresFixture())
         {
-            ["PostgresHost"] = builder.Host ?? "localhost",
-            ["PostgresPort"] = builder.Port.ToString(),
-            ["PostgresDatabase"] = builder.Database ?? "postgres",
-            ["PostgresUsername"] = builder.Username ?? "postgres",
-            ["ConfirmTarget"] = $"{builder.Host ?? "localhost"}:{builder.Port}/{builder.Database ?? "postgres"}",
-        };
-        var envVars = new Dictionary<string, string>();
-        if (!string.IsNullOrEmpty(builder.Password))
-        {
-            envVars["PGPASSWORD"] = builder.Password;
+            await sourceFixture.InitializeAsync();
+            sourceFixture.RequireAvailable();
+            package = await CreateRealPostgresPackage("synthetic-live-pg", sourceFixture.ConnectionString!);
         }
 
+        var destination = Path.Combine(_root, "live-pg-dest");
+
+        // 2. Create dedicated isolated empty target database fixture for live restore
+        await using var targetFixture = new PostgresFixture();
+        await targetFixture.InitializeAsync();
+        targetFixture.RequireAvailable();
+
+        var targetBuilder = new Npgsql.NpgsqlConnectionStringBuilder(targetFixture.ConnectionString!);
+        var extra = new Dictionary<string, string>
+        {
+            ["PostgresHost"] = targetBuilder.Host ?? "localhost",
+            ["PostgresPort"] = targetBuilder.Port > 0 ? targetBuilder.Port.ToString() : "5432",
+            ["PostgresDatabase"] = targetBuilder.Database!,
+            ["PostgresUsername"] = targetBuilder.Username ?? "postgres",
+            ["ConfirmTarget"] = $"{targetBuilder.Host ?? "localhost"}:{(targetBuilder.Port > 0 ? targetBuilder.Port : 5432)}/{targetBuilder.Database}",
+        };
+        var envVars = new Dictionary<string, string>();
+        if (!string.IsNullOrEmpty(targetBuilder.Password))
+        {
+            envVars["PGPASSWORD"] = targetBuilder.Password;
+        }
+
+        // 3. Execute live restore against clean isolated target database
         var result = await RunRestore(shell, package, destination, extraParams: extra, envVars: envVars);
-        // If target schema is clean and client tools exist, this executes pg_restore
-        Assert.True(result.ExitCode == 0 || result.Output.Contains("populated target") || result.Output.Contains("pg_restore"));
+
+        // Operator intentionally must remain offline: assert nonzero exit and explicit activation blocker
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains("application activation is BLOCKED", result.Output, StringComparison.OrdinalIgnoreCase);
+
+        // Verify recovery manifest exists and matches this fixture
+        var recoveryManifestPath = Path.Combine(destination, "recovery", "recovery-manifest.json");
+        Assert.True(File.Exists(recoveryManifestPath), $"Recovery manifest missing at {recoveryManifestPath}. Output: {result.Output}");
+        using (var doc = JsonDocument.Parse(await File.ReadAllTextAsync(recoveryManifestPath)))
+        {
+            var root = doc.RootElement;
+            Assert.Equal("operator-restore-synthetic-live-pg", root.GetProperty("packageId").GetString());
+            Assert.Equal("postgres", root.GetProperty("databaseProvider").GetString());
+            Assert.Equal(0, root.GetProperty("images").GetArrayLength());
+            Assert.Equal("StagedOfflinePendingObjectStorageUpload", root.GetProperty("status").GetString());
+        }
+
+        // 4. Verify target database was populated with exact business entities and SecurityStamp was rotated
+        var targetOptions = new DbContextOptionsBuilder<AppDbContext>();
+        DatabaseConfiguration.Configure(targetOptions, DatabaseProviderKind.Postgres, targetFixture.ConnectionString!, DatabaseRuntimeOptions.PostgresMigrationsAssembly);
+        await using (var targetDb = new AppDbContext(targetOptions.Options))
+        {
+            var userCount = await targetDb.Users.CountAsync();
+            Assert.Equal(1, userCount);
+            var pkgCount = await targetDb.TravelPackages.CountAsync();
+            Assert.Equal(1, pkgCount);
+
+            var user = await targetDb.Users.SingleAsync();
+            Assert.Equal("restore@prophetops.local", user.Email);
+            Assert.Equal("Live Restore User", user.Name);
+            Assert.NotEqual(Guid.Empty, user.SecurityStamp);
+            Assert.NotEqual(SeededSecurityStamp, user.SecurityStamp);
+
+            var pkg = await targetDb.TravelPackages.SingleAsync();
+            Assert.Equal("LIVE-RESTORE-PKG", pkg.Code);
+            Assert.Equal("Live Restore Package", pkg.PackageName);
+            Assert.Equal(120000, pkg.BasePrice);
+            Assert.Equal(20, pkg.AvailableSlots);
+        }
+
+        // 5. Explicit populated-target refusal verification: re-running restore against now-populated target must refuse
+        var destination2 = Path.Combine(_root, "live-pg-dest-populated-refusal");
+        var populatedResult = await RunRestore(shell, package, destination2, extraParams: extra, envVars: envVars);
+        Assert.NotEqual(0, populatedResult.ExitCode);
+        Assert.True(
+            populatedResult.Output.Contains("Refusing to restore to a populated target", StringComparison.OrdinalIgnoreCase) ||
+            populatedResult.Output.Contains("is not empty", StringComparison.OrdinalIgnoreCase),
+            $"Expected refusal on populated target, but received ExitCode {populatedResult.ExitCode}. Output: {populatedResult.Output}");
     }
 
     [Fact]
@@ -602,6 +666,94 @@ public sealed class OperatorRestoreScriptTests : IDisposable
         }
 
         return zipPath;
+    }
+
+    private async Task<string> CreateRealPostgresPackage(string name, string connectionString)
+    {
+        var sourceOptions = new DbContextOptionsBuilder<AppDbContext>();
+        DatabaseConfiguration.Configure(sourceOptions, DatabaseProviderKind.Postgres, connectionString, DatabaseRuntimeOptions.PostgresMigrationsAssembly);
+        await using (var db = new AppDbContext(sourceOptions.Options))
+        {
+            await db.Database.MigrateAsync();
+            db.Users.Add(new User
+            {
+                Name = "Live Restore User",
+                Email = "restore@prophetops.local",
+                Role = Roles.Admin,
+                PasswordHash = "hash",
+                SecurityStamp = SeededSecurityStamp
+            });
+            db.TravelPackages.Add(new TravelPackage
+            {
+                Code = "LIVE-RESTORE-PKG",
+                PackageName = "Live Restore Package",
+                Destination = "Cebu",
+                AvailableSlots = 20,
+                BasePrice = 120000,
+                Status = "Normal"
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var packageRoot = Path.Combine(_root, name + "-package");
+        Directory.CreateDirectory(packageRoot);
+
+        var config = new ConfigurationBuilder().AddEnvironmentVariables().Build();
+        var storage = CreateStoragePaths(Path.Combine(_root, "storage-live-" + name));
+        var runner = new PostgresProcessRunner(config, NullLogger<PostgresProcessRunner>.Instance);
+        var capture = new PostgresBackupCapture(storage, config, runner, NullLogger<PostgresBackupCapture>.Instance);
+
+        await using var dbForCapture = new AppDbContext(sourceOptions.Options);
+        await using var session = await capture.StartCaptureAsync(dbForCapture, packageRoot, CancellationToken.None)
+            ?? throw new InvalidOperationException("Failed to start PostgreSQL capture session for synthetic package.");
+
+        var dumpResult = await session.ExecuteDumpAsync(CancellationToken.None);
+        var metadata = await session.GetMetadataAsync(CancellationToken.None);
+
+        var dumpPhysicalPath = Path.Combine(packageRoot, dumpResult.DatabaseManifest.Path);
+
+        var manifest = new BackupManifest(
+            SchemaVersion: 2,
+            PackageId: "operator-restore-" + name,
+            CreatedUtc: DateTimeOffset.UtcNow,
+            Application: "ProphetOps",
+            Environment: "Testing",
+            SessionContinuity: "restore-invalidates-sessions-by-default",
+            Encryption: new BackupEncryptionManifest("none-local-test-only", "operator-test", "1"),
+            Database: dumpResult.DatabaseManifest,
+            Files: [new BackupFileManifest(
+                dumpResult.DatabaseManifest.Path,
+                "postgres-custom-dump",
+                dumpResult.DatabaseManifest.Size,
+                dumpResult.DatabaseManifest.Sha256,
+                File.GetLastWriteTimeUtc(dumpPhysicalPath))],
+            Counts: metadata.Counts,
+            Configuration: [],
+            EfMigrations: metadata.AppliedMigrations);
+
+        await File.WriteAllTextAsync(Path.Combine(packageRoot, "manifest.json"),
+            JsonSerializer.Serialize(manifest, BackupJsonContext.Default.BackupManifest));
+
+        var zipPath = Path.Combine(_root, name + BackupEncryptionSettings.ZipExtension);
+        if (File.Exists(zipPath)) File.Delete(zipPath);
+        ZipFile.CreateFromDirectory(packageRoot, zipPath);
+        return zipPath;
+    }
+
+    private static StoragePaths CreateStoragePaths(string root)
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Storage:Root"] = root })
+            .Build();
+        return StoragePaths.FromConfiguration(config, new TestEnvironment { ContentRootPath = root });
+    }
+
+    private sealed class TestEnvironment : IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = Environments.Development;
+        public string ApplicationName { get; set; } = "ProphetOps.Api.Tests";
+        public string ContentRootPath { get; set; } = "";
+        public IFileProvider ContentRootFileProvider { get; set; } = null!;
     }
 
     private async Task<string> CreatePackageWithRawSchemaVersion(
