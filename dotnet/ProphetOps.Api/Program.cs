@@ -274,7 +274,7 @@ using (var scope = app.Services.CreateScope())
     if (startupPlan.Migrate)
         db.Database.Migrate();
     if (startupPlan.ValidateSchemaOnly)
-        await DatabaseReadiness.EnsureReadyAsync(db, CancellationToken.None);
+        await DatabaseReadiness.EnsureReadyAsync(db, app.Logger, CancellationToken.None);
     if (database.Provider == DatabaseProviderKind.Postgres)
     {
         var keyRepo = scope.ServiceProvider.GetRequiredService<PostgresXmlRepository>();
