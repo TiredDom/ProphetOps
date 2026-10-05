@@ -125,6 +125,7 @@ pwsh dotnet/scripts/restore-backup.ps1 `
 ### Prerequisites
 - **Client Tools:** `pg_dump`, `pg_restore`, and `psql` (PostgreSQL 18) installed and discoverable via `Backup__Postgres__ClientToolsPath` (`/usr/lib/postgresql/18/bin`) or `PATH`.
 - **Connection:** Direct or session-pooler connection to PostgreSQL. Transaction pooling must **not** be used for backup captures.
+- **Database Privileges:** Operator database user requires privileges to connect, establish the application schema if missing (`CREATE ON DATABASE`), and manage objects in `prophetops`.
 - **Encryption Key:** 32-byte base64 key configured in `Backup__Encryption__Key`.
 
 ### PostgreSQL Restore Procedure
@@ -147,7 +148,7 @@ pwsh dotnet/scripts/restore-backup.ps1 `
 ```
 
 ### Safety Guarantees in `restore-backup.ps1`:
-1. **Empty Schema Requirement:** Queries `pg_catalog` to confirm the `prophetops` schema is completely empty before executing `pg_restore`. Refuses to overwrite existing tables.
+1. **Empty Schema Requirement & Namespace Establishment:** Queries `pg_catalog` to confirm the `prophetops` schema is completely empty before restore. If missing, establishes the fixed `prophetops` namespace; refuses to restore to a populated target.
 2. **Single Transaction:** Invokes `pg_restore` with `--single-transaction --exit-on-error --no-owner --no-privileges`.
 3. **Core Table Verification:** Asserts that `Users`, `TravelPackages`, `Bookings`, `Expenses`, `AuditEntries`, and `__EFMigrationsHistory` were restored.
 4. **Migration History Verification:** Verifies all Entity Framework migrations recorded in the manifest match the restored database.

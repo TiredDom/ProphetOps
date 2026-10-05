@@ -744,6 +744,14 @@ try {
             throw "Destination database '$PostgresDatabase' application schema '$PostgresSchema' is not empty (found $objCount existing objects). Refusing to restore to a populated target. Restore requires an empty application schema."
         }
 
+        # Guarded establishment of fixed 'prophetops' application namespace if missing before filtered pg_restore
+        $schemaSql = "CREATE SCHEMA IF NOT EXISTS prophetops;"
+        $psqlSchemaArgs = @("-h", $PostgresHost, "-p", "$PostgresPort", "-U", $PostgresUsername, "-d", $PostgresDatabase, "-v", "ON_ERROR_STOP=1", "-X", "-A", "-t", "-c", $schemaSql)
+        $schemaRes = Invoke-SafeProcess -FilePath $psqlCmd.Source -ArgumentList $psqlSchemaArgs -Environment $pgEnv -TimeoutSeconds 30 -MaxChars 65536
+        if ($schemaRes.ExitCode -ne 0) {
+            throw "Target database application schema establishment failed (Category: $($schemaRes.DiagnosticCategory), ExitCode: $($schemaRes.ExitCode))."
+        }
+
         # Execute pg_restore in single transaction
         $restoreArgs = @(
             "-h", $PostgresHost,

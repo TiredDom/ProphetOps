@@ -270,7 +270,9 @@ public sealed class OperatorRestoreScriptTests : IDisposable
 
         // Operator intentionally must remain offline: assert nonzero exit and explicit activation blocker
         Assert.NotEqual(0, result.ExitCode);
-        Assert.Contains("application activation is BLOCKED", result.Output, StringComparison.OrdinalIgnoreCase);
+        Assert.True(
+            result.Output.Contains("application activation is BLOCKED", StringComparison.OrdinalIgnoreCase),
+            $"Expected activation blocker in output, but ExitCode={result.ExitCode}. Output:\n{result.Output}");
 
         // Verify recovery manifest exists and matches this fixture
         var recoveryManifestPath = Path.Combine(destination, "recovery", "recovery-manifest.json");
@@ -465,6 +467,135 @@ public sealed class OperatorRestoreScriptTests : IDisposable
 
         Assert.NotEqual(0, result.ExitCode);
         Assert.Contains("exceeds maximum permitted limit", result.Output, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Restore_script_v2_creates_missing_schema_and_proceeds_with_offline_staging()
+    {
+        var shell = AvailablePowerShellPath();
+        var destination = Path.Combine(_root, "v2-schema-create-dest");
+        var package = await CreatePostgresPackage("v2-schema-create");
+        var stubBin = Path.Combine(_root, "stub-bin");
+        PrivateObjectRecoveryTests.EnsureScriptStubs(stubBin);
+
+        var eventLog = Path.Combine(_root, "stub-events-create.log");
+        var extra = new Dictionary<string, string>
+        {
+            ["PostgresHost"] = "localhost",
+            ["PostgresPort"] = "5432",
+            ["PostgresDatabase"] = "target_db",
+            ["PostgresUsername"] = "postgres",
+            ["ConfirmTarget"] = "localhost:5432/target_db",
+        };
+        var envVars = new Dictionary<string, string>
+        {
+            ["PGPASSWORD"] = "testpass",
+            ["PATH"] = stubBin + Path.PathSeparator + (Environment.GetEnvironmentVariable("PATH") ?? ""),
+            ["TEST_STUB_EVENT_LOG"] = eventLog,
+            ["TEST_STUB_REQUIRE_SCHEMA"] = "1",
+        };
+
+        var result = await RunRestore(shell, package, destination, extraParams: extra, envVars: envVars);
+
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.True(
+            result.Output.Contains("application activation is BLOCKED", StringComparison.OrdinalIgnoreCase),
+            $"Expected activation blocker, ExitCode={result.ExitCode}. Output:\n{result.Output}");
+
+        Assert.True(File.Exists(eventLog), "Event log was not created.");
+        var events = (await File.ReadAllLinesAsync(eventLog)).Where(e => !string.IsNullOrWhiteSpace(e)).ToList();
+        Assert.Contains("CLEAN_CHECK", events);
+        Assert.Contains("SCHEMA_CREATE_SUCCESS", events);
+        Assert.Contains("PG_RESTORE_INVOKED", events);
+        var schemaIndex = events.IndexOf("SCHEMA_CREATE_SUCCESS");
+        var restoreIndex = events.IndexOf("PG_RESTORE_INVOKED");
+        Assert.True(schemaIndex >= 0 && restoreIndex > schemaIndex,
+            $"Guarded schema establishment must precede pg_restore. Events: [{string.Join(", ", events)}]");
+    }
+
+    [Fact]
+    public async Task Restore_script_v2_fails_closed_when_schema_establishment_fails_before_restore()
+    {
+        var shell = AvailablePowerShellPath();
+        var destination = Path.Combine(_root, "v2-schema-fail-dest");
+        var package = await CreatePostgresPackage("v2-schema-fail");
+        var stubBin = Path.Combine(_root, "stub-bin");
+        PrivateObjectRecoveryTests.EnsureScriptStubs(stubBin);
+
+        var eventLog = Path.Combine(_root, "stub-events-fail.log");
+        var extra = new Dictionary<string, string>
+        {
+            ["PostgresHost"] = "localhost",
+            ["PostgresPort"] = "5432",
+            ["PostgresDatabase"] = "target_db",
+            ["PostgresUsername"] = "postgres",
+            ["ConfirmTarget"] = "localhost:5432/target_db",
+        };
+        var envVars = new Dictionary<string, string>
+        {
+            ["PGPASSWORD"] = "testpass",
+            ["PATH"] = stubBin + Path.PathSeparator + (Environment.GetEnvironmentVariable("PATH") ?? ""),
+            ["TEST_STUB_EVENT_LOG"] = eventLog,
+            ["TEST_STUB_REQUIRE_SCHEMA"] = "1",
+            ["TEST_STUB_PSQL_SCHEMA_FAIL"] = "1",
+        };
+
+        var result = await RunRestore(shell, package, destination, extraParams: extra, envVars: envVars);
+
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.True(
+            result.Output.Contains("application schema establishment failed", StringComparison.OrdinalIgnoreCase),
+            $"Expected schema establishment failure, ExitCode={result.ExitCode}. Output:\n{result.Output}");
+
+        Assert.True(File.Exists(eventLog), "Event log was not created.");
+        var events = (await File.ReadAllLinesAsync(eventLog)).Where(e => !string.IsNullOrWhiteSpace(e)).ToList();
+        Assert.Contains("CLEAN_CHECK", events);
+        Assert.Contains("SCHEMA_CREATE_FAILED", events);
+        Assert.DoesNotContain("SCHEMA_CREATE_SUCCESS", events);
+        Assert.DoesNotContain("PG_RESTORE_INVOKED", events);
+    }
+
+    [Fact]
+    public async Task Restore_script_v2_refuses_populated_target_before_schema_establishment_or_restore()
+    {
+        var shell = AvailablePowerShellPath();
+        var destination = Path.Combine(_root, "v2-populated-dest");
+        var package = await CreatePostgresPackage("v2-populated");
+        var stubBin = Path.Combine(_root, "stub-bin");
+        PrivateObjectRecoveryTests.EnsureScriptStubs(stubBin);
+
+        var eventLog = Path.Combine(_root, "stub-events-pop.log");
+        var extra = new Dictionary<string, string>
+        {
+            ["PostgresHost"] = "localhost",
+            ["PostgresPort"] = "5432",
+            ["PostgresDatabase"] = "target_db",
+            ["PostgresUsername"] = "postgres",
+            ["ConfirmTarget"] = "localhost:5432/target_db",
+        };
+        var envVars = new Dictionary<string, string>
+        {
+            ["PGPASSWORD"] = "testpass",
+            ["PATH"] = stubBin + Path.PathSeparator + (Environment.GetEnvironmentVariable("PATH") ?? ""),
+            ["TEST_STUB_EVENT_LOG"] = eventLog,
+            ["TEST_STUB_REQUIRE_SCHEMA"] = "1",
+            ["TEST_STUB_PSQL_POPULATED"] = "1",
+        };
+
+        var result = await RunRestore(shell, package, destination, extraParams: extra, envVars: envVars);
+
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.True(
+            result.Output.Contains("Refusing to restore to a populated target", StringComparison.OrdinalIgnoreCase) ||
+            result.Output.Contains("is not empty", StringComparison.OrdinalIgnoreCase),
+            $"Expected populated target refusal, ExitCode={result.ExitCode}. Output:\n{result.Output}");
+
+        Assert.True(File.Exists(eventLog), "Event log was not created.");
+        var events = (await File.ReadAllLinesAsync(eventLog)).Where(e => !string.IsNullOrWhiteSpace(e)).ToList();
+        Assert.Contains("CLEAN_CHECK_POPULATED", events);
+        Assert.DoesNotContain("SCHEMA_CREATE_SUCCESS", events);
+        Assert.DoesNotContain("SCHEMA_CREATE_FAILED", events);
+        Assert.DoesNotContain("PG_RESTORE_INVOKED", events);
     }
 
     [Theory]

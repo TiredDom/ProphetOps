@@ -2026,12 +2026,13 @@ public sealed class PrivateObjectRecoveryTests : IDisposable
     private static string ResolveApiProjectPath() =>
         Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../ProphetOps.Api/ProphetOps.Api.csproj"));
 
-    private static void EnsureScriptStubs(string stubDir)
+    internal static void EnsureScriptStubs(string stubDir)
     {
         Directory.CreateDirectory(stubDir);
         var pgRestore = OperatingSystem.IsWindows() ? Path.Combine(stubDir, "pg_restore.exe") : Path.Combine(stubDir, "pg_restore");
         var psql = OperatingSystem.IsWindows() ? Path.Combine(stubDir, "psql.exe") : Path.Combine(stubDir, "psql");
-        if (File.Exists(pgRestore) && File.Exists(psql)) return;
+        var marker = Path.Combine(stubDir, "stub-v3.marker");
+        if (File.Exists(pgRestore) && File.Exists(psql) && File.Exists(marker)) return;
 
         var sdkPath = ResolveDotnetSdk();
         var sdkDir = DotnetRootFromCommand(sdkPath);
@@ -2046,6 +2047,8 @@ public sealed class PrivateObjectRecoveryTests : IDisposable
 
         var prog = """
 using System;
+using System.IO;
+
 class Program
 {
     static int Main(string[] args)
@@ -2059,17 +2062,82 @@ class Program
         {
             Console.Out.NewLine = "\r\n";
         }
+
+        var eventLog = Environment.GetEnvironmentVariable("TEST_STUB_EVENT_LOG");
+        void LogEvent(string ev)
+        {
+            if (!string.IsNullOrEmpty(eventLog))
+            {
+                File.AppendAllText(eventLog, ev + Environment.NewLine);
+            }
+        }
+
         var line = string.Join(" ", args);
         if (line.Contains("--version"))
         {
             Console.WriteLine("pg_restore (PostgreSQL) 18.0");
             return 0;
         }
+
+        if (line.Contains("--single-transaction"))
+        {
+            var requireSchema = Environment.GetEnvironmentVariable("TEST_STUB_REQUIRE_SCHEMA");
+            if (requireSchema == "1" || requireSchema == "true")
+            {
+                bool hasSchema = false;
+                if (!string.IsNullOrEmpty(eventLog) && File.Exists(eventLog))
+                {
+                    var content = File.ReadAllText(eventLog);
+                    if (content.Contains("SCHEMA_CREATE_SUCCESS"))
+                    {
+                        hasSchema = true;
+                    }
+                }
+                if (!hasSchema)
+                {
+                    Console.Error.WriteLine("pg_restore: error: could not execute query: ERROR: schema \"prophetops\" does not exist");
+                    return 1;
+                }
+            }
+
+            LogEvent("PG_RESTORE_INVOKED");
+            var sentinel = Environment.GetEnvironmentVariable("TEST_STUB_PG_RESTORE_SENTINEL");
+            if (!string.IsNullOrEmpty(sentinel))
+            {
+                File.WriteAllText(sentinel, "pg_restore_invoked");
+            }
+            return 0;
+        }
+
+        var schemaFail = Environment.GetEnvironmentVariable("TEST_STUB_PSQL_SCHEMA_FAIL");
+        if ((schemaFail == "1" || schemaFail == "true") && line.Contains("CREATE SCHEMA"))
+        {
+            LogEvent("SCHEMA_CREATE_FAILED");
+            Console.Error.WriteLine("ERROR: permission denied for database target_db");
+            return 1;
+        }
+
+        if (line.Contains("CREATE SCHEMA"))
+        {
+            LogEvent("SCHEMA_CREATE_SUCCESS");
+            return 0;
+        }
+
+        var populated = Environment.GetEnvironmentVariable("TEST_STUB_PSQL_POPULATED");
+        if ((populated == "1" || populated == "true") && line.Contains("SUM(c)"))
+        {
+            LogEvent("CLEAN_CHECK_POPULATED");
+            Console.WriteLine("3");
+            return 0;
+        }
+
         if (line.Contains("SUM(c)"))
         {
+            LogEvent("CLEAN_CHECK");
             Console.WriteLine("0");
             return 0;
         }
+
         if (line.Contains("relname"))
         {
             Console.WriteLine("Users");
@@ -2146,6 +2214,8 @@ class Program
                 }
             }
         }
+
+        File.WriteAllText(marker, "stub-v3");
     }
 
     private sealed class FakeNativeRecoveryObjectCreator(
