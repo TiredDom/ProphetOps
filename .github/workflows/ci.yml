@@ -102,6 +102,44 @@ jobs:
           docker run --rm --entrypoint /usr/lib/postgresql/18/bin/pg_restore prophetops-ci --version
           docker run --rm --entrypoint /usr/lib/postgresql/18/bin/psql prophetops-ci --version
 
+      - name: Docker secret permissions smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/render-secret-smoke
+          trap 'sudo rm -rf /tmp/render-secret-smoke' EXIT
+          echo "synthetic-ca-secret-data" > /tmp/render-secret-smoke/supabase-prod-ca.crt
+          sudo chown 0:1000 /tmp/render-secret-smoke/supabase-prod-ca.crt
+          sudo chmod 0440 /tmp/render-secret-smoke/supabase-prod-ca.crt
+
+          # Reproduce failure under original configuration (APP_UID without group 1000)
+          APP_UID=$(docker run --rm --entrypoint /usr/bin/id prophetops-ci -u)
+          if docker run --rm --user "${APP_UID}:${APP_UID}" \
+            -v /tmp/render-secret-smoke:/etc/secrets:ro \
+            --entrypoint /bin/sh prophetops-ci \
+            -c 'cat /etc/secrets/supabase-prod-ca.crt >/dev/null 2>&1'; then
+            echo "Expected permission failure under original user configuration (${APP_UID}:${APP_UID}), but file read succeeded." >&2
+            exit 1
+          fi
+
+          # Verify readability under container default non-root user and group 1000 without printing contents
+          docker run --rm \
+            -v /tmp/render-secret-smoke:/etc/secrets:ro \
+            --entrypoint /bin/sh prophetops-ci \
+            -c 'test -r /etc/secrets/supabase-prod-ca.crt && cat /etc/secrets/supabase-prod-ca.crt >/dev/null'
+
+          # Verify container user is non-root and primary group is 1000
+          CONTAINER_UID=$(docker run --rm --entrypoint /usr/bin/id prophetops-ci -u)
+          CONTAINER_GID=$(docker run --rm --entrypoint /usr/bin/id prophetops-ci -g)
+          if [ "$CONTAINER_UID" = "0" ]; then
+            echo "Container must not run as root." >&2
+            exit 1
+          fi
+          if [ "$CONTAINER_GID" != "1000" ]; then
+            echo "Container primary GID must be 1000, got ${CONTAINER_GID}." >&2
+            exit 1
+          fi
+
       - name: Docker preview smoke
         shell: bash
         run: |

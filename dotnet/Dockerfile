@@ -47,5 +47,5 @@ RUN apt-get update \
 COPY --from=publish /app/publish ./
 RUN mkdir -p /app/storage /tmp/prophetops \
     && chown -R $APP_UID /app/storage /tmp/prophetops
-USER $APP_UID
+USER $APP_UID:1000
 ENTRYPOINT ["dotnet", "ProphetOps.Api.dll"]
