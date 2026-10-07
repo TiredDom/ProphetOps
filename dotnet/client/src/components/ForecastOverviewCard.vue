@@ -608,8 +608,8 @@ const tooltipX = computed(() => {
   const x = activeEntry.value.x;
   const w = tooltipWidth.value;
   const margin = 8;
-  const leftLimit = chartModel.value.plotLeft + margin;
-  const rightLimit = chartModel.value.plotRight - margin;
+  const leftLimit = margin;
+  const rightLimit = chartModel.value.width - margin;
 
   let ideal = x - w / 2;
   if (ideal + w > rightLimit) {

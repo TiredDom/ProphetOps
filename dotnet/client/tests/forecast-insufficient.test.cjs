@@ -345,6 +345,10 @@ test('Forecast & Dashboard Insufficient Data & Mobile UX Test Suite', async (t) 
     await page.waitForFunction(() => document.activeElement === document.querySelectorAll('.month-target')[1]);
     await page.keyboard.press('ArrowRight');
     await page.waitForFunction(() => document.activeElement === document.querySelectorAll('.month-target')[2]);
+    const tooltip = page.locator('.chart-tooltip-group');
+    const tooltipBox = await tooltip.boundingBox();
+    const chartBox = await page.locator('.chart-tooltip-group').locator('..').boundingBox();
+    assert.ok(tooltipBox && chartBox && tooltipBox.x >= chartBox.x && tooltipBox.x + tooltipBox.width <= chartBox.x + chartBox.width + 1, 'Monthly preview must fit inside the chart on mobile');
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`${BASE_URL}/forecast`);
