@@ -659,7 +659,7 @@ const sourceNote = computed(() => {
     return `Based on recorded booking revenue — ${s.liveMonthsAvailable} months recorded${gaps}.`;
   }
   if (s.usingSample) {
-    return 'Sample demonstration data, not a live forecast.';
+    return 'Demonstration data, not a live forecast.';
   }
   return 'Live booking revenue forecast.';
 });

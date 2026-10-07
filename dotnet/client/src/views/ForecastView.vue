@@ -155,7 +155,7 @@
                     <dd>{{ peso(data.metrics?.rmse ?? 0) }}</dd>
                   </div>
                   <div class="model-row">
-                    <dt>Evaluation sample</dt>
+                    <dt>Evaluated months</dt>
                     <dd>{{ data.metrics?.sampleSize ?? 0 }} months</dd>
                   </div>
                   <div v-if="data.baselines?.seasonalNaiveMae != null" class="model-row">
