@@ -159,6 +159,22 @@ public class OwnerBootstrapTests : IDisposable
         Assert.False(BCrypt.Net.BCrypt.Verify(ConfigurationPassword, owner.PasswordHash));
     }
 
+    [Fact]
+    public async Task Migration_command_reaches_database_configuration_before_object_storage_credentials()
+    {
+        var result = await RunMigrate(start =>
+        {
+            start.Environment["Hosted__Enabled"] = "true";
+            start.Environment["Hosted__AccessMode"] = "ApplicationLogin";
+            start.Environment["Database__Provider"] = "postgres";
+            start.Environment["ConnectionStrings__Default"] = "Host=localhost;Database=runtime";
+        });
+
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains("ConnectionStrings:Maintenance", result.Output);
+        Assert.DoesNotContain("ObjectStorage", result.Output);
+    }
+
     private void AddConfigurationCredentials(ProcessStartInfo start, bool useJson)
     {
         if (useJson)
@@ -191,6 +207,22 @@ public class OwnerBootstrapTests : IDisposable
         if (name is not null) start.Environment["Bootstrap__OwnerName"] = name;
         if (email is not null) start.Environment["Bootstrap__OwnerEmail"] = email;
         if (password is not null) start.Environment["Bootstrap__OwnerPassword"] = password;
+        configure?.Invoke(start);
+        using var process = Process.Start(start)!;
+        var stdout = process.StandardOutput.ReadToEndAsync();
+        var stderr = process.StandardError.ReadToEndAsync();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        try { await process.WaitForExitAsync(timeout.Token); }
+        catch (OperationCanceledException) { process.Kill(entireProcessTree: true); await process.WaitForExitAsync(); throw; }
+        return (process.ExitCode, await stdout + await stderr);
+    }
+
+    private async Task<(int ExitCode, string Output)> RunMigrate(Action<ProcessStartInfo>? configure = null)
+    {
+        var start = StartInfo(0);
+        start.ArgumentList.Add(typeof(Program).Assembly.Location);
+        start.ArgumentList.Add("--migrate-database");
+        start.ArgumentList.Add("--contentRoot=" + _directory);
         configure?.Invoke(start);
         using var process = Process.Start(start)!;
         var stdout = process.StandardOutput.ReadToEndAsync();

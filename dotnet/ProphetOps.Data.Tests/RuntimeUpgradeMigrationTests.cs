@@ -34,10 +34,13 @@ public class RuntimeUpgradeMigrationTests : IDisposable
         Assert.Equal(1, CountRows(copiedPath, "TravelPackages"));
         Assert.Equal(1, CountRows(copiedPath, "Bookings"));
 
-        Assert.EndsWith("AddMutationRevisions", db.Database.GetAppliedMigrations().Last());
+        Assert.EndsWith("AddUserSecurityStamp", db.Database.GetAppliedMigrations().Last());
+        Assert.Equal(0, CountRows(copiedPath, "ObjectCleanupEntries"));
+        Assert.Equal(0, CountRows(copiedPath, "DataProtectionKeys"));
         var user = Assert.Single(db.Users);
         Assert.Equal("owner@agency.test", user.Email);
         Assert.Equal(1, user.SessionVersion);
+        Assert.NotEqual(Guid.Empty, user.SecurityStamp);
 
         var package = Assert.Single(db.TravelPackages);
         Assert.Equal("COPY-MIG", package.Code);

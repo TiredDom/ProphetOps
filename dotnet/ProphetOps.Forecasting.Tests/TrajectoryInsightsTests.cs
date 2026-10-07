@@ -47,6 +47,7 @@ public class TrajectoryInsightsTests
         var notes = TrajectoryInsights.Build(Input());
 
         Assert.Equal("direction", notes[0].Kind);
+        Assert.StartsWith("Booking revenue is", notes[0].Text);
         Assert.Contains("trending upward", notes[0].Text);
         Assert.Contains("+5%", notes[0].Text);
         Assert.Contains("December 2026", notes[0].Text);
@@ -54,10 +55,25 @@ public class TrajectoryInsightsTests
     }
 
     [Fact]
+    public void Expresses_trajectory_in_terms_of_booking_revenue_not_demand()
+    {
+        var notes = TrajectoryInsights.Build(Input());
+
+        Assert.Equal("direction", notes[0].Kind);
+        Assert.StartsWith("Booking revenue is", notes[0].Text);
+        Assert.DoesNotContain("Demand", notes[0].Text);
+
+        var flat = Text(Input(direction: "flat", changePercent: 0.2), "direction");
+        Assert.StartsWith("Booking revenue is", flat);
+        Assert.DoesNotContain("Demand", flat);
+    }
+
+    [Fact]
     public void Says_holding_steady_without_a_signed_figure_when_flat()
     {
         var text = Text(Input(direction: "flat", changePercent: 0.2), "direction");
 
+        Assert.StartsWith("Booking revenue is", text);
         Assert.Contains("holding steady", text);
         Assert.DoesNotContain("+0.2%", text);
     }

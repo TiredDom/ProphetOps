@@ -14,10 +14,13 @@ using ProphetOps.Domain;
 var baseDir = AppContext.BaseDirectory;
 var standalone = Directory.Exists(Path.Combine(baseDir, "wwwroot"));
 var bootstrapOwner = args.Contains("--bootstrap-owner", StringComparer.Ordinal);
+var migrateDatabase = args.Contains("--migrate-database", StringComparer.Ordinal);
+var restorePrivateObjects = args.Contains("--restore-private-objects", StringComparer.Ordinal)
+    || args.Contains("--recover-private-objects", StringComparer.Ordinal);
 
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 {
-    Args = args.Where(arg => arg != "--bootstrap-owner").ToArray(),
+    Args = args.Where(arg => arg != "--bootstrap-owner" && arg != "--migrate-database" && arg != "--restore-private-objects" && arg != "--recover-private-objects").ToArray(),
     ContentRootPath = standalone ? baseDir : null,
 });
 
@@ -30,6 +33,11 @@ var containerHosted = HostedRuntime.IsEnabled(builder.Configuration);
 builder.Services.AddSingleton(sp => StoragePaths.FromConfiguration(
     sp.GetRequiredService<IConfiguration>(),
     sp.GetRequiredService<IHostEnvironment>()));
+builder.Services.AddSingleton(sp =>
+{
+    var storage = sp.GetRequiredService<StoragePaths>();
+    return DatabaseRuntimeOptions.FromConfiguration(sp.GetRequiredService<IConfiguration>(), storage.DatabaseConnectionString);
+});
 builder.Services.AddSingleton(sp => CloudflareAccessOptions.FromConfiguration(sp.GetRequiredService<IConfiguration>()));
 builder.Services.AddSingleton(sp => PublicTransportOptions.FromConfiguration(sp.GetRequiredService<IConfiguration>()));
 builder.Services.AddSingleton(TimeProvider.System);
@@ -47,20 +55,50 @@ if (builder.Environment.IsProduction() && containerHosted)
 
 builder.Services.AddDbContext<AppDbContext>((sp, options) =>
 {
-    var dbConnection = sp.GetRequiredService<IConfiguration>().GetConnectionString("Default")
-        ?? sp.GetRequiredService<StoragePaths>().DatabaseConnectionString;
-    options.UseSqlite(dbConnection);
+    var database = sp.GetRequiredService<DatabaseRuntimeOptions>();
+    DatabaseConfiguration.Configure(options, database.Provider, database.ConnectionString, database.MigrationsAssembly);
 });
 builder.Services.AddScoped<StaffCookieEvents>();
 builder.Services.AddScoped<MutationTransaction>();
 builder.Services.AddScoped<BookingMutationService>();
+builder.Services.AddSingleton<IObjectStorage>(ObjectStorageFactory.Create);
+builder.Services.AddSingleton<IObjectRetentionPolicy, ConservativeObjectRetentionPolicy>();
+builder.Services.AddScoped<ObjectCleanupService>();
+builder.Services.AddSingleton<IPostgresProcessRunner, PostgresProcessRunner>();
+builder.Services.AddScoped<SqliteBackupCapture>();
+builder.Services.AddScoped<PostgresBackupCapture>();
+builder.Services.AddScoped<IDatabaseBackupCapture>(sp =>
+{
+    var database = sp.GetRequiredService<DatabaseRuntimeOptions>();
+    return database.Provider == DatabaseProviderKind.Postgres
+        ? sp.GetRequiredService<PostgresBackupCapture>()
+        : sp.GetRequiredService<SqliteBackupCapture>();
+});
 builder.Services.AddScoped<BackupPackageWriter>();
 builder.Services.AddScoped<IBackupStorage>(BackupStorageFactory.Create);
 builder.Services.AddScoped<IBackupPackageFileOperations, BackupPackageFileOperations>();
-builder.Services.AddDataProtection()
+var dpBuilder = builder.Services.AddDataProtection()
     .SetApplicationName("ProphetOps");
-builder.Services.AddOptions<KeyManagementOptions>().Configure<StoragePaths>((options, paths) =>
-    options.XmlRepository = new FileSystemXmlRepository(new DirectoryInfo(paths.KeysPath), NullLoggerFactory.Instance));
+builder.Services.AddSingleton<PostgresXmlRepository>();
+var configuredProvider = DataProtectionConfiguration.DetermineProvider(builder.Configuration);
+DataProtectionConfiguration.Configure(
+    dpBuilder,
+    builder.Services,
+    builder.Configuration,
+    configuredProvider,
+    containerHosted,
+    isOfflineCommand: bootstrapOwner || migrateDatabase || restorePrivateObjects);
+builder.Services.AddOptions<KeyManagementOptions>().Configure<DatabaseRuntimeOptions, StoragePaths, IServiceProvider>((options, database, paths, sp) =>
+{
+    if (database.Provider == DatabaseProviderKind.Postgres)
+    {
+        options.XmlRepository = sp.GetRequiredService<PostgresXmlRepository>();
+    }
+    else
+    {
+        options.XmlRepository = new FileSystemXmlRepository(new DirectoryInfo(paths.KeysPath), NullLoggerFactory.Instance);
+    }
+});
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
@@ -107,30 +145,41 @@ var hosted = HostedRuntime.IsEnabled(app.Configuration);
 _ = app.Services.GetRequiredService<StoragePaths>();
 _ = app.Services.GetRequiredService<IBusinessClock>();
 _ = app.Services.GetRequiredService<CloudflareAccessOptions>();
+_ = app.Services.GetService<HostedDataProtectionCertificate>();
 var publicTransport = app.Services.GetRequiredService<PublicTransportOptions>();
-BackupStorageFactory.ValidateHostedSchedule(app.Configuration);
 
 var demoEnabled = app.Configuration.GetValue<bool>("Demo:Enabled");
 if (demoEnabled && app.Environment.IsProduction())
     throw new InvalidOperationException("Production cannot run with demonstration data enabled.");
 
-static void CreateBootstrapOwner(AppDbContext db)
+static AppDbContext CreateCommandDb(IServiceProvider services, bool useMaintenanceConnection, out DatabaseRuntimeOptions database)
 {
-    ProductionBootstrap.CreateOwner(db,
+    var storage = services.GetRequiredService<StoragePaths>();
+    database = DatabaseRuntimeOptions.FromConfiguration(
+        services.GetRequiredService<IConfiguration>(),
+        storage.DatabaseConnectionString,
+        useMaintenanceConnection);
+    var options = new DbContextOptionsBuilder<AppDbContext>();
+    DatabaseConfiguration.Configure(options, database.Provider, database.ConnectionString, database.MigrationsAssembly);
+    return new AppDbContext(options.Options);
+}
+
+static Task CreateBootstrapOwner(AppDbContext db, DatabaseProviderKind provider, CancellationToken cancellationToken) =>
+    ProductionBootstrap.CreateOwnerAsync(db, provider,
         Environment.GetEnvironmentVariable("Bootstrap__OwnerName"),
         Environment.GetEnvironmentVariable("Bootstrap__OwnerEmail"),
-        Environment.GetEnvironmentVariable("Bootstrap__OwnerPassword"));
-}
+        Environment.GetEnvironmentVariable("Bootstrap__OwnerPassword"),
+        cancellationToken);
 
 if (bootstrapOwner)
 {
     try
     {
         if (demoEnabled) throw new InvalidOperationException("Owner setup cannot run in demonstration mode.");
-        using var scope = app.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        db.Database.Migrate();
-        CreateBootstrapOwner(db);
+        await using var db = CreateCommandDb(app.Services, useMaintenanceConnection: true, out var database);
+        if (database.Provider == DatabaseProviderKind.Sqlite)
+            await db.Database.MigrateAsync();
+        await CreateBootstrapOwner(db, database.Provider, CancellationToken.None);
         app.Logger.LogInformation("Owner setup completed. Remove the setup credentials before starting the application.");
     }
     catch (InvalidOperationException ex)
@@ -142,23 +191,113 @@ if (bootstrapOwner)
     return;
 }
 
+if (migrateDatabase)
+{
+    try
+    {
+        if (demoEnabled) throw new InvalidOperationException("Database migration cannot run in demonstration mode.");
+        await using var db = CreateCommandDb(app.Services, useMaintenanceConnection: true, out _);
+        await db.Database.MigrateAsync();
+        app.Logger.LogInformation("Database migration completed.");
+    }
+    catch (InvalidOperationException ex)
+    {
+        app.Logger.LogError("Database migration failed: {Reason}", ex.Message);
+        Console.Error.WriteLine("Database migration failed: " + ex.Message);
+        Environment.ExitCode = 1;
+    }
+    return;
+}
+
+if (restorePrivateObjects)
+{
+    try
+    {
+        if (demoEnabled) throw new InvalidOperationException("Private object recovery cannot run in demonstration mode.");
+        await using var db = CreateCommandDb(app.Services, useMaintenanceConnection: false, out _);
+        var storage = app.Services.GetRequiredService<StoragePaths>();
+        var objectStorage = app.Services.GetRequiredService<IObjectStorage>();
+        var loggerFactory = app.Services.GetRequiredService<ILoggerFactory>();
+        var log = loggerFactory.CreateLogger<PrivateObjectRecoveryRunner>();
+
+        var recoveryOptions = PrivateObjectRecoveryOptions.FromArgs(args, app.Configuration);
+
+        ISupabaseRecoveryObjectCreator? recoveryCreator = null;
+        var recoveryProjectUrl = app.Configuration["ObjectStorage:Recovery:SupabaseProjectUrl"];
+        var recoveryApiKey = Environment.GetEnvironmentVariable("ObjectStorage__Recovery__SupabaseApiKey");
+        if (!string.IsNullOrWhiteSpace(recoveryProjectUrl) && !string.IsNullOrWhiteSpace(recoveryApiKey))
+        {
+            recoveryCreator = new SupabaseRecoveryObjectCreator(
+                app.Configuration,
+                recoveryApiKey,
+                recoveryPrefix: recoveryOptions.RecoveryPrefix);
+        }
+
+        using (recoveryCreator as IDisposable)
+        {
+            var runner = new PrivateObjectRecoveryRunner(db, app.Configuration, storage, objectStorage, log, recoveryCreator);
+            var result = await runner.RunAsync(recoveryOptions, CancellationToken.None);
+
+            if (result.Success)
+            {
+                app.Logger.LogInformation("Private object recovery completed: {PackageId}, Destination: {Destination}, Objects verified: {Verified}/{Expected}",
+                    result.PackageId, result.DestinationIdentity, result.VerifiedObjectCount, result.ExpectedObjectCount);
+                Console.WriteLine($"Private object recovery completed successfully. Package: {result.PackageId}, Destination: {result.DestinationIdentity}, Verified objects: {result.VerifiedObjectCount}/{result.ExpectedObjectCount}.");
+                Environment.ExitCode = 0;
+            }
+            else
+            {
+                app.Logger.LogError("Private object recovery failed: Category: {Category}, Reason: {Reason}", result.FailureCategory, result.Message);
+                Console.Error.WriteLine($"Private object recovery failed: [{result.FailureCategory}] {result.Message}");
+                Environment.ExitCode = 1;
+            }
+        }
+    }
+    catch (Exception ex)
+    {
+        var errorType = ex.GetType().Name;
+        app.Logger.LogError("Private object recovery failed with unexpected exception: {ErrorType}", errorType);
+        Console.Error.WriteLine($"Private object recovery failed: unexpected error of type {errorType}.");
+        Environment.ExitCode = 1;
+    }
+    return;
+}
+
+BackupStorageFactory.ValidateHostedSchedule(app.Configuration);
+ObjectStorageFactory.ValidateHostedConfiguration(app.Configuration);
+
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.Migrate();
-    if (app.Configuration.GetValue("Bootstrap:Owner:Enabled", false))
+    var database = scope.ServiceProvider.GetRequiredService<DatabaseRuntimeOptions>();
+    var startupPlan = DatabaseStartupPlan.ForWeb(database.Provider);
+    if (startupPlan.Migrate)
+        db.Database.Migrate();
+    if (startupPlan.ValidateSchemaOnly)
+        await DatabaseReadiness.EnsureReadyAsync(db, app.Logger, CancellationToken.None);
+    if (database.Provider == DatabaseProviderKind.Postgres)
+    {
+        var keyRepo = scope.ServiceProvider.GetRequiredService<PostgresXmlRepository>();
+        keyRepo.GetAllElements();
+    }
+    if (startupPlan.AllowAutomaticOwnerBootstrap && app.Configuration.GetValue("Bootstrap:Owner:Enabled", false))
     {
         if (demoEnabled) throw new InvalidOperationException("Owner setup cannot run in demonstration mode.");
-        var result = ProductionBootstrap.CreateOwnerIfEmpty(db,
+        var result = await ProductionBootstrap.CreateOwnerIfEmptyAsync(db, database.Provider,
             Environment.GetEnvironmentVariable("Bootstrap__OwnerName"),
             Environment.GetEnvironmentVariable("Bootstrap__OwnerEmail"),
-            Environment.GetEnvironmentVariable("Bootstrap__OwnerPassword"));
+            Environment.GetEnvironmentVariable("Bootstrap__OwnerPassword"),
+            CancellationToken.None);
         if (result.Created)
             app.Logger.LogInformation("Owner setup completed. For durable environments, remove Bootstrap:Owner:Enabled and the setup credentials after first start.");
         else
             app.Logger.LogInformation("Owner setup skipped because an account already exists. Existing account credentials were left unchanged.");
     }
-    else if (demoEnabled) DbSeeder.Seed(db);
+    else if (startupPlan.AllowDemoSeed && demoEnabled) DbSeeder.Seed(db);
+    else if (!startupPlan.AllowAutomaticOwnerBootstrap && app.Configuration.GetValue("Bootstrap:Owner:Enabled", false))
+    {
+        throw new InvalidOperationException("Hosted PostgreSQL startup does not bootstrap an owner automatically. Run --bootstrap-owner after schema migration instead.");
+    }
 }
 
 if (ForwardedHeadersSetup.HasTrustedBoundary(app.Configuration))
@@ -231,6 +370,15 @@ app.Use(async (context, next) =>
 });
 
 app.MapGet(CloudflareAccessOptions.HealthPath, () => Results.Json(new { status = "ok" }));
+app.MapGet(CloudflareAccessOptions.ReadyPath, async (IServiceProvider services, CancellationToken cancellationToken) =>
+{
+    await using var scope = services.CreateAsyncScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var readiness = await DatabaseReadiness.CheckAsync(db, cancellationToken);
+    return readiness.Ready
+        ? Results.Json(new { status = readiness.Status })
+        : Results.Json(new { status = readiness.Status }, statusCode: StatusCodes.Status503ServiceUnavailable);
+});
 app.MapControllers();
 app.MapFallbackToFile("index.html");
 app.Run();

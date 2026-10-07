@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: prophetops-preview-sg
+    runtime: docker
+    dockerfilePath: ./dotnet/Dockerfile
+    dockerContext: ./dotnet
+    plan: free
+    region: singapore
+    autoDeploy: false
+    numInstances: 1
+    healthCheckPath: /health/live
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: Demo__Enabled
+        value: "false"
+      - key: Hosted__Enabled
+        value: "false"
+      - key: Transport__PublicHttps
+        value: "true"
+      - key: Storage__Root
+        value: /tmp/prophetops
+      - key: Business__TimeZone
+        sync: false
+      - key: Bootstrap__Owner__Enabled
+        value: "true"
+      - key: Bootstrap__OwnerName
+        sync: false
+      - key: Bootstrap__OwnerEmail
+        sync: false
+      - key: Bootstrap__OwnerPassword
+        sync: false
+      - key: Backup__Scheduled__Enabled
+        value: "false"

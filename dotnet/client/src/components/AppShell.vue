@@ -80,6 +80,20 @@
           </RouterLink>
         </div>
       </nav>
+
+      <footer class="sidebar-account">
+        <div class="sidebar-account-identity">
+          <span class="sidebar-account-avatar" aria-hidden="true">{{ initials }}</span>
+          <div class="sidebar-account-details">
+            <p class="sidebar-account-name" :title="state.user?.name">{{ state.user?.name }}</p>
+            <p class="sidebar-account-role">{{ displayRole }}</p>
+          </div>
+        </div>
+        <button class="sidebar-logout" type="button" :disabled="signingOut" @click="signOut">
+          {{ signingOut ? 'Logging out...' : 'Log out' }}
+        </button>
+        <p v-if="signOutError" class="sidebar-account-error" role="alert">{{ signOutError }}</p>
+      </footer>
     </aside>
 
     <main id="main-content" class="main-panel" tabindex="-1">
@@ -109,12 +123,6 @@
 
             <div class="topbar-utilities">
               <span class="date-pill">{{ today }}</span>
-              <span class="topbar-divider" aria-hidden="true"></span>
-              <button class="profile-button" type="button">
-                <span class="profile-avatar">{{ initials }}</span>
-                <span>{{ displayRole }}</span>
-              </button>
-              <button class="topbar-logout" type="button" @click="signOut">Log out</button>
             </div>
           </div>
         </div>
@@ -141,6 +149,8 @@ const router = useRouter();
 const { state, logout } = useAuth();
 const open = ref(false);
 const sidebar = ref<HTMLElement | null>(null);
+const signingOut = ref(false);
+const signOutError = ref('');
 
 // Only ever true on the narrow layout, where the sidebar covers the page as a drawer.
 useModalFocus(sidebar, () => open.value);
@@ -170,7 +180,17 @@ const displayRole = computed(() =>
   state.user?.role === 'Owner / Management' ? 'Owner' : state.user?.role ?? 'User');
 
 async function signOut() {
-  await logout();
-  await router.replace('/login');
+  if (signingOut.value) return;
+  signingOut.value = true;
+  signOutError.value = '';
+  try {
+    await logout();
+    open.value = false;
+    await router.replace('/login');
+  } catch {
+    signOutError.value = 'Unable to log out. Please try again.';
+  } finally {
+    signingOut.value = false;
+  }
 }
 </script>
