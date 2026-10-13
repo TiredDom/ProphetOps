@@ -23,6 +23,10 @@
       <Drawer :open="showForm" :title="editingCode ? 'Edit package' : 'New package'" :dirty="formDirty" @close="closeForm">
         <p v-if="formError" class="drawer-form-error" role="alert">{{ formError }}</p>
         <p v-if="mergeNotice" class="drawer-form-merge" role="status">{{ mergeNotice }}</p>
+        <p v-if="!editingCode && draftRestoredAt" class="drawer-form-merge" role="status">
+          Restored the package you started {{ draftStartedLabel() }}; nothing was lost.
+          <button type="button" class="field-note-action" @click="startOver">Start over</button>
+        </p>
         <FormProblems :problems="attempted ? problems : []" @focus="focusField" />
 
         <div class="form-grid">
@@ -572,6 +576,7 @@ import { undoAction, useToast } from '../composables/useToast';
 import { useMediaQuery } from '../composables/useMediaQuery';
 import { useQueryState } from '../composables/useQueryState';
 import { useFieldErrors } from '../composables/useFieldErrors';
+import { useFormDraft } from '../composables/useDraft';
 import { useAuth } from '../stores/auth';
 import { canAccess } from '../nav';
 import { api, ApiError, type PackageImportPreview, type PackageRow, type PackageInput } from '../api';
@@ -864,6 +869,18 @@ function snapshotForm(): string {
 
 const formDirty = computed(() => showForm.value && snapshotForm() !== openedSnapshot.value);
 
+// A new package's unfinished form survives a reload or a closed tab.
+const {
+  restoredAt: draftRestoredAt,
+  restore: restoreDraft,
+  discard: discardDraft,
+  startedLabel: draftStartedLabel,
+} = useFormDraft<PackageInput>('package', {
+  active: () => showForm.value && !editingCode.value,
+  dirty: () => formDirty.value,
+  snapshot: () => ({ ...form }),
+});
+
 function packageToInput(p: PackageRow): PackageInput {
   return {
     id: p.id,
@@ -901,6 +918,39 @@ function conflictMessage(error: ApiError, noun: string): string {
   return Object.values(error.fields)[0] ?? error.message;
 }
 
+/** A copy of the photo on screen, so replacing or removing it can be undone. */
+async function copyOfPhoto(url: string | null): Promise<File | null> {
+  if (!url) return null;
+  try {
+    const response = await fetch(url, { credentials: 'include' });
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    const type = blob.type || 'image/jpeg';
+    return new File([blob], `photo.${type.split('/')[1] ?? 'jpg'}`, { type });
+  } catch {
+    return null;
+  }
+}
+
+/** Puts back the photo a package had before a change, or none if it had none. */
+async function undoPhoto(code: string, previous: File | null) {
+  const current = packages.value.find((p) => p.id === code);
+  if (!current) return;
+  try {
+    const updated = previous
+      ? await api.uploadPackageImage(code, previous, current.revision)
+      : await api.removePackageImage(code, current.revision);
+    replaceRowAndAdvanceDraft(updated, current.revision);
+    historyVersion.value += 1;
+    toast.success(previous ? 'The earlier photo is back' : 'Photo taken off again');
+  } catch (error) {
+    await load(false);
+    toast.error(error instanceof ApiError && error.status === 409
+      ? 'The package changed after that, so the photo could not be put back. Open it to change the photo by hand.'
+      : 'Could not put the photo back. Check the connection, then change it by hand.');
+  }
+}
+
 async function pickImage(event: Event) {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
@@ -911,10 +961,15 @@ async function pickImage(event: Event) {
 
   imageError.value = '';
   imageBusy.value = true;
+  const hadPhoto = !!editingImage.value;
+  const previous = await copyOfPhoto(editingImage.value);
   try {
     replaceRowAndAdvanceDraft(await api.uploadPackageImage(code, file, revision), revision);
     historyVersion.value += 1;
-    toast.success('Photo updated.');
+    // Undo puts the earlier photo back, or takes the new one off if there was none.
+    toast.success(hadPhoto ? 'Photo replaced' : 'Photo added', hadPhoto && !previous
+      ? undefined
+      : { action: undoAction(() => undoPhoto(code, previous)) });
   } catch (error) {
     if (error instanceof ApiError && error.status === 409) {
       await mergeAfterConflict();
@@ -935,10 +990,11 @@ async function dropImage() {
 
   imageError.value = '';
   imageBusy.value = true;
+  const previous = await copyOfPhoto(editingImage.value);
   try {
     replaceRowAndAdvanceDraft(await api.removePackageImage(code, revision), revision);
     historyVersion.value += 1;
-    toast.success('Photo removed.');
+    toast.success('Photo removed', previous ? { action: undoAction(() => undoPhoto(code, previous)) } : undefined);
   } catch (error) {
     if (error instanceof ApiError && error.status === 409) {
       await mergeAfterConflict();
@@ -975,15 +1031,30 @@ function clearFormState() {
 }
 
 function openForm() {
-  Object.assign(form, blank());
-  form.id = nextCode('PKG', packages.value.map((p) => p.id), 101);
+  resetNewForm();
   editingCode.value = null;
   baseForm.value = null;
   clearFormState();
   returnToDetail.value = false;
   detailOpen.value = false;
   openedSnapshot.value = snapshotForm();
+  // An unfinished package from earlier comes back; its ID is checked again before saving.
+  const kept = restoreDraft();
+  if (kept) Object.assign(form, kept, { revision: null });
   showForm.value = true;
+}
+
+function resetNewForm() {
+  Object.assign(form, blank());
+  form.id = nextCode('PKG', packages.value.map((p) => p.id), 101);
+}
+
+/** Drops a restored draft and starts the form afresh. */
+function startOver() {
+  discardDraft();
+  resetNewForm();
+  resetFieldErrors();
+  openedSnapshot.value = snapshotForm();
 }
 
 function openEdit(p: PackageRow) {
@@ -997,6 +1068,8 @@ function openEdit(p: PackageRow) {
 
 function closeForm() {
   if (lightboxUrl.value) return;
+  // Closing a new package's form on purpose lets its draft go.
+  if (!editingCode.value) discardDraft();
   showForm.value = false;
   if (returnToDetail.value && detailPackage.value) detailOpen.value = true;
   returnToDetail.value = false;
@@ -1190,6 +1263,7 @@ async function save() {
       detailCode.value = saved.id;
       if (returnToDetail.value) detailOpen.value = true;
     } else {
+      discardDraft();
       toast.success(`Package ${name} added`, {
         action: {
           label: 'Open',

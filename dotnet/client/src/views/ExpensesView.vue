@@ -33,6 +33,10 @@
 
       <Drawer :open="showForm" :title="drawerTitle" :dirty="formDirty" @close="closeForm">
         <p v-if="formError" class="drawer-form-error" role="alert">{{ formError }}</p>
+        <p v-if="!editing && draftRestoredAt" class="drawer-form-merge" role="status">
+          Restored the expense you started {{ draftStartedLabel() }}; nothing was lost.
+          <button type="button" class="field-note-action" @click="startOver">Start over</button>
+        </p>
         <FormProblems :problems="attempted ? problems : []" @focus="focusField" />
 
         <div class="form-grid">
@@ -394,6 +398,7 @@ import { undoAction, useToast } from '../composables/useToast';
 import { useMediaQuery } from '../composables/useMediaQuery';
 import { useQueryState } from '../composables/useQueryState';
 import { useFieldErrors } from '../composables/useFieldErrors';
+import { useFormDraft } from '../composables/useDraft';
 import { useAuth } from '../stores/auth';
 import { canAccess } from '../nav';
 import { api, ApiError, type ExpenseRow, type ExpenseInput } from '../api';
@@ -896,6 +901,18 @@ function snapshotForm(): string {
 
 const formDirty = computed(() => showForm.value && snapshotForm() !== openedSnapshot.value);
 
+// A new expense's unfinished form survives a reload or a closed tab.
+const {
+  restoredAt: draftRestoredAt,
+  restore: restoreDraft,
+  discard: discardDraft,
+  startedLabel: draftStartedLabel,
+} = useFormDraft<ExpenseInput>('expense', {
+  active: () => showForm.value && !editing.value,
+  dirty: () => formDirty.value,
+  snapshot: () => ({ ...form }),
+});
+
 function emptyForm(): ExpenseInput {
   return {
     id: '',
@@ -914,8 +931,7 @@ function openForm() {
     toast.error(businessDateError);
     return;
   }
-  Object.assign(form, emptyForm());
-  form.id = nextCode('EXP', expenses.value.map((e) => e.id), 3101);
+  resetNewForm();
   editing.value = false;
   originalCode.value = '';
   formError.value = '';
@@ -923,7 +939,23 @@ function openForm() {
   returnToDetail.value = false;
   detailOpen.value = false;
   openedSnapshot.value = snapshotForm();
+  // An unfinished expense from earlier comes back, under a new ID in case its ID was taken since.
+  const kept = restoreDraft();
+  if (kept) Object.assign(form, kept, { id: form.id });
   showForm.value = true;
+}
+
+function resetNewForm() {
+  Object.assign(form, emptyForm());
+  form.id = nextCode('EXP', expenses.value.map((e) => e.id), 3101);
+}
+
+/** Drops a restored draft and starts the form afresh. */
+function startOver() {
+  discardDraft();
+  resetNewForm();
+  resetFieldErrors();
+  openedSnapshot.value = snapshotForm();
 }
 
 function openEdit(expense: ExpenseRow) {
@@ -937,6 +969,8 @@ function openEdit(expense: ExpenseRow) {
 }
 
 function closeForm() {
+  // Closing a new expense's form on purpose lets its draft go.
+  if (!editing.value) discardDraft();
   showForm.value = false;
   if (returnToDetail.value && detailExpense.value) detailOpen.value = true;
   returnToDetail.value = false;
@@ -995,6 +1029,7 @@ async function save() {
       detailCode.value = saved.id;
       if (returnToDetail.value) detailOpen.value = true;
     } else {
+      discardDraft();
       toast.success(`Expense ${saved.id} added`, {
         action: {
           label: 'Open',

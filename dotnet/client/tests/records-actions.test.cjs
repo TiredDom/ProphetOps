@@ -387,4 +387,37 @@ test('Record forms, panels, undo and bulk updates', async (t) => {
     assert.equal(saved.paymentStatus, 'Paid');
     await page.close();
   });
+
+  await t.test('7. A new booking left unfinished comes back after the tab is closed, until started over', async () => {
+    const w = world();
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const first = await context.newPage();
+    await route(first, w);
+    await first.goto(`${BASE_URL}/bookings`);
+    await first.getByRole('button', { name: 'Add booking' }).click();
+    await first.getByRole('dialog', { name: 'New booking' }).waitFor();
+    await first.locator('#booking-client').fill('Golf Group');
+    await first.locator('#booking-notes').fill('Two rooms, sea view');
+    await first.waitForTimeout(700);
+    await first.close({ runBeforeUnload: false });
+
+    const again = await context.newPage();
+    await route(again, w);
+    await again.goto(`${BASE_URL}/bookings`);
+    await again.getByRole('button', { name: 'Add booking' }).click();
+    const form = again.getByRole('dialog', { name: 'New booking' });
+    await form.waitFor();
+    assert.ok((await form.locator('.drawer-form-merge').innerText()).includes('Restored the booking you started'));
+    assert.equal(await form.locator('#booking-client').inputValue(), 'Golf Group');
+    assert.equal(await form.locator('#booking-notes').inputValue(), 'Two rooms, sea view');
+
+    await form.getByRole('button', { name: 'Start over' }).click();
+    assert.equal(await form.locator('#booking-client').inputValue(), '', 'Start over clears the draft');
+    await again.keyboard.press('Escape');
+    await form.waitFor({ state: 'detached' });
+    await again.getByRole('button', { name: 'Add booking' }).click();
+    await again.getByRole('dialog', { name: 'New booking' }).waitFor();
+    assert.equal(await again.locator('.drawer-form-merge').count(), 0, 'Nothing is offered once it was dropped');
+    await context.close();
+  });
 });

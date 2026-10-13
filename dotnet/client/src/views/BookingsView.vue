@@ -12,6 +12,10 @@
       <Drawer :open="showForm" :title="drawerTitle" :dirty="formDirty" @close="closeForm">
         <p v-if="formError" class="drawer-form-error" role="alert">{{ formError }}</p>
         <p v-if="mergeNotice" class="drawer-form-merge" role="status">{{ mergeNotice }}</p>
+        <p v-if="!editing && draftRestoredAt" class="drawer-form-merge" role="status">
+          Restored the booking you started {{ draftStartedLabel() }}; nothing was lost.
+          <button type="button" class="field-note-action" @click="startOver">Start over</button>
+        </p>
         <FormProblems :problems="attempted ? problems : []" @focus="focusField" />
 
         <fieldset class="booking-mode">
@@ -642,6 +646,7 @@ import { undoAction, useToast } from '../composables/useToast';
 import { useMediaQuery } from '../composables/useMediaQuery';
 import { useQueryState } from '../composables/useQueryState';
 import { useFieldErrors } from '../composables/useFieldErrors';
+import { useFormDraft } from '../composables/useDraft';
 import { useAuth } from '../stores/auth';
 import { canAccess } from '../nav';
 import { api, ApiError, type Booking, type BookingInput, type ImportPreview, type PackageOption } from '../api';
@@ -1326,6 +1331,18 @@ function snapshotForm(): string {
 
 const formDirty = computed(() => showForm.value && snapshotForm() !== openedSnapshot.value);
 
+// A new booking's unfinished form survives a reload or a closed tab.
+const {
+  restoredAt: draftRestoredAt,
+  restore: restoreDraft,
+  discard: discardDraft,
+  startedLabel: draftStartedLabel,
+} = useFormDraft<BookingForm>('booking', {
+  active: () => showForm.value && !editing.value,
+  dirty: () => formDirty.value,
+  snapshot: () => ({ ...form }),
+});
+
 function blank(): BookingForm {
   return {
     id: '',
@@ -1421,10 +1438,7 @@ function openForm() {
     toast.error(businessDateError);
     return;
   }
-  Object.assign(form, blank());
-  form.id = nextCode('BKG', bookings.value.map((b) => b.id), 2401);
-  form.packageId = firstOpenPackage()?.id ?? null;
-  applyPackage();
+  resetNewForm();
   editing.value = false;
   originalCode.value = '';
   original.value = null;
@@ -1434,10 +1448,30 @@ function openForm() {
   returnToDetail.value = false;
   detailOpen.value = false;
   openedSnapshot.value = snapshotForm();
+  // An unfinished booking from earlier comes back, under a new ID in case its ID was taken since.
+  const kept = restoreDraft();
+  if (kept) Object.assign(form, kept, { id: form.id, revision: null });
   showForm.value = true;
 }
 
+function resetNewForm() {
+  Object.assign(form, blank());
+  form.id = nextCode('BKG', bookings.value.map((b) => b.id), 2401);
+  form.packageId = firstOpenPackage()?.id ?? null;
+  applyPackage();
+}
+
+/** Drops a restored draft and starts the form afresh. */
+function startOver() {
+  discardDraft();
+  resetNewForm();
+  resetFieldErrors();
+  openedSnapshot.value = snapshotForm();
+}
+
 function closeForm() {
+  // Closing a new booking's form on purpose lets its draft go.
+  if (!editing.value) discardDraft();
   showForm.value = false;
   if (returnToDetail.value && detailBooking.value) detailOpen.value = true;
   returnToDetail.value = false;
@@ -1780,6 +1814,7 @@ async function save() {
         action: undoAction(() => runUndo(`Booking ${saved.id}`, () => api.updateBooking(saved.id, bookingInput(before, saved.revision)), `Booking ${saved.id} is back as it was`)),
       });
     } else {
+      discardDraft();
       toast.success('Booking ' + saved.id + ' added', {
         action: { label: 'Open', run: () => openDetail(saved) },
       });
