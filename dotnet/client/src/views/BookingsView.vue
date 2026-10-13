@@ -1,49 +1,18 @@
 <template>
   <AppShell title="Bookings">
     <template #actions>
-      <a class="secondary-button" href="/api/export/bookings.csv">Export CSV</a>
-      <button class="secondary-button" type="button" @click="openImport">Import from file</button>
-      <button class="primary-button" type="button" @click="openForm">Add booking</button>
+      <ActionMenu :items="menuItems" />
+      <button class="primary-button" type="button" @click="openForm">
+        <UiIcon name="plus" />
+        Add booking
+      </button>
     </template>
 
     <section class="dss-page">
-      <section class="stat-band" aria-label="Booking totals">
-        <div class="stat-cell">
-          <span class="stat-label">Bookings</span>
-          <strong class="stat-value">{{ bookings.length }}</strong>
-          <span class="stat-note">Saved bookings</span>
-        </div>
-        <div class="stat-cell">
-          <span class="stat-label">Passengers</span>
-          <strong class="stat-value">{{ totalPassengers }}</strong>
-          <span class="stat-note">Across all bookings</span>
-        </div>
-        <div class="stat-cell">
-          <span class="stat-label">Booked revenue</span>
-          <strong class="stat-value">{{ peso(totalRevenue) }}</strong>
-          <span class="stat-note">Total revenue</span>
-        </div>
-      </section>
-
-      <Drawer :open="showForm" :title="drawerTitle" @close="showForm = false">
+      <Drawer :open="showForm" :title="drawerTitle" @close="closeForm">
         <p v-if="formError" class="drawer-form-error" role="alert">{{ formError }}</p>
 
         <p v-if="unusualWarning" class="drawer-form-check" role="alert">{{ unusualWarning }}</p>
-
-        <div v-if="askVoid" class="void-panel" role="group" aria-label="Void this booking">
-          <p class="void-lead">Voiding keeps the record and its history, but takes it out of every total and out of the forecast. Any seats it holds go back to the package.</p>
-          <label class="account-field">
-            <span>Why is it being voided?</span>
-            <input v-model.trim="voidReason" maxlength="160" placeholder="Duplicate entry, client cancelled, recorded in error" />
-          </label>
-          <p v-if="voidError" class="drawer-form-error" role="alert">{{ voidError }}</p>
-          <div class="void-actions">
-            <button class="secondary-button" type="button" :disabled="voiding" @click="askVoid = false">Keep it</button>
-            <button class="danger-button" type="button" :disabled="voiding || !voidReason" @click="confirmVoid">
-              {{ voiding ? 'Voiding…' : 'Void booking' }}
-            </button>
-          </div>
-        </div>
 
         <fieldset class="booking-mode">
           <legend class="section-label">Booking type</legend>
@@ -134,15 +103,7 @@
         </div>
 
         <template #footer>
-          <button
-            v-if="editing && !editingVoided"
-            class="table-link danger-link"
-            type="button"
-            :disabled="saving"
-            @click="askVoid = true"
-          >Void this booking</button>
-          <span class="footer-spacer"></span>
-          <button class="secondary-button" type="button" :disabled="saving" @click="showForm = false">Cancel</button>
+          <button class="secondary-button" type="button" :disabled="saving" @click="closeForm">Cancel</button>
           <button class="primary-button" type="button" :disabled="saving" @click="save">
             {{ saving ? 'Saving…' : editing ? 'Save changes' : 'Save booking' }}
           </button>
@@ -244,13 +205,24 @@
         </template>
       </Drawer>
 
+      <BookingDetail
+        :open="detailOpen"
+        :booking="detailBooking"
+        :can-see-history="canSeeHistory"
+        :history-version="historyVersion"
+        :busy="detailBusy"
+        :void-error="detailVoidError"
+        :action-error="detailActionError"
+        @close="detailOpen = false"
+        @edit="editFromDetail"
+        @mark-paid="quickUpdate('paid')"
+        @confirm="quickUpdate('confirm')"
+        @void="voidFromDetail"
+        @restore="restoreFromDetail"
+      />
+
       <div v-if="loading" class="content-panel">
-        <div class="panel-header">
-          <div class="panel-title-group">
-            <h2>All bookings</h2>
-          </div>
-        </div>
-        <Skeleton :rows="6" />
+        <Skeleton :rows="8" />
       </div>
 
       <EmptyState
@@ -263,69 +235,135 @@
         </template>
       </EmptyState>
 
-      <div v-else class="content-panel bookings-panel">
-        <div class="panel-header bookings-toolbar-header">
-          <div class="panel-title-group">
-            <h2>All bookings</h2>
-            <span class="panel-meta">{{ visibleBookings.length }} of {{ bookings.length }} shown</span>
-          </div>
-          <SearchField v-model="query" placeholder="Search client, package, or ID" />
+      <section v-else class="content-panel records-panel" aria-label="Bookings">
+        <div class="records-tools">
+          <SearchField v-model="filters.q" placeholder="Search client, package, destination or ID" />
+          <PeriodSelect
+            v-model:period="periodKey"
+            v-model:from="filters.from"
+            v-model:to="filters.to"
+            :today="businessToday"
+          />
+          <label v-if="stacked" class="records-sort">
+            <span class="visually-hidden">Sort bookings</span>
+            <select v-model="filters.sort">
+              <option v-for="option in sortOptions" :key="option.key" :value="option.key">{{ option.label }}</option>
+            </select>
+          </label>
         </div>
 
-        <div class="filter-chips" role="group" aria-label="Filter by payment">
+        <div class="records-filters" role="group" aria-label="Filter by payment">
           <button
             v-for="option in paymentOptions"
-            :key="option"
+            :key="option.key"
             type="button"
             class="filter-chip"
-            :class="{ active: paymentFilter === option }"
-            :aria-pressed="paymentFilter === option"
-            @click="paymentFilter = option"
+            :aria-pressed="filters.payment === option.key"
+            @click="filters.payment = option.key"
           >
-            <span>{{ option }}</span>
-            <span class="chip-count">{{ paymentCounts[option] ?? 0 }}</span>
+            {{ option.label }}
+            <span class="chip-count">{{ count(paymentCounts[option.key] ?? 0) }}</span>
           </button>
+          <template v-if="voidedInScope > 0">
+            <span class="chip-divider" aria-hidden="true"></span>
+            <button
+              type="button"
+              class="filter-chip"
+              :aria-pressed="showVoided"
+              @click="filters.voided = showVoided ? '' : '1'"
+            >
+              Show voided
+              <span class="chip-count">{{ count(voidedInScope) }}</span>
+            </button>
+          </template>
         </div>
 
-        <template v-if="visibleBookings.length">
-          <div class="dss-table-frame">
-            <table class="dss-table">
+        <p class="records-summary" aria-live="polite">
+          <span class="summary-figure"><strong>{{ count(active.length) }}</strong> {{ active.length === 1 ? 'booking' : 'bookings' }}</span>
+          <span class="summary-figure"><strong>{{ count(activePassengers) }}</strong> {{ activePassengers === 1 ? 'passenger' : 'passengers' }}</span>
+          <span class="summary-figure"><strong>{{ peso(activeRevenue) }}</strong> revenue</span>
+          <span v-if="filters.payment === 'all' && unpaidInView.length" class="summary-figure tone-warning">
+            <strong>{{ peso(unpaidValue) }}</strong> in {{ count(unpaidInView.length) }} unpaid {{ unpaidInView.length === 1 ? 'booking' : 'bookings' }}
+          </span>
+          <span class="summary-scope">{{ scopeText }}</span>
+          <button v-if="isFiltered" class="table-link" type="button" @click="clearFilters">Clear filters</button>
+        </p>
+
+        <template v-if="matching.length">
+          <ul v-if="stacked" class="record-list">
+            <template v-for="section in sections" :key="section.key">
+              <li v-if="section.label && section.summary" class="record-list-month">
+                <span>{{ section.label }}</span>
+                <span>{{ count(section.summary.count) }} {{ section.summary.count === 1 ? 'booking' : 'bookings' }} · {{ peso(section.summary.revenue) }}</span>
+              </li>
+              <li v-for="b in section.items" :key="b.id">
+                <button
+                  class="record-item"
+                  :class="{ 'is-voided': b.voided }"
+                  type="button"
+                  @click="openDetail(b)"
+                >
+                  <span class="record-item-top">
+                    <span class="record-item-title">{{ b.client }}</span>
+                    <span class="record-item-figure">{{ peso(b.grossRevenue) }}</span>
+                  </span>
+                  <span class="record-item-sub">{{ tripLabel(b) }}</span>
+                  <span class="record-item-meta">
+                    <span>{{ dateLabel(b.ds) }} · {{ b.id }} · {{ b.y }} pax<template v-if="b.voided"> · Voided</template></span>
+                    <span class="record-badge" :class="badge(b.paymentStatus)">{{ b.paymentStatus }}</span>
+                  </span>
+                </button>
+              </li>
+            </template>
+          </ul>
+
+          <div v-else class="dss-table-frame">
+            <table class="dss-table records-table">
               <thead>
                 <tr>
-                  <th>Booking ID</th>
-                  <th>Client / Partner</th>
-                  <th>Package</th>
-                  <th class="num">Passengers</th>
-                  <th class="num">Revenue</th>
-                  <th>Payment</th>
-                  <th>Status</th>
-                  <th></th>
+                  <SortHeader label="Date" field="date" :sort="filters.sort" @sort="sortBy" />
+                  <SortHeader label="Client" field="client" :sort="filters.sort" @sort="sortBy" />
+                  <th scope="col">Trip</th>
+                  <SortHeader label="Passengers" field="pax" align="right" :sort="filters.sort" @sort="sortBy" />
+                  <SortHeader label="Revenue" field="revenue" align="right" :sort="filters.sort" @sort="sortBy" />
+                  <th scope="col">Payment</th>
+                  <th scope="col">Status</th>
                 </tr>
               </thead>
-              <tbody>
-                <tr v-for="b in visibleBookings" :key="b.id" :class="{ 'row-voided': b.voided }">
+              <tbody v-for="section in sections" :key="section.key">
+                <tr v-if="section.label && section.summary" class="month-row">
+                  <th scope="rowgroup" colspan="3">
+                    {{ section.label }}
+                    <span class="month-count">· {{ count(section.summary.count) }} {{ section.summary.count === 1 ? 'booking' : 'bookings' }}</span>
+                  </th>
+                  <td class="num">{{ count(section.summary.passengers) }}</td>
+                  <td class="num">{{ peso(section.summary.revenue) }}</td>
+                  <td colspan="2"></td>
+                </tr>
+                <tr
+                  v-for="b in section.items"
+                  :key="b.id"
+                  class="record-row"
+                  :class="{ 'is-voided': b.voided }"
+                  @click="openDetail(b)"
+                >
+                  <td class="cell-date">{{ dateLabel(b.ds) }}</td>
                   <td>
-                    <strong>{{ b.id }}</strong>
-                    <span v-if="b.voided" class="row-subtext voided-tag" :title="b.voidReason ?? ''">Voided</span>
-                  </td>
-                  <td>{{ b.client }}</td>
-                  <td>
-                    <strong>{{ b.package }}</strong>
+                    <button class="row-open" type="button" @click.stop="openDetail(b)">{{ b.client }}</button>
                     <span class="row-subtext">
-                      {{ b.destination }}
-                      <span class="kind-tag" :class="{ 'kind-tailored': isTailored(b) }">
-                        {{ isTailored(b) ? 'Tailored' : 'Package' }}
-                      </span>
+                      {{ b.id }}<span v-if="b.voided" class="voided-tag" :title="b.voidReason ?? ''">Voided</span>
+                    </span>
+                  </td>
+                  <td>
+                    <span class="trip-name">{{ b.package }}</span>
+                    <span class="row-subtext">
+                      {{ b.destination }}<span v-if="isTailored(b)" class="kind-tag">Tailored</span>
                     </span>
                   </td>
                   <td class="num">{{ b.y }}</td>
                   <td class="num"><strong>{{ peso(b.grossRevenue) }}</strong></td>
                   <td><span class="record-badge" :class="badge(b.paymentStatus)">{{ b.paymentStatus }}</span></td>
                   <td><span class="record-badge" :class="badge(b.bookingStatus)">{{ b.bookingStatus }}</span></td>
-                  <td class="num">
-                    <button v-if="b.voided" class="table-link" type="button" @click="restore(b)">Restore</button>
-                    <button v-else class="table-link" type="button" @click="openEdit(b)">Edit</button>
-                  </td>
                 </tr>
               </tbody>
             </table>
@@ -334,17 +372,19 @@
           <ListFooter
             :shown="shown"
             :total="total"
+            :page-size="PAGE"
             noun="bookings"
             @more="loadMore"
             @all="showAll"
           />
         </template>
 
-        <div v-else class="filter-empty">
-          <p>No bookings match your search.</p>
+        <div v-else class="records-empty">
+          <strong>No bookings match</strong>
+          <span>Try a different search, payment status or period.</span>
           <button class="table-link" type="button" @click="clearFilters">Clear filters</button>
         </div>
-      </div>
+      </section>
     </section>
   </AppShell>
 </template>
@@ -353,16 +393,27 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppShell from '../components/AppShell.vue';
+import ActionMenu, { type ActionMenuItem } from '../components/ActionMenu.vue';
+import BookingDetail, { type BookingBusy } from '../components/BookingDetail.vue';
 import Drawer from '../components/Drawer.vue';
 import Skeleton from '../components/Skeleton.vue';
 import EmptyState from '../components/EmptyState.vue';
 import SearchField from '../components/SearchField.vue';
 import ListFooter from '../components/ListFooter.vue';
+import PeriodSelect from '../components/PeriodSelect.vue';
+import SortHeader from '../components/SortHeader.vue';
+import UiIcon from '../components/UiIcon.vue';
+import MoneyField from '../components/MoneyField.vue';
 import { usePaged } from '../composables/usePaged';
 import { useToast } from '../composables/useToast';
+import { useMediaQuery } from '../composables/useMediaQuery';
+import { useQueryState } from '../composables/useQueryState';
+import { useAuth } from '../stores/auth';
+import { canAccess } from '../nav';
 import { api, ApiError, type Booking, type BookingInput, type ImportPreview, type PackageOption } from '../api';
 import { count, peso } from '../format';
-import MoneyField from '../components/MoneyField.vue';
+import { describeRange, formatDate, formatDay, inRange, isIsoDate, isPeriodKey, resolvePeriod, type PeriodKey } from '../periods';
+import { compareText, monthSections, nextSort, singleSection, sortParts, type SortDirection } from '../listing';
 
 type BookingMode = 'package' | 'custom';
 type BookingForm = BookingInput & { mode: BookingMode };
@@ -370,7 +421,12 @@ type BookingRecovery =
   | { kind: 'create'; payload: BookingInput }
   | { kind: 'stale-edit'; message: string };
 
+const PAGE = 50;
+
 const toast = useToast();
+const route = useRoute();
+const router = useRouter();
+const { state: auth } = useAuth();
 
 const bookings = ref<Booking[]>([]);
 const packages = ref<PackageOption[]>([]);
@@ -381,6 +437,8 @@ const formError = ref('');
 const editing = ref(false);
 const originalCode = ref('');
 const drawerTitle = ref('New booking');
+// Set when the form was opened from a booking's panel, so closing the form goes back to it.
+const returnToDetail = ref(false);
 
 const unusualWarning = ref('');
 const confirmUnusual = ref(false);
@@ -397,63 +455,210 @@ const importable = computed(() => {
   return p ? Math.max(0, p.valid - p.duplicates) : 0;
 });
 
-const askVoid = ref(false);
-const voiding = ref(false);
-const voidReason = ref('');
-const voidError = ref('');
 const pendingRecovery = ref<BookingRecovery | null>(null);
 const createRecoveryError = 'Could not confirm whether this booking was saved. Check your connection, then try again before changing this form.';
 const staleRecoveryError = 'Could not reload the latest booking after a conflict. Check your connection, then try again before saving.';
-const editingVoided = computed(
-  () => bookings.value.find((b) => b.id === originalCode.value)?.voided ?? false,
-);
-
-const route = useRoute();
-const router = useRouter();
-const query = ref('');
-// Unpaid matches what Home counts: every active booking that is not fully paid.
-const paymentOptions = ['All', 'Unpaid', 'Paid', 'Partially Paid', 'Pending'];
-const requestedPayment = String(route.query.payment ?? '').toLowerCase();
-const paymentFilter = ref(paymentOptions.find((option) => option.toLowerCase() === requestedPayment) ?? 'All');
 
 const businessToday = ref('');
 const businessDateError = 'Could not load the business date. Refresh and try again.';
 const form = reactive<BookingForm>(blank());
 
-const totalPassengers = computed(() => bookings.value.reduce((sum, b) => sum + b.y, 0));
-const totalRevenue = computed(() => bookings.value.reduce((sum, b) => sum + b.grossRevenue, 0));
+// The booking panel
+const detailOpen = ref(false);
+const detailCode = ref<string | null>(null);
+const detailBooking = computed(() => bookings.value.find((b) => b.id === detailCode.value) ?? null);
+const detailBusy = ref<BookingBusy>('');
+const detailVoidError = ref('');
+const detailActionError = ref('');
+const historyVersion = ref(0);
+// The change history comes from the activity log, which Owner and Admin can read.
+const canSeeHistory = computed(() => canAccess(auth.user?.role, '/reports'));
 
-function isUnpaid(b: Booking): boolean {
-  return !b.voided && b.paymentStatus !== 'Paid';
-}
+const menuItems: ActionMenuItem[] = [
+  {
+    label: 'Export bookings',
+    hint: 'Every booking as a CSV file, voided ones marked',
+    icon: 'download',
+    href: '/api/export/bookings.csv',
+  },
+  { label: 'Import from a file', hint: 'Add bookings from a CSV sheet', icon: 'upload', run: openImport },
+];
 
-const paymentCounts = computed(() => {
-  const counts: Record<string, number> = { All: bookings.value.length, Unpaid: 0 };
-  for (const b of bookings.value) {
-    counts[b.paymentStatus] = (counts[b.paymentStatus] ?? 0) + 1;
-    if (isUnpaid(b)) counts.Unpaid += 1;
-  }
-  return counts;
+// ----- Filters, kept in the address -----
+
+const paymentOptions = [
+  { key: 'all', label: 'All' },
+  // Unpaid matches what Home counts: every active booking that is not fully paid.
+  { key: 'unpaid', label: 'Unpaid' },
+  { key: 'paid', label: 'Paid' },
+  { key: 'partially-paid', label: 'Partially paid' },
+  { key: 'pending', label: 'Pending' },
+];
+
+const sortOptions = [
+  { key: 'date-desc', label: 'Newest first' },
+  { key: 'date-asc', label: 'Oldest first' },
+  { key: 'revenue-desc', label: 'Highest revenue' },
+  { key: 'revenue-asc', label: 'Lowest revenue' },
+  { key: 'pax-desc', label: 'Most passengers' },
+  { key: 'pax-asc', label: 'Fewest passengers' },
+  { key: 'client-asc', label: 'Client A to Z' },
+  { key: 'client-desc', label: 'Client Z to A' },
+];
+
+const firstDirection: Record<string, SortDirection> = { date: 'desc', client: 'asc', pax: 'desc', revenue: 'desc' };
+
+const filters = useQueryState(
+  { q: '', payment: 'all', period: 'all', from: '', to: '', voided: '', sort: 'date-desc' },
+  {
+    payment: (value) => paymentOptions.some((option) => option.key === value),
+    period: isPeriodKey,
+    from: isIsoDate,
+    to: isIsoDate,
+    voided: (value) => value === '1',
+    sort: (value) => sortOptions.some((option) => option.key === value),
+  },
+);
+
+const periodKey = computed<PeriodKey>({
+  get: () => (isPeriodKey(filters.period) ? filters.period : 'all'),
+  set: (value) => {
+    filters.period = value;
+    if (value !== 'custom') {
+      filters.from = '';
+      filters.to = '';
+    }
+  },
 });
 
-const matching = computed(() => {
-  const term = query.value.trim().toLowerCase();
+const showVoided = computed(() => filters.voided === '1');
+const stacked = useMediaQuery('(max-width: 860px)');
+
+const range = computed(() => resolvePeriod(periodKey.value, businessToday.value, filters.from, filters.to));
+
+const searched = computed(() => {
+  const term = filters.q.trim().toLowerCase();
   return bookings.value.filter((b) => {
-    if (paymentFilter.value === 'Unpaid') {
-      if (!isUnpaid(b)) return false;
-    } else if (paymentFilter.value !== 'All' && b.paymentStatus !== paymentFilter.value) return false;
+    if (!inRange(b.ds, range.value)) return false;
     if (!term) return true;
     return [b.client, b.package, b.destination, b.id].some((field) => (field ?? '').toLowerCase().includes(term));
   });
 });
 
-const { visible: visibleBookings, total, shown, loadMore, showAll } = usePaged(matching);
+const voidedInScope = computed(() => searched.value.filter((b) => b.voided).length);
+const pool = computed(() => (showVoided.value ? searched.value : searched.value.filter((b) => !b.voided)));
 
-function clearFilters() {
-  query.value = '';
-  paymentFilter.value = 'All';
+function isUnpaid(b: Booking): boolean {
+  return !b.voided && b.paymentStatus !== 'Paid';
 }
 
+function paymentMatches(b: Booking, key: string): boolean {
+  switch (key) {
+    case 'all':
+      return true;
+    case 'unpaid':
+      return isUnpaid(b);
+    case 'paid':
+      return b.paymentStatus === 'Paid';
+    case 'partially-paid':
+      return b.paymentStatus === 'Partially Paid';
+    case 'pending':
+      return b.paymentStatus === 'Pending';
+    default:
+      return true;
+  }
+}
+
+const paymentCounts = computed(() => {
+  const counts: Record<string, number> = {};
+  for (const option of paymentOptions) {
+    counts[option.key] = pool.value.filter((b) => paymentMatches(b, option.key)).length;
+  }
+  return counts;
+});
+
+const matching = computed(() => pool.value.filter((b) => paymentMatches(b, filters.payment)));
+
+// Revenue is gross booking revenue with voided bookings left out, the same figure Home and
+// Reports use. Voided bookings can be listed, but they never count.
+const active = computed(() => matching.value.filter((b) => !b.voided));
+const activePassengers = computed(() => active.value.reduce((sum, b) => sum + b.y, 0));
+const activeRevenue = computed(() => active.value.reduce((sum, b) => sum + b.grossRevenue, 0));
+// The booked value of bookings not yet fully paid. Part-payments are not recorded, so this is
+// the bookings' value, not the balance still owed.
+const unpaidInView = computed(() => active.value.filter(isUnpaid));
+const unpaidValue = computed(() => unpaidInView.value.reduce((sum, b) => sum + b.grossRevenue, 0));
+
+const sorted = computed(() => {
+  const { field, direction } = sortParts(filters.sort);
+  const sign = direction === 'asc' ? 1 : -1;
+  return [...matching.value].sort((a, b) => {
+    let order = 0;
+    if (field === 'client') order = compareText(a.client, b.client);
+    else if (field === 'pax') order = a.y - b.y;
+    else if (field === 'revenue') order = a.grossRevenue - b.grossRevenue;
+    if (order === 0) order = a.ds < b.ds ? -1 : a.ds > b.ds ? 1 : a.backendId - b.backendId;
+    return order * sign;
+  });
+});
+
+const { visible, total, shown, loadMore, showAll } = usePaged(sorted, PAGE);
+
+const byDate = computed(() => sortParts(filters.sort).field === 'date');
+
+interface MonthTotals {
+  count: number;
+  passengers: number;
+  revenue: number;
+}
+
+function totalsOf(items: Booking[]): MonthTotals {
+  const counted = items.filter((b) => !b.voided);
+  return {
+    count: counted.length,
+    passengers: counted.reduce((sum, b) => sum + b.y, 0),
+    revenue: counted.reduce((sum, b) => sum + b.grossRevenue, 0),
+  };
+}
+
+const sections = computed(() =>
+  byDate.value
+    ? monthSections(visible.value, sorted.value, (b) => b.ds, totalsOf)
+    : singleSection<Booking, MonthTotals>(visible.value),
+);
+
+const isFiltered = computed(
+  () => filters.q.trim() !== '' || filters.payment !== 'all' || periodKey.value !== 'all' || showVoided.value,
+);
+
+const scopeText = computed(() => {
+  const parts = [range.value ? describeRange(range.value) : 'All dates'];
+  const term = filters.q.trim();
+  if (term) parts.push(`matching “${term}”`);
+  const listedVoided = matching.value.length - active.value.length;
+  if (listedVoided > 0) parts.push(`${listedVoided} voided listed, not counted`);
+  return parts.join(' · ');
+});
+
+function sortBy(field: string) {
+  filters.sort = nextSort(filters.sort, field, firstDirection[field] ?? 'asc');
+}
+
+function clearFilters() {
+  filters.q = '';
+  filters.payment = 'all';
+  periodKey.value = 'all';
+  filters.voided = '';
+}
+
+function dateLabel(ds: string): string {
+  // Inside a month heading the year is already on screen.
+  return byDate.value ? formatDay(ds) : formatDate(ds);
+}
+
+function tripLabel(b: Booking): string {
+  return b.destination ? `${b.package} · ${b.destination}` : b.package;
+}
 
 function badge(value: string): string {
   return 'status-' + value.toLowerCase().replace(/[^a-z0-9]+/g, '-');
@@ -462,6 +667,83 @@ function badge(value: string): string {
 function isTailored(b: Booking): boolean {
   return b.packageId == null;
 }
+
+// ----- The booking panel -----
+
+function openDetail(b: Booking) {
+  detailCode.value = b.id;
+  detailVoidError.value = '';
+  detailActionError.value = '';
+  detailOpen.value = true;
+}
+
+function editFromDetail() {
+  const b = detailBooking.value;
+  if (!b) return;
+  detailOpen.value = false;
+  openEdit(b);
+  returnToDetail.value = true;
+}
+
+async function quickUpdate(action: 'paid' | 'confirm') {
+  const b = detailBooking.value;
+  if (!b || detailBusy.value) return;
+  detailBusy.value = action;
+  detailActionError.value = '';
+  try {
+    await api.bulkBookings([b.id], action, { [b.id]: b.revision });
+    await load(false);
+    historyVersion.value += 1;
+    toast.success(action === 'paid' ? `Booking ${b.id} marked as paid` : `Booking ${b.id} confirmed`);
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 409) {
+      await load(false);
+      detailActionError.value = 'This booking changed while it was open. The latest details are shown; try again if it still needs the update.';
+    } else {
+      detailActionError.value = e instanceof ApiError ? Object.values(e.fields)[0] ?? e.message : 'Could not update the booking.';
+    }
+  } finally {
+    detailBusy.value = '';
+  }
+}
+
+async function voidFromDetail(reason: string) {
+  const b = detailBooking.value;
+  if (!b || detailBusy.value || !reason) return;
+  detailBusy.value = 'void';
+  detailVoidError.value = '';
+  try {
+    await api.voidBooking(b.id, reason, b.revision);
+    await load(false);
+    historyVersion.value += 1;
+    toast.success('Booking ' + b.id + ' voided');
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 409) await load(false);
+    detailVoidError.value = e instanceof ApiError ? conflictMessage(e, 'booking') : 'Could not void the booking.';
+  } finally {
+    detailBusy.value = '';
+  }
+}
+
+async function restoreFromDetail() {
+  const b = detailBooking.value;
+  if (!b || detailBusy.value) return;
+  detailBusy.value = 'restore';
+  detailActionError.value = '';
+  try {
+    await api.restoreBooking(b.id, b.revision);
+    await load(false);
+    historyVersion.value += 1;
+    toast.success('Booking ' + b.id + ' restored');
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 409) await load(false);
+    detailActionError.value = e instanceof ApiError ? conflictMessage(e, 'booking') : 'Could not restore the booking.';
+  } finally {
+    detailBusy.value = '';
+  }
+}
+
+// ----- The booking form -----
 
 function blank(): BookingForm {
   return {
@@ -526,11 +808,16 @@ function openForm() {
   formError.value = '';
   unusualWarning.value = '';
   confirmUnusual.value = false;
-  askVoid.value = false;
-  voidReason.value = '';
-  voidError.value = '';
   pendingRecovery.value = null;
+  returnToDetail.value = false;
+  detailOpen.value = false;
   showForm.value = true;
+}
+
+function closeForm() {
+  showForm.value = false;
+  if (returnToDetail.value && detailBooking.value) detailOpen.value = true;
+  returnToDetail.value = false;
 }
 
 function loadBookingIntoForm(b: Booking) {
@@ -562,9 +849,6 @@ function openEdit(b: Booking) {
   formError.value = '';
   unusualWarning.value = '';
   confirmUnusual.value = false;
-  askVoid.value = false;
-  voidReason.value = '';
-  voidError.value = '';
   pendingRecovery.value = null;
   showForm.value = true;
 }
@@ -640,40 +924,6 @@ async function commitImport() {
   }
 }
 
-async function confirmVoid() {
-  if (voiding.value || !voidReason.value) return;
-  if (form.revision == null) {
-    voidError.value = 'Reload this booking before voiding it.';
-    return;
-  }
-  voiding.value = true;
-  voidError.value = '';
-  try {
-    await api.voidBooking(originalCode.value, voidReason.value, form.revision);
-    await load();
-    askVoid.value = false;
-    showForm.value = false;
-    toast.success('Booking ' + originalCode.value + ' voided');
-  } catch (e) {
-    if (e instanceof ApiError && e.status === 409) await load();
-    voidError.value = e instanceof ApiError ? conflictMessage(e, 'booking') : 'Could not void the booking.';
-  } finally {
-    voiding.value = false;
-  }
-}
-
-async function restore(b: Booking) {
-  try {
-    await api.restoreBooking(b.id, b.revision);
-    await load();
-    toast.success('Booking ' + b.id + ' restored');
-  } catch (e) {
-    if (e instanceof ApiError && e.status === 409) await load();
-    const message = e instanceof ApiError ? conflictMessage(e, 'booking') : 'Could not restore the booking.';
-    toast.error(message);
-  }
-}
-
 function conflictMessage(error: ApiError, noun: string): string {
   if (error.status !== 409) return Object.values(error.fields)[0] ?? error.message;
   if (error.code === 'duplicate_code') return error.message;
@@ -716,15 +966,12 @@ function applyCreatedBookingRecovery(payload: BookingInput): boolean {
   editing.value = true;
   originalCode.value = saved.id;
   drawerTitle.value = 'Edit booking';
-  askVoid.value = false;
-  voidReason.value = '';
-  voidError.value = '';
   const message = 'A booking with this ID is already saved with different details. Review the saved booking before changing it.';
   formError.value = message;
   return true;
 }
 
-async function recoverCreatedBooking(payload: BookingInput, error: unknown): Promise<boolean> {
+async function recoverCreatedBooking(payload: BookingInput): Promise<boolean> {
   if (!await load(false)) {
     pendingRecovery.value = { kind: 'create', payload };
     formError.value = createRecoveryError;
@@ -740,9 +987,6 @@ function applyBookingConflictRefresh(message: string): boolean {
   loadBookingIntoForm(saved);
   unusualWarning.value = '';
   confirmUnusual.value = false;
-  askVoid.value = false;
-  voidReason.value = '';
-  voidError.value = '';
   formError.value = message;
   return true;
 }
@@ -819,10 +1063,15 @@ async function save() {
     else await api.createBooking(payload);
     await load();
     pendingRecovery.value = null;
-    showForm.value = false;
     confirmUnusual.value = false;
     unusualWarning.value = '';
+    historyVersion.value += 1;
     toast.success('Booking ' + payload.id + ' saved');
+    // An edit goes back to the booking it came from, now showing the change.
+    if (editing.value) detailCode.value = payload.id;
+    showForm.value = false;
+    if (returnToDetail.value) detailOpen.value = true;
+    returnToDetail.value = false;
   } catch (e) {
     if (e instanceof ApiError && e.status === 409 && e.code === 'unusual_revenue') {
       unusualWarning.value = e.message;
@@ -831,7 +1080,7 @@ async function save() {
       return;
     }
     if (!editing.value && (!(e instanceof ApiError) || e.status >= 500 || e.status === 409)) {
-      if (await recoverCreatedBooking(payload, e)) return;
+      if (await recoverCreatedBooking(payload)) return;
     }
     if (e instanceof ApiError && e.status === 409) {
       const message = conflictMessage(e, 'booking');
@@ -857,23 +1106,6 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.drawer-form-check {
-  margin-bottom: var(--space-4);
-  padding: 10px 12px;
-  border: 1px solid var(--tone-warning-border);
-  border-radius: var(--radius-md);
-  background: var(--tone-warning-surface);
-  color: var(--tone-warning-ink);
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.drawer-form-error {
-  margin-bottom: var(--space-4);
-  color: var(--color-danger-ink);
-  font-size: 13px;
-}
-
 .booking-mode {
   border: none;
   padding: 0;
@@ -905,7 +1137,7 @@ onMounted(async () => {
   padding: 8px 10px;
   border-radius: var(--radius-sm);
   color: var(--color-text-muted);
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 500;
   cursor: pointer;
   transition: background var(--transition-fast), color var(--transition-fast);
@@ -934,212 +1166,19 @@ onMounted(async () => {
   outline-offset: 1px;
 }
 
-.bookings-toolbar-header {
-  align-items: center;
-  flex-wrap: wrap;
-  row-gap: var(--space-3);
-}
-
-.bookings-toolbar-header .search-field {
-  flex: 1 1 240px;
-  margin-left: auto;
-}
-
-.filter-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-bottom: var(--space-4);
-}
-
-.filter-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  border: 1px solid var(--color-border-strong);
-  background: var(--color-surface);
-  color: var(--color-text-secondary);
-  border-radius: var(--radius-pill);
-  padding: 5px 13px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
-}
-
-.filter-chip:hover {
-  border-color: var(--color-text-faint);
-  background: var(--color-surface-sunken);
-}
-
-.filter-chip.active {
-  background: var(--color-primary-soft);
-  border-color: var(--color-primary);
-  color: var(--color-primary-active);
-  font-weight: 600;
-}
-
-.chip-count {
-  font-variant-numeric: lining-nums tabular-nums;
-  font-size: 12px;
-  color: var(--color-text-muted);
-}
-
-.filter-chip.active .chip-count {
-  color: var(--color-primary);
-}
-
-.dss-table-frame {
-  overflow-x: auto;
-}
-
-.filter-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  padding: var(--space-8) var(--space-1);
-  color: var(--color-text-muted);
-  font-size: 13.5px;
+.trip-name {
+  display: block;
+  color: var(--color-text-primary);
 }
 
 .kind-tag {
   display: inline-block;
   margin-left: 6px;
-  padding: 1px 8px;
+  padding: 0 7px;
   border-radius: var(--radius-pill);
-  background: var(--tone-neutral-surface);
-  color: var(--color-text-muted);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.kind-tag.kind-tailored {
   background: var(--tone-primary-surface);
   color: var(--tone-primary-ink);
-}
-
-.row-voided td {
-  color: var(--color-text-faint);
-}
-
-.row-voided td strong,
-.row-voided .record-badge {
-  color: var(--color-text-muted);
-}
-
-.voided-tag {
-  color: var(--color-danger-ink);
+  font-size: var(--text-xs);
   font-weight: 600;
-}
-
-.void-panel {
-  margin-bottom: var(--space-4);
-  padding: var(--space-4);
-  border: 1px solid var(--tone-danger-border);
-  border-radius: var(--radius-md);
-  background: var(--tone-danger-surface);
-}
-
-.void-lead {
-  margin: 0 0 var(--space-3);
-  color: var(--tone-danger-ink);
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.void-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-3);
-  margin-top: var(--space-3);
-}
-
-.footer-spacer {
-  flex: 1;
-}
-
-.danger-link {
-  color: var(--color-danger-ink);
-}
-
-.import-hint {
-  margin: 0 0 var(--space-4);
-  color: var(--color-text-muted);
-  font-size: 12.5px;
-  line-height: 1.5;
-}
-
-.import-pick {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  margin-bottom: var(--space-4);
-}
-
-.import-filename {
-  color: var(--color-text-secondary);
-  font-size: 13px;
-  word-break: break-all;
-}
-
-.import-summary {
-  display: grid;
-  gap: 8px;
-  margin: 0 0 var(--space-4);
-  padding: var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-sunken);
-}
-
-.import-summary > div {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-4);
-}
-
-.import-summary dt {
-  color: var(--color-text-muted);
-  font-size: 12.5px;
-}
-
-.import-summary dd {
-  margin: 0;
-  color: var(--color-text-primary);
-  font-size: 13px;
-  font-weight: 600;
-  font-variant-numeric: lining-nums tabular-nums;
-  text-align: right;
-}
-
-.import-notes {
-  margin: 0 0 var(--space-4);
-  padding: 10px 12px;
-  border-radius: var(--radius-md);
-  font-size: 12.5px;
-  line-height: 1.5;
-}
-
-.import-notes p {
-  margin: 0;
-}
-
-.import-notes-title {
-  margin: 0 0 2px;
-  font-weight: 700;
-}
-
-.import-warnings {
-  border: 1px solid var(--tone-warning-border);
-  background: var(--tone-warning-surface);
-  color: var(--tone-warning-ink);
-}
-
-.import-problems {
-  border: 1px solid var(--tone-danger-border);
-  background: var(--tone-danger-surface);
-  color: var(--tone-danger-ink);
 }
 </style>

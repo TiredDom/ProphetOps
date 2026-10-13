@@ -27,7 +27,7 @@
           </span>
           <span class="inbox-figure">
             <strong>{{ peso(unpaid.amount) }}</strong>
-            <span>to collect</span>
+            <span>booked value</span>
           </span>
           <UiIcon name="chevron-right" class="inbox-chevron" />
         </RouterLink>

@@ -1,9 +1,11 @@
 <template>
   <AppShell title="Packages">
     <template #actions>
-      <a class="secondary-button" href="/api/export/packages.csv">Export CSV</a>
-      <button class="secondary-button" type="button" @click="openImport">Import from file</button>
-      <button class="primary-button" type="button" @click="openForm">Add package</button>
+      <ActionMenu :items="menuItems" />
+      <button class="primary-button" type="button" @click="openForm">
+        <UiIcon name="plus" />
+        Add package
+      </button>
     </template>
 
     <section class="dss-page">
@@ -73,9 +75,6 @@
                 >
                   <img :src="editingImage" alt="" />
                 </button>
-                <span v-else class="image-preview">
-                  <span class="image-preview-empty">No photo</span>
-                </span>
 
                 <div class="image-actions">
                   <input
@@ -91,7 +90,8 @@
                     :disabled="imageBusy"
                     @click="fileInput?.click()"
                   >
-                    {{ imageBusy ? 'Uploading…' : editingImage ? 'Replace photo' : 'Upload photo' }}
+                    <UiIcon name="image" />
+                    {{ imageBusy ? 'Uploading…' : editingImage ? 'Replace photo' : 'Add a photo' }}
                   </button>
                   <button
                     v-if="editingImage"
@@ -110,6 +110,15 @@
             </template>
           </div>
         </div>
+
+        <RecordHistory
+          v-if="editingCode && canSeeHistory"
+          class="form-history"
+          entity-type="TravelPackage"
+          :code="editingCode"
+          :version="historyVersion"
+        />
+
         <template #footer>
           <button class="secondary-button" type="button" :disabled="saving" @click="showForm = false">Cancel</button>
           <button class="primary-button" type="button" :disabled="saving" @click="save">
@@ -211,13 +220,7 @@
       </Drawer>
 
       <div v-if="loading" class="content-panel">
-        <div class="panel-header">
-          <div class="panel-title-group">
-            <h2>Package catalog</h2>
-          </div>
-          <span class="panel-meta">Loading…</span>
-        </div>
-        <Skeleton :rows="6" />
+        <Skeleton :rows="8" />
       </div>
 
       <EmptyState
@@ -230,129 +233,129 @@
         </template>
       </EmptyState>
 
-      <template v-else>
-        <section class="stat-band" aria-label="Package catalog totals">
-          <div class="stat-cell">
-            <span class="stat-label">Total packages</span>
-            <strong class="stat-value">{{ packages.length }}</strong>
-            <span class="stat-note">In catalog</span>
-          </div>
-          <div class="stat-cell">
-            <span class="stat-label">Available slots</span>
-            <strong class="stat-value">{{ totalAvailable }}</strong>
-            <span class="stat-note">Open across packages</span>
-          </div>
-          <div class="stat-cell">
-            <span class="stat-label">Sold slots</span>
-            <strong class="stat-value">{{ totalSold }}</strong>
-            <span class="stat-note">Booked to date</span>
-          </div>
-        </section>
-
-        <div class="catalog-toolbar">
-          <div class="catalog-toolbar-heading">
-            <span class="catalog-toolbar-title">Every package</span>
-            <span class="catalog-toolbar-count">{{ resultLabel }}</span>
-          </div>
-          <div class="catalog-toolbar-tools">
-            <button
-              type="button"
-              class="filter-toggle"
-              :class="{ active: lowOnly }"
-              :aria-pressed="lowOnly"
-              @click="lowOnly = !lowOnly"
-            >
-              Low on slots
-              <span class="filter-toggle-count">{{ lowPackages.length }}</span>
-            </button>
-            <SearchField v-model="query" placeholder="Search packages or destinations" />
-          </div>
+      <section v-else class="content-panel records-panel" aria-label="Packages">
+        <div class="records-tools">
+          <SearchField v-model="filters.q" placeholder="Search name, destination or code" />
+          <button
+            type="button"
+            class="filter-chip"
+            :aria-pressed="lowOnly"
+            @click="filters.stock = lowOnly ? '' : 'low'"
+          >
+            Low on slots
+            <span class="chip-count">{{ count(lowPackages.length) }}</span>
+          </button>
+          <label v-if="stacked" class="records-sort">
+            <span class="visually-hidden">Sort packages</span>
+            <select v-model="filters.sort">
+              <option v-for="option in sortOptions" :key="option.key" :value="option.key">{{ option.label }}</option>
+            </select>
+          </label>
         </div>
 
+        <p class="records-summary" aria-live="polite">
+          <span class="summary-figure"><strong>{{ count(filtered.length) }}</strong> {{ filtered.length === 1 ? 'package' : 'packages' }}</span>
+          <span class="summary-figure"><strong>{{ count(openSlots) }}</strong> open slots</span>
+          <span class="summary-figure"><strong>{{ count(soldSlots) }}</strong> sold</span>
+          <span v-if="scopeText" class="summary-scope">{{ scopeText }}</span>
+          <button v-if="isFiltered" class="table-link" type="button" @click="clearFilters">Clear filters</button>
+        </p>
+
         <template v-if="filtered.length > 0">
-          <div class="package-grid">
-            <article v-for="p in visiblePackages" :key="p.id" class="package-card">
-              <button
-                v-if="p.imageUrl"
-                type="button"
-                class="package-figure package-figure-zoom"
-                :aria-label="'View photo of ' + p.packageName"
-                @click="openLightbox(p)"
-              >
-                <img :src="p.imageUrl" alt="" loading="lazy" decoding="async" />
+          <ul v-if="stacked" class="record-list">
+            <li v-for="p in visiblePackages" :key="p.id">
+              <button class="record-item" type="button" @click="openEdit(p)">
+                <span class="record-item-top">
+                  <span class="record-item-title">{{ p.packageName }}</span>
+                  <span class="record-item-figure">{{ peso(p.basePrice) }}</span>
+                </span>
+                <span class="record-item-sub">{{ placeLabel(p) }}</span>
+                <span class="slot-line">
+                  <span class="slot-meter" aria-hidden="true">
+                    <span class="slot-sold" :style="{ width: share(p, p.soldCount) }"></span>
+                    <span class="slot-reserved" :style="{ width: share(p, p.reservedCount) }"></span>
+                  </span>
+                </span>
+                <span class="record-item-meta">
+                  <span>
+                    <span class="slots-left" :class="tone(p)">{{ slotsLeft(p) }}</span>
+                    · {{ count(p.soldCount) }} sold · {{ p.id }}
+                  </span>
+                  <span class="record-badge" :class="badge(p.status)">{{ p.status }}</span>
+                </span>
               </button>
-              <span v-else class="package-figure">
-                <svg
-                  class="package-figure-mark"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.3"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M3.5 6.5h17v13h-17z" />
-                  <path d="M3.5 16 8 11.5l3.5 3 3-2.5 6 5" />
-                  <circle cx="9" cy="9.75" r="1.25" />
-                </svg>
-              </span>
+            </li>
+          </ul>
 
-              <button type="button" class="package-body" @click="openEdit(p)">
-              <span class="package-head">
-                <span class="package-title">
-                  <span class="package-name">{{ p.packageName }}</span>
-                  <span class="package-code">{{ p.id }}</span>
-                </span>
-                <span class="record-badge" :class="badge(p.status)">{{ p.status }}</span>
-              </span>
-
-              <span class="package-meta">
-                <span class="package-dest">
-                  <svg class="package-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M12 21s7-5.686 7-11a7 7 0 1 0-14 0c0 5.314 7 11 7 11z" />
-                    <circle cx="12" cy="10" r="2.5" />
-                  </svg>
-                  {{ p.destination }}
-                </span>
-                <span v-if="p.duration" class="package-duration">{{ p.duration }}</span>
-              </span>
-
-              <strong class="package-price">{{ peso(p.basePrice) }}</strong>
-
-              <span class="package-slots">
-                <span class="slots-meter">
-                  <span
-                    class="slots-meter-fill"
-                    :class="fillModifier(p.status)"
-                    :style="{ width: slotsPercent(p) + '%' }"
-                  ></span>
-                </span>
-                <span class="slots-caption">{{ p.availableSlots }} slots left · {{ p.soldCount }} sold</span>
-              </span>
-              </button>
-            </article>
+          <div v-else class="dss-table-frame">
+            <table class="dss-table records-table packages-table">
+              <thead>
+                <tr>
+                  <SortHeader label="Package" field="name" :sort="filters.sort" @sort="sortBy" />
+                  <th scope="col">Destination</th>
+                  <SortHeader label="Price" field="price" align="right" :sort="filters.sort" @sort="sortBy" />
+                  <SortHeader label="Slots" field="slots" :sort="filters.sort" @sort="sortBy" />
+                  <th scope="col">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="p in visiblePackages" :key="p.id" class="record-row" @click="openEdit(p)">
+                  <td>
+                    <span class="package-cell">
+                      <button
+                        v-if="p.imageUrl"
+                        type="button"
+                        class="package-thumb"
+                        :aria-label="'View photo of ' + p.packageName"
+                        @click.stop="openLightbox(p)"
+                      >
+                        <img :src="p.imageUrl" alt="" loading="lazy" decoding="async" />
+                      </button>
+                      <span v-else-if="anyPhotos" class="package-thumb-space" aria-hidden="true"></span>
+                      <span class="package-names">
+                        <button class="row-open" type="button" @click.stop="openEdit(p)">{{ p.packageName }}</button>
+                        <span class="row-subtext">{{ p.id }}</span>
+                      </span>
+                    </span>
+                  </td>
+                  <td>
+                    <span class="place-name">{{ p.destination }}</span>
+                    <span v-if="p.duration" class="row-subtext">{{ p.duration }}</span>
+                  </td>
+                  <td class="num"><strong>{{ peso(p.basePrice) }}</strong></td>
+                  <td class="slots-cell">
+                    <span class="slot-meter" aria-hidden="true">
+                      <span class="slot-sold" :style="{ width: share(p, p.soldCount) }"></span>
+                      <span class="slot-reserved" :style="{ width: share(p, p.reservedCount) }"></span>
+                    </span>
+                    <span class="slot-text">
+                      <span class="slots-left" :class="tone(p)">{{ slotsLeft(p) }}</span>
+                      <span class="slot-detail">{{ slotDetail(p) }}</span>
+                    </span>
+                  </td>
+                  <td><span class="record-badge" :class="badge(p.status)">{{ p.status }}</span></td>
+                </tr>
+              </tbody>
+            </table>
           </div>
 
           <ListFooter
             :shown="shown"
             :total="total"
+            :page-size="PAGE"
             noun="packages"
             @more="loadMore"
             @all="showAll"
           />
         </template>
 
-        <EmptyState
-          v-else
-          title="No matches"
-          :message="emptyMessage"
-        >
-          <template #action>
-            <button class="secondary-button" type="button" @click="clearFilters">Show all packages</button>
-          </template>
-        </EmptyState>
-      </template>
+        <div v-else class="records-empty">
+          <strong>No packages match</strong>
+          <span>{{ emptyMessage }}</span>
+          <button class="table-link" type="button" @click="clearFilters">Show all packages</button>
+        </div>
+      </section>
+
       <Lightbox :url="lightboxUrl" :caption="lightboxName" @close="lightboxUrl = null" />
     </section>
   </AppShell>
@@ -360,30 +363,39 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
-import { useRoute } from 'vue-router';
 import AppShell from '../components/AppShell.vue';
+import ActionMenu, { type ActionMenuItem } from '../components/ActionMenu.vue';
 import Drawer from '../components/Drawer.vue';
 import Skeleton from '../components/Skeleton.vue';
 import EmptyState from '../components/EmptyState.vue';
 import SearchField from '../components/SearchField.vue';
 import ListFooter from '../components/ListFooter.vue';
 import Lightbox from '../components/Lightbox.vue';
+import RecordHistory from '../components/RecordHistory.vue';
+import SortHeader from '../components/SortHeader.vue';
+import UiIcon from '../components/UiIcon.vue';
+import MoneyField from '../components/MoneyField.vue';
 import { usePaged } from '../composables/usePaged';
 import { useToast } from '../composables/useToast';
+import { useMediaQuery } from '../composables/useMediaQuery';
+import { useQueryState } from '../composables/useQueryState';
+import { useAuth } from '../stores/auth';
+import { canAccess } from '../nav';
 import { api, ApiError, type PackageImportPreview, type PackageRow, type PackageInput } from '../api';
 import { count, peso } from '../format';
-import MoneyField from '../components/MoneyField.vue';
+import { compareText, nextSort, sortParts, type SortDirection } from '../listing';
 
 type PackageRecovery =
   | { kind: 'create'; payload: PackageInput }
   | { kind: 'stale-edit'; message: string };
 
-const toast = useToast();
+const PAGE = 50;
 
-const route = useRoute();
+const toast = useToast();
+const { state: auth } = useAuth();
+
 const packages = ref<PackageRow[]>([]);
 const loading = ref(true);
-const query = ref('');
 const showForm = ref(false);
 const saving = ref(false);
 const formError = ref('');
@@ -391,6 +403,9 @@ const editingCode = ref<string | null>(null);
 const pendingRecovery = ref<PackageRecovery | null>(null);
 const createRecoveryError = 'Could not confirm whether this package was saved. Check your connection, then try again before changing this form.';
 const staleRecoveryError = 'Could not reload the latest package after a conflict. Check your connection, then try again before saving.';
+const historyVersion = ref(0);
+// The change history comes from the activity log, which Owner and Admin can read.
+const canSeeHistory = computed(() => canAccess(auth.user?.role, '/reports'));
 
 const form = reactive<PackageInput>(blank());
 
@@ -409,8 +424,34 @@ const importable = computed(() => {
   return p ? Math.max(0, p.valid - p.duplicates) : 0;
 });
 
-const totalAvailable = computed(() => packages.value.reduce((sum, p) => sum + p.availableSlots, 0));
-const totalSold = computed(() => packages.value.reduce((sum, p) => sum + p.soldCount, 0));
+const menuItems: ActionMenuItem[] = [
+  { label: 'Export packages', hint: 'The whole catalog as a CSV file', icon: 'download', href: '/api/export/packages.csv' },
+  { label: 'Import from a file', hint: 'Add packages from a CSV sheet', icon: 'upload', run: openImport },
+];
+
+// ----- Filters, kept in the address -----
+
+const sortOptions = [
+  { key: 'name-asc', label: 'Name A to Z' },
+  { key: 'name-desc', label: 'Name Z to A' },
+  { key: 'slots-asc', label: 'Fewest slots left' },
+  { key: 'slots-desc', label: 'Most slots left' },
+  { key: 'price-desc', label: 'Highest price' },
+  { key: 'price-asc', label: 'Lowest price' },
+];
+
+const firstDirection: Record<string, SortDirection> = { name: 'asc', price: 'desc', slots: 'asc' };
+
+const filters = useQueryState(
+  { q: '', stock: '', sort: 'name-asc' },
+  {
+    stock: (value) => value === 'low',
+    sort: (value) => sortOptions.some((option) => option.key === value),
+  },
+);
+
+const lowOnly = computed(() => filters.stock === 'low');
+const stacked = useMediaQuery('(max-width: 860px)');
 
 // Same rule as the Home attention list: packages flagged Low or Critical, or, when none are
 // flagged, any package with five or fewer slots.
@@ -419,10 +460,8 @@ const lowPackages = computed(() => {
   return flagged.length > 0 ? flagged : packages.value.filter((p) => p.availableSlots <= 5);
 });
 
-const lowOnly = ref(route.query.stock === 'low');
-
 const filtered = computed(() => {
-  const q = query.value.trim().toLowerCase();
+  const q = filters.q.trim().toLowerCase();
   const pool = lowOnly.value ? lowPackages.value : packages.value;
   if (!q) return pool;
   return pool.filter((p) =>
@@ -432,25 +471,85 @@ const filtered = computed(() => {
   );
 });
 
-const { visible: visiblePackages, total, shown, loadMore, showAll } = usePaged(filtered);
+const sorted = computed(() => {
+  const { field, direction } = sortParts(filters.sort);
+  const sign = direction === 'asc' ? 1 : -1;
+  return [...filtered.value].sort((a, b) => {
+    let order = 0;
+    if (field === 'price') order = a.basePrice - b.basePrice;
+    else if (field === 'slots') order = a.availableSlots - b.availableSlots;
+    if (order === 0) order = compareText(a.packageName, b.packageName);
+    return order * sign;
+  });
+});
 
-const resultLabel = computed(() => {
-  const count = packages.value.length;
-  if (query.value.trim() || lowOnly.value) return `${filtered.value.length} of ${count} shown`;
-  return count === 1 ? '1 package' : `${count} packages`;
+const { visible: visiblePackages, total, shown, loadMore, showAll } = usePaged(sorted, PAGE);
+
+const openSlots = computed(() => filtered.value.reduce((sum, p) => sum + p.availableSlots, 0));
+const soldSlots = computed(() => filtered.value.reduce((sum, p) => sum + p.soldCount, 0));
+const anyPhotos = computed(() => visiblePackages.value.some((p) => p.imageUrl));
+
+const isFiltered = computed(() => filters.q.trim() !== '' || lowOnly.value);
+
+const scopeText = computed(() => {
+  const parts: string[] = [];
+  if (lowOnly.value) parts.push('Low on slots');
+  const term = filters.q.trim();
+  if (term) parts.push(`matching “${term}”`);
+  return parts.join(' · ');
 });
 
 const emptyMessage = computed(() => {
-  const q = query.value.trim();
+  const q = filters.q.trim();
   if (q && lowOnly.value) return `No package low on slots matches “${q}”.`;
-  if (q) return `No packages match “${q}”. Try a different name, code, or destination.`;
-  return 'No packages are low on slots.';
+  if (q) return `Nothing matches “${q}”. Try a different name, code or destination.`;
+  return 'Every package has slots available.';
 });
 
-function clearFilters() {
-  query.value = '';
-  lowOnly.value = false;
+function sortBy(field: string) {
+  filters.sort = nextSort(filters.sort, field, firstDirection[field] ?? 'asc');
 }
+
+function clearFilters() {
+  filters.q = '';
+  filters.stock = '';
+}
+
+function capacity(p: PackageRow): number {
+  return p.availableSlots + p.soldCount + p.reservedCount;
+}
+
+function share(p: PackageRow, part: number): string {
+  const whole = capacity(p);
+  return whole > 0 ? `${Math.min(100, (part / whole) * 100)}%` : '0%';
+}
+
+function slotsLeft(p: PackageRow): string {
+  if (p.availableSlots === 0) return 'Full';
+  return `${count(p.availableSlots)} left`;
+}
+
+function slotDetail(p: PackageRow): string {
+  const parts = [`of ${count(capacity(p))}`];
+  if (p.reservedCount > 0) parts.push(`${count(p.reservedCount)} reserved`);
+  return parts.join(' · ');
+}
+
+function tone(p: PackageRow): string {
+  if (p.status === 'Critical' || p.availableSlots === 0) return 'tone-danger';
+  if (p.status === 'Low') return 'tone-warning';
+  return '';
+}
+
+function placeLabel(p: PackageRow): string {
+  return p.duration ? `${p.destination} · ${p.duration}` : p.destination;
+}
+
+function badge(value: string): string {
+  return 'status-' + value.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+}
+
+// ----- The package form -----
 
 const fileInput = ref<HTMLInputElement | null>(null);
 const imageBusy = ref(false);
@@ -496,6 +595,7 @@ async function pickImage(event: Event) {
   imageBusy.value = true;
   try {
     replaceRowAndAdvanceDraft(await api.uploadPackageImage(code, file, revision), revision);
+    historyVersion.value += 1;
     toast.success('Photo updated.');
   } catch (error) {
     if (error instanceof ApiError && error.status === 409) {
@@ -519,6 +619,7 @@ async function dropImage() {
   imageBusy.value = true;
   try {
     replaceRowAndAdvanceDraft(await api.removePackageImage(code, revision), revision);
+    historyVersion.value += 1;
     toast.success('Photo removed.');
   } catch (error) {
     if (error instanceof ApiError && error.status === 409) {
@@ -528,24 +629,6 @@ async function dropImage() {
   } finally {
     imageBusy.value = false;
   }
-}
-
-
-function badge(value: string): string {
-  return 'status-' + value.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-}
-
-function fillModifier(status: string): string {
-  const key = status.toLowerCase();
-  if (key === 'critical') return 'is-critical';
-  if (key === 'low') return 'is-low';
-  return '';
-}
-
-function slotsPercent(p: PackageRow): number {
-  const total = Math.max(p.availableSlots + p.soldCount + p.reservedCount, 1);
-  const ratio = p.availableSlots / total;
-  return Math.min(100, Math.max(0, Math.round(ratio * 100)));
 }
 
 function blank(): PackageInput {
@@ -658,7 +741,6 @@ async function commitImport() {
 }
 
 async function load(showErrorToast = true): Promise<boolean> {
-  loading.value = true;
   try {
     packages.value = await api.packages();
     return true;
@@ -695,11 +777,12 @@ async function save() {
     }
     await load();
     pendingRecovery.value = null;
+    historyVersion.value += 1;
     showForm.value = false;
     toast.success(wasEditing ? `${name} updated` : `Package ${name} added`);
   } catch (e) {
     if (!wasEditing && (!(e instanceof ApiError) || e.status >= 500 || e.status === 409)) {
-      if (await recoverCreatedPackage(payload, e)) return;
+      if (await recoverCreatedPackage(payload)) return;
     }
     if (e instanceof ApiError && e.status === 409) {
       const message = conflictMessage(e, 'package');
@@ -746,7 +829,7 @@ function applyCreatedPackageRecovery(payload: PackageInput): boolean {
   return true;
 }
 
-async function recoverCreatedPackage(payload: PackageInput, error: unknown): Promise<boolean> {
+async function recoverCreatedPackage(payload: PackageInput): Promise<boolean> {
   if (!await load(false)) {
     pendingRecovery.value = { kind: 'create', payload };
     formError.value = createRecoveryError;
@@ -799,273 +882,109 @@ onMounted(load);
 </script>
 
 <style scoped>
-.drawer-form-error {
-  margin-bottom: var(--space-4);
-  color: var(--color-danger-ink);
-  font-size: 13px;
-}
-
-.catalog-toolbar {
+.package-cell {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--space-3) var(--space-4);
-}
-
-.catalog-toolbar-heading {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
+  align-items: center;
+  gap: 12px;
   min-width: 0;
 }
 
-.catalog-toolbar-tools {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2) var(--space-3);
+.package-thumb,
+.package-thumb-space {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
 }
 
-.catalog-toolbar-tools :deep(.search-field) {
-  flex: 0 1 320px;
-  width: 320px;
-}
-
-@media (max-width: 640px) {
-  .catalog-toolbar-tools {
-    flex-wrap: wrap;
-    width: 100%;
-  }
-
-  .catalog-toolbar-tools :deep(.search-field) {
-    flex: 1 1 100%;
-    width: 100%;
-  }
-}
-
-.filter-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 36px;
-  padding: 0 14px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-pill);
-  background: var(--color-surface);
-  color: var(--color-text-secondary);
-  font: inherit;
-  font-size: var(--text-sm);
-  font-weight: 500;
-  cursor: pointer;
-  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
-}
-
-.filter-toggle:hover {
-  border-color: var(--color-text-faint);
-  background: var(--color-surface-hover);
-}
-
-.filter-toggle.active {
-  border-color: var(--color-primary);
-  background: var(--color-primary-soft);
-  color: var(--color-primary-active);
-  font-weight: 600;
-}
-
-.filter-toggle-count {
-  color: var(--color-text-muted);
-  font-size: var(--text-xs);
-  font-variant-numeric: lining-nums tabular-nums;
-}
-
-.filter-toggle.active .filter-toggle-count {
-  color: var(--color-primary);
-}
-
-.catalog-toolbar-title {
-  font-family: var(--font-display);
-  font-optical-sizing: auto;
-  font-size: 18px;
-  font-weight: 560;
-  letter-spacing: -0.005em;
-  color: var(--color-text-primary);
-}
-
-.catalog-toolbar-count {
-  color: var(--color-text-muted);
-  font-size: 12.5px;
-  font-variant-numeric: lining-nums tabular-nums;
-  white-space: nowrap;
-}
-
-.package-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: var(--space-4);
-}
-
-.package-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  width: 100%;
-  text-align: left;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-4);
-  cursor: pointer;
-  font: inherit;
-  color: inherit;
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
-}
-
-.package-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-  border-color: var(--color-border-strong);
-}
-
-.package-card:focus-visible {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: var(--focus-ring);
-}
-
-.package-figure {
-  display: grid;
-  place-items: center;
-  height: 124px;
-  margin: calc(var(--space-4) * -1) calc(var(--space-4) * -1) var(--space-1);
-  border-bottom: 1px solid var(--color-ticket-border);
-  border-radius: calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0 0;
-  background: var(--color-ticket);
+.package-thumb {
+  padding: 0;
   overflow: hidden;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-sunken);
+  cursor: zoom-in;
 }
 
-.package-figure img {
+.package-thumb img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.package-figure-mark {
-  width: 30px;
-  height: 30px;
-  color: #C4AC7A;
-}
-
-.package-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.package-title {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.package-names {
+  display: grid;
   min-width: 0;
 }
 
-.package-name {
-  font-family: var(--font-display);
-  font-optical-sizing: auto;
-  font-size: 1.1rem;
-  font-weight: 560;
-  letter-spacing: -0.005em;
-  line-height: 1.25;
-  color: var(--color-text-primary);
-}
-
-.package-code {
-  color: var(--color-text-muted);
-  font-size: 12px;
-  letter-spacing: 0.02em;
-  font-variant-numeric: lining-nums tabular-nums;
-}
-
-.package-head .record-badge {
-  flex: none;
-}
-
-.package-meta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px 6px;
-  color: var(--color-text-secondary);
-  font-size: 13px;
-}
-
-.package-dest {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-width: 0;
-}
-
-.package-pin {
-  width: 14px;
-  height: 14px;
-  flex: none;
-  color: var(--color-text-muted);
-}
-
-.package-duration::before {
-  content: '·';
-  margin: 0 6px 0 0;
-  color: var(--color-text-faint);
-}
-
-.package-price {
-  font-family: var(--font-display);
-  font-optical-sizing: auto;
-  font-size: 1.25rem;
-  font-weight: 560;
-  letter-spacing: -0.01em;
-  line-height: 1.2;
-  color: var(--color-text-primary);
-  font-variant-numeric: lining-nums tabular-nums;
-}
-
-.package-slots {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin-top: auto;
-}
-
-.slots-meter {
+.place-name {
   display: block;
+  color: var(--color-text-primary);
+}
+
+/* How full each package is: sold in navy, reserved in amber, what is left stays open. */
+.slots-cell {
+  min-width: 200px;
+}
+
+.slot-meter {
+  display: flex;
   width: 100%;
+  max-width: 220px;
   height: 6px;
-  background: var(--color-surface-sunken);
-  border-radius: var(--radius-pill);
   overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-sunken);
 }
 
-.slots-meter-fill {
-  display: block;
-  height: 100%;
-  min-width: 2px;
-  border-radius: var(--radius-pill);
+.slot-sold {
   background: var(--color-primary);
 }
 
-.slots-meter-fill.is-low {
+.slot-reserved {
   background: var(--color-warning);
 }
 
-.slots-meter-fill.is-critical {
-  background: var(--color-danger);
+.slot-text {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: var(--text-sm);
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
-.slots-caption {
+.slots-left {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.slots-left.tone-warning {
+  color: var(--color-warning-ink);
+}
+
+.slots-left.tone-danger {
+  color: var(--color-danger-ink);
+}
+
+.slot-detail {
   color: var(--color-text-muted);
-  font-size: 12px;
-  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.slot-line {
+  display: block;
+  padding: 4px 0 2px;
+}
+
+.slot-line .slot-meter {
+  max-width: none;
+  height: 4px;
+}
+
+.form-history {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-border-subtle);
 }
 
 .image-row {
@@ -1080,9 +999,9 @@ onMounted(load);
   flex: none;
   width: 132px;
   height: 84px;
-  border: 1px solid var(--color-ticket-border);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: var(--color-ticket);
+  background: var(--color-surface-sunken);
   overflow: hidden;
 }
 
@@ -1092,9 +1011,10 @@ onMounted(load);
   object-fit: cover;
 }
 
-.image-preview-empty {
-  color: var(--color-text-muted);
-  font-size: 12px;
+.image-preview-zoom {
+  font: inherit;
+  padding: 0;
+  cursor: zoom-in;
 }
 
 .image-actions {
@@ -1107,159 +1027,12 @@ onMounted(load);
 .image-hint {
   margin: 0;
   color: var(--color-text-muted);
-  font-size: 12.5px;
+  font-size: var(--text-sm);
 }
 
 .image-error {
   margin: 0;
   color: var(--color-danger-ink);
-  font-size: 12.5px;
-}
-
-@media (max-width: 640px) {
-  .catalog-toolbar {
-    align-items: stretch;
-  }
-
-  .catalog-toolbar :deep(.search-field) {
-    width: 100%;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .package-card {
-    transition: none;
-  }
-
-  .package-card:hover {
-    transform: none;
-  }
-}
-
-.import-hint {
-  margin: 0 0 var(--space-4);
-  color: var(--color-text-muted);
-  font-size: 12.5px;
-  line-height: 1.5;
-}
-
-.import-pick {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  margin-bottom: var(--space-4);
-}
-
-.import-filename {
-  color: var(--color-text-secondary);
-  font-size: 13px;
-  word-break: break-all;
-}
-
-.import-summary {
-  display: grid;
-  gap: 8px;
-  margin: 0 0 var(--space-4);
-  padding: var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-sunken);
-}
-
-.import-summary > div {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-4);
-}
-
-.import-summary dt {
-  color: var(--color-text-muted);
-  font-size: 12.5px;
-}
-
-.import-summary dd {
-  margin: 0;
-  color: var(--color-text-primary);
-  font-size: 13px;
-  font-weight: 600;
-  font-variant-numeric: lining-nums tabular-nums;
-  text-align: right;
-}
-
-.import-notes {
-  margin: 0 0 var(--space-4);
-  padding: 10px 12px;
-  border-radius: var(--radius-md);
-  font-size: 12.5px;
-  line-height: 1.5;
-}
-
-.import-notes p {
-  margin: 0;
-}
-
-.import-notes-title {
-  margin: 0 0 2px;
-  font-weight: 700;
-}
-
-.import-warnings {
-  border: 1px solid var(--tone-warning-border);
-  background: var(--tone-warning-surface);
-  color: var(--tone-warning-ink);
-}
-
-.import-problems {
-  border: 1px solid var(--tone-danger-border);
-  background: var(--tone-danger-surface);
-  color: var(--tone-danger-ink);
-}
-
-.package-figure-zoom {
-  border: none;
-  border-bottom: 1px solid var(--color-ticket-border);
-  padding: 0;
-  font: inherit;
-  cursor: zoom-in;
-}
-
-.package-figure-zoom img {
-  transition: transform var(--transition-normal);
-}
-
-.package-figure-zoom:hover img {
-  transform: scale(1.04);
-}
-
-.package-body {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  gap: var(--space-3);
-  margin: 0;
-  padding: 0;
-  border: none;
-  background: none;
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.image-preview-zoom {
-  font: inherit;
-  padding: 0;
-  cursor: zoom-in;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .package-figure-zoom img {
-    transition: none;
-  }
-
-  .package-figure-zoom:hover img {
-    transform: none;
-  }
+  font-size: var(--text-sm);
 }
 </style>

@@ -100,6 +100,16 @@ function onBlur() {
   box-shadow: none;
 }
 
+.money-field:has(input:disabled) {
+  background: var(--color-surface-sunken);
+  border-color: var(--color-border-strong);
+}
+
+.money-field input:disabled {
+  background: none;
+  color: var(--color-text-muted);
+}
+
 @media (max-width: 860px) {
   .money-field {
     min-height: 44px;

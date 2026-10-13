@@ -476,16 +476,6 @@ a {
         cursor: pointer;
     }
 
-    /* With more than one action the buttons drop to their own row and share it evenly. */
-    .page-actions:has(> :nth-child(2)) {
-        order: 4;
-        flex: 1 1 100%;
-    }
-
-    .page-actions:has(> :nth-child(2)) > * {
-        flex: 1 1 0;
-    }
-
     .account-button-avatar {
         display: grid;
         place-items: center;
@@ -949,6 +939,13 @@ a.stat-cell:hover {
     height: 15px;
 }
 
+.primary-button .ui-icon,
+.secondary-button .ui-icon,
+.danger-button .ui-icon {
+    margin-inline: -2px 0;
+    font-size: 16px;
+}
+
 /* Quiet text link (row actions, panel footers) */
 .table-link {
     display: inline-flex;
@@ -1202,6 +1199,603 @@ a.stat-cell:hover {
 
 .dss-table .cell-nowrap {
     white-space: nowrap;
+}
+
+/* ============================================================
+   Record lists — Bookings, Packages, Expenses
+   One panel per list: the tools, a running total of what is
+   on screen, then a ruled table that turns into a stacked list
+   on phones. Rows open the record.
+   ============================================================ */
+
+.records-panel {
+    display: grid;
+    gap: 14px;
+}
+
+.records-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+}
+
+.records-tools .search-field {
+    flex: 1 1 240px;
+    width: auto;
+    max-width: 360px;
+}
+
+.records-tools .records-sort {
+    margin-left: auto;
+}
+
+.records-filters,
+.category-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 32px;
+    padding: 0 13px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-pill);
+    background: var(--color-surface);
+    color: var(--color-text-secondary);
+    font: inherit;
+    font-size: var(--text-sm);
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.filter-chip:hover {
+    border-color: var(--color-text-faint);
+    background: var(--color-surface-hover);
+    color: var(--color-text-primary);
+}
+
+.filter-chip.active,
+.filter-chip[aria-pressed='true'] {
+    border-color: var(--color-primary);
+    background: var(--color-primary-soft);
+    color: var(--color-primary-active);
+    font-weight: 600;
+}
+
+.chip-count {
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    font-variant-numeric: lining-nums tabular-nums;
+}
+
+.filter-chip.active .chip-count,
+.filter-chip[aria-pressed='true'] .chip-count {
+    color: var(--color-primary);
+}
+
+.chip-divider {
+    width: 1px;
+    height: 20px;
+    margin: 0 2px;
+    background: var(--color-border);
+}
+
+/* What is on screen, in figures: changes with every filter. */
+.records-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px 20px;
+    padding: 12px 0 2px;
+    border-top: 1px solid var(--color-border-subtle);
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+}
+
+.summary-figure {
+    white-space: nowrap;
+}
+
+.summary-figure strong {
+    margin-right: 1px;
+    color: var(--color-text-primary);
+    font-size: var(--text-md);
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    font-variant-numeric: lining-nums tabular-nums;
+}
+
+.summary-figure.tone-warning strong {
+    color: var(--color-warning-ink);
+}
+
+.summary-scope {
+    color: var(--color-text-muted);
+}
+
+.records-summary .table-link {
+    margin-left: auto;
+    padding: 0 2px;
+}
+
+.records-empty {
+    display: grid;
+    justify-items: start;
+    gap: 6px;
+    padding: 28px 2px 16px;
+    color: var(--color-text-muted);
+    font-size: var(--text-base);
+}
+
+.records-empty strong {
+    color: var(--color-text-primary);
+    font-size: var(--text-md);
+    font-weight: 600;
+}
+
+.records-table {
+    margin-top: -4px;
+}
+
+.records-table tbody tr.record-row {
+    cursor: pointer;
+}
+
+.records-table tbody tr.record-row:focus-within {
+    background: var(--color-surface-hover);
+}
+
+.records-table .cell-date {
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+}
+
+.row-open {
+    display: block;
+    max-width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--color-text-primary);
+    font: inherit;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+}
+
+.row-open:hover {
+    color: var(--color-primary);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.row-open:focus-visible {
+    outline-offset: 3px;
+}
+
+/* Month headings in a date-ordered list carry that month's subtotals in the same columns. */
+.records-table tr.month-row th,
+.records-table tr.month-row td {
+    padding: 20px 12px 8px;
+    border-bottom: 1px solid var(--color-border-strong);
+    color: var(--color-text-primary);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    text-align: left;
+}
+
+.records-table tr.month-row td.num {
+    text-align: right;
+}
+
+.records-table tr.month-row .month-count {
+    color: var(--color-text-muted);
+    font-weight: 500;
+}
+
+.records-table tbody tr.month-row:hover {
+    background: none;
+}
+
+.records-table tbody:first-of-type tr.month-row th,
+.records-table tbody:first-of-type tr.month-row td {
+    padding-top: 10px;
+}
+
+.sort-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+}
+
+th.num .sort-button {
+    flex-direction: row-reverse;
+}
+
+.sort-button:hover,
+.sort-button.active {
+    color: var(--color-text-primary);
+}
+
+.sort-icon {
+    color: var(--color-text-faint);
+    font-size: 13px;
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+}
+
+.sort-button:hover .sort-icon,
+.sort-button:focus-visible .sort-icon {
+    opacity: 1;
+}
+
+.sort-button.active .sort-icon {
+    color: var(--color-primary);
+    opacity: 1;
+}
+
+.voided-tag {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 0 7px;
+    border-radius: var(--radius-pill);
+    background: var(--tone-danger-surface);
+    color: var(--tone-danger-ink);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    vertical-align: 1px;
+}
+
+.records-table tr.is-voided td,
+.record-item.is-voided {
+    color: var(--color-text-faint);
+}
+
+.records-table tr.is-voided .row-open,
+.records-table tr.is-voided td strong,
+.record-item.is-voided .record-item-title,
+.record-item.is-voided .record-item-figure {
+    color: var(--color-text-muted);
+}
+
+.records-table tr.is-voided .num strong,
+.record-item.is-voided .record-item-figure {
+    text-decoration: line-through;
+    text-decoration-color: var(--color-text-faint);
+}
+
+/* Tablets and phones: search gets its own row, the period and sort share the next. */
+@media (max-width: 860px) {
+    .records-tools .search-field {
+        flex: 1 1 100%;
+        max-width: none;
+        order: 0;
+    }
+
+    .records-tools .period-select {
+        flex: 1 1 110px;
+        order: 1;
+    }
+
+    .records-tools .period-select.is-custom {
+        flex-basis: 100%;
+    }
+
+    .records-tools .records-sort {
+        flex: 1 1 110px;
+        order: 2;
+        margin-left: 0;
+    }
+
+    .records-tools .records-sort select {
+        width: 100%;
+    }
+
+    .records-tools .filter-chip {
+        order: 3;
+    }
+}
+
+/* Phones: a row of filters scrolls sideways instead of stacking three deep. */
+@media (max-width: 640px) {
+    .records-filters,
+    .category-chips {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        margin-inline: -16px;
+        padding: 2px 32px 2px 16px;
+        scrollbar-width: none;
+        -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+        mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    }
+
+    .records-filters::-webkit-scrollbar,
+    .category-chips::-webkit-scrollbar {
+        display: none;
+    }
+
+    .records-filters .filter-chip,
+    .category-chips .filter-chip,
+    .chip-divider {
+        flex: none;
+    }
+}
+
+/* Phones: one record per row, the figure that matters on the right. */
+.record-list {
+    margin: -4px -16px 0;
+    padding: 0;
+    list-style: none;
+}
+
+.record-list-month {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 18px 16px 6px;
+    border-bottom: 1px solid var(--color-border-strong);
+    color: var(--color-text-primary);
+    font-size: var(--text-sm);
+    font-weight: 600;
+}
+
+.record-list-month:first-child {
+    padding-top: 6px;
+}
+
+.record-list-month span:last-child {
+    color: var(--color-text-muted);
+    font-weight: 500;
+    font-variant-numeric: lining-nums tabular-nums;
+}
+
+.record-item {
+    display: grid;
+    gap: 3px;
+    width: 100%;
+    min-height: 44px;
+    padding: 12px 16px;
+    border: 0;
+    border-bottom: 1px solid var(--color-border-subtle);
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background var(--transition-fast);
+}
+
+.record-item:hover,
+.record-item:active {
+    background: var(--color-surface-hover);
+}
+
+.record-item:focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: -2px;
+    border-radius: 0;
+}
+
+.record-item-top,
+.record-item-meta {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    min-width: 0;
+}
+
+.record-item-title {
+    overflow: hidden;
+    color: var(--color-text-primary);
+    font-size: var(--text-md);
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.record-item-figure {
+    flex: none;
+    color: var(--color-text-primary);
+    font-size: var(--text-md);
+    font-weight: 650;
+    font-variant-numeric: lining-nums tabular-nums;
+}
+
+.record-item-sub {
+    overflow: hidden;
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.record-item-meta {
+    align-items: center;
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    font-variant-numeric: lining-nums tabular-nums;
+}
+
+.record-item-meta > span:first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ============================================================
+   Record panels and forms in drawers
+   ============================================================ */
+
+.detail-list {
+    display: grid;
+    margin: 0;
+}
+
+.detail-list > div {
+    display: grid;
+    grid-template-columns: minmax(110px, 34%) minmax(0, 1fr);
+    gap: 12px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--color-border-subtle);
+    font-size: var(--text-base);
+}
+
+.detail-list dt {
+    color: var(--color-text-muted);
+}
+
+.detail-list dd {
+    margin: 0;
+    color: var(--color-text-primary);
+    overflow-wrap: anywhere;
+}
+
+.drawer-form-error {
+    margin-bottom: var(--space-4);
+    color: var(--color-danger-ink);
+    font-size: var(--text-sm);
+}
+
+.drawer-form-check {
+    margin-bottom: var(--space-4);
+    padding: 10px 12px;
+    border: 1px solid var(--tone-warning-border);
+    border-radius: var(--radius-md);
+    background: var(--tone-warning-surface);
+    color: var(--tone-warning-ink);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+}
+
+.void-panel {
+    display: grid;
+    gap: 12px;
+    padding: var(--space-4);
+    border: 1px solid var(--tone-danger-border);
+    border-radius: var(--radius-md);
+    background: var(--tone-danger-surface);
+}
+
+.void-lead {
+    color: var(--tone-danger-ink);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+}
+
+.void-actions {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+.void-panel .drawer-form-error {
+    margin: 0;
+}
+
+.footer-spacer {
+    flex: 1;
+}
+
+.danger-link {
+    color: var(--color-danger-ink);
+}
+
+.danger-link:hover {
+    color: var(--color-danger);
+}
+
+/* File import drawers (bookings and packages) */
+.import-hint {
+    margin: 0 0 var(--space-4);
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+}
+
+.import-pick {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+}
+
+.import-filename {
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    word-break: break-all;
+}
+
+.import-summary {
+    display: grid;
+    gap: 8px;
+    margin: 0 0 var(--space-4);
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-hover);
+}
+
+.import-summary > div {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-4);
+}
+
+.import-summary dt {
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+}
+
+.import-summary dd {
+    margin: 0;
+    color: var(--color-text-primary);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    font-variant-numeric: lining-nums tabular-nums;
+    text-align: right;
+}
+
+.import-notes {
+    margin: 0 0 var(--space-4);
+    padding: 10px 12px;
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+}
+
+.import-notes-title {
+    margin: 0 0 2px;
+    font-weight: 600;
+}
+
+.import-warnings {
+    border: 1px solid var(--tone-warning-border);
+    background: var(--tone-warning-surface);
+    color: var(--tone-warning-ink);
+}
+
+.import-problems {
+    border: 1px solid var(--tone-danger-border);
+    background: var(--tone-danger-surface);
+    color: var(--tone-danger-ink);
 }
 
 /* ============================================================
@@ -2946,6 +3540,31 @@ input[type='checkbox']:focus-visible {
     }
 }
 
+/* A full-screen panel owns the bottom edge on phones, so notices move to the top while one is open. */
+@media (max-width: 640px) {
+    body:has(.slide-drawer) .toast-host {
+        top: calc(env(safe-area-inset-top, 0px) + var(--space-3));
+        bottom: auto;
+    }
+}
+
+/* On phones, with more than one action, the buttons drop to their own row: the overflow menu
+   keeps its width and the main action takes the rest. */
+@media (max-width: 640px) {
+    .page-actions:has(> :nth-child(2)) {
+        order: 4;
+        flex: 1 1 100%;
+    }
+
+    .page-actions:has(> :nth-child(2)) > * {
+        flex: 1 1 0;
+    }
+
+    .page-actions:has(> :nth-child(2)) > .action-menu {
+        flex: 0 0 auto;
+    }
+}
+
 @media (max-width: 640px) {
     .form-grid {
         grid-template-columns: minmax(0, 1fr);
@@ -2959,14 +3578,6 @@ input[type='checkbox']:focus-visible {
     .sprint-drawer,
     .app-drawer {
         width: 100vw;
-        border-left: none;
-    }
-
-    /* The slide-over panels carry their own scoped width, so they need naming here too or
-       they sit at 92vw while every other panel goes full width. */
-    .slide-drawer {
-        width: 100vw !important;
-        max-width: 100vw !important;
         border-left: none;
     }
 

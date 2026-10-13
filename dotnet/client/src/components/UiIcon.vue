@@ -70,6 +70,33 @@
       <line x1="12" y1="5" x2="12" y2="18.5" />
       <polyline points="6.5 13 12 18.5 17.5 13" />
     </template>
+    <template v-else-if="name === 'arrow-up'">
+      <line x1="12" y1="19" x2="12" y2="5.5" />
+      <polyline points="6.5 11 12 5.5 17.5 11" />
+    </template>
+    <template v-else-if="name === 'sort'">
+      <polyline points="8 9.5 12 5.5 16 9.5" />
+      <polyline points="8 14.5 12 18.5 16 14.5" />
+    </template>
+    <template v-else-if="name === 'more'">
+      <circle cx="6" cy="12" r="1.7" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none" />
+      <circle cx="18" cy="12" r="1.7" fill="currentColor" stroke="none" />
+    </template>
+    <template v-else-if="name === 'download'">
+      <line x1="12" y1="4.5" x2="12" y2="15" />
+      <polyline points="7.5 10.5 12 15 16.5 10.5" />
+      <path d="M5 15.5V19h14v-3.5" />
+    </template>
+    <template v-else-if="name === 'image'">
+      <rect x="3.5" y="5" width="17" height="14" rx="2" />
+      <circle cx="9" cy="10" r="1.6" />
+      <path d="M4 17.5 8.5 13l3.5 3 3-2.5 5 4.5" />
+    </template>
+    <template v-else-if="name === 'close'">
+      <line x1="6.5" y1="6.5" x2="17.5" y2="17.5" />
+      <line x1="17.5" y1="6.5" x2="6.5" y2="17.5" />
+    </template>
     <!-- Direction markers are solid so they read at small sizes next to figures. -->
     <template v-else-if="name === 'up'">
       <polygon points="12 6 19 17 5 17" fill="currentColor" stroke="none" />
@@ -96,6 +123,12 @@ export type UiIconName =
   | 'chevron-down'
   | 'arrow-right'
   | 'arrow-down'
+  | 'arrow-up'
+  | 'sort'
+  | 'more'
+  | 'download'
+  | 'image'
+  | 'close'
   | 'up'
   | 'down';
 </script>

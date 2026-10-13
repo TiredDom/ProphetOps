@@ -163,6 +163,16 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown));
   transform: translateX(100%);
 }
 
+/* On phones the panel is the whole screen, so it needs no edge or shadow. */
+@media (max-width: 640px) {
+  .slide-drawer {
+    width: 100vw;
+    max-width: 100vw;
+    border-left: none;
+    box-shadow: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .scrim-enter-active,
   .scrim-leave-active,

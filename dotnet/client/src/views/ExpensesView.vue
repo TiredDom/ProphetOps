@@ -1,197 +1,313 @@
 <template>
   <AppShell title="Expenses">
     <template #actions>
-      <button class="primary-button" type="button" @click="openForm">Add expense</button>
+      <a
+        class="secondary-button"
+        :href="exportHref"
+        :title="range ? `Download the expenses for ${describeRange(range)} as a CSV file` : 'Download every expense as a CSV file'"
+      >
+        <UiIcon name="download" />
+        Export CSV
+      </a>
+      <button class="primary-button" type="button" @click="openForm">
+        <UiIcon name="plus" />
+        Add expense
+      </button>
     </template>
 
     <section class="dss-page">
-      <section class="stat-band" aria-label="Expense totals">
-        <div class="stat-cell">
-          <span class="stat-label">Expenses</span>
-          <strong class="stat-value">{{ expenses.length }}</strong>
-          <span class="stat-note">Saved expenses</span>
-        </div>
-        <div class="stat-cell">
-          <span class="stat-label">Total costs</span>
-          <strong class="stat-value">{{ peso(totalAmount) }}</strong>
-          <span class="stat-note">Recorded to date</span>
-        </div>
-        <div class="stat-cell" :class="{ warn: pendingCount > 0 }">
-          <span class="stat-label">Pending payments</span>
-          <strong class="stat-value">{{ pendingCount }}</strong>
-          <span class="stat-note">{{ pendingCount === 0 ? 'All settled' : peso(pendingAmount) + ' still owed' }}</span>
-        </div>
-      </section>
-
       <Drawer :open="showForm" :title="drawerTitle" @close="showForm = false">
         <p v-if="formError" class="drawer-form-error" role="alert">{{ formError }}</p>
-        <div class="form-grid">
-          <label v-if="editing" class="account-field field-wide">
-            <span>Expense number</span>
-            <input :value="form.id" type="text" readonly />
-          </label>
-          <label class="account-field">
-            <span>Date</span>
-            <input v-model="form.date" type="date" />
-          </label>
-          <label class="account-field">
-            <span>Category</span>
-            <select v-model="form.category">
-              <option>Tour operations</option>
-              <option>Marketing</option>
-              <option>Seasonal cost</option>
-              <option>Overhead</option>
-            </select>
-          </label>
-          <label class="account-field">
-            <span>Amount</span>
-            <MoneyField v-model="form.amount" />
-          </label>
-          <label class="account-field">
-            <span>Payment status</span>
-            <select v-model="form.paymentStatus">
-              <option>Paid</option>
-              <option>Pending</option>
-            </select>
-          </label>
-          <label class="account-field field-wide">
-            <span>Related package or operation</span>
-            <input v-model.trim="form.relatedPackage" maxlength="120" />
-          </label>
-          <label class="account-field field-wide">
-            <span>Notes</span>
-            <input v-model.trim="form.notes" maxlength="240" />
-          </label>
+
+        <div v-if="editingExpense?.voided" class="voided-notice" role="note">
+          <UiIcon name="void" class="voided-notice-icon" />
+          <div>
+            <p class="voided-notice-title">Voided</p>
+            <p v-if="editingExpense.voidReason">{{ editingExpense.voidReason }}</p>
+            <p>Left out of every total. Restore it to count it again or to change it.</p>
+          </div>
         </div>
+
+        <div v-if="askVoid && editing && !editingExpense?.voided" ref="voidPanel" class="void-panel" role="group" aria-label="Void this expense">
+          <p class="void-lead">
+            Voiding keeps the expense and its history, but takes it out of every cost total.
+          </p>
+          <label class="account-field">
+            <span>Why is it being voided?</span>
+            <input
+              ref="reasonInput"
+              v-model.trim="voidReason"
+              maxlength="160"
+              placeholder="Duplicate entry, refunded, recorded in error"
+            />
+          </label>
+          <p v-if="voidError" class="drawer-form-error" role="alert">{{ voidError }}</p>
+          <div class="void-actions">
+            <button class="secondary-button" type="button" :disabled="voiding" @click="askVoid = false">Keep it</button>
+            <button class="danger-button" type="button" :disabled="voiding || !voidReason" @click="confirmVoid">
+              {{ voiding ? 'Voiding…' : 'Void expense' }}
+            </button>
+          </div>
+        </div>
+
+        <fieldset class="form-fieldset" :disabled="!!editingExpense?.voided">
+          <legend class="visually-hidden">Expense details</legend>
+          <div class="form-grid">
+            <label v-if="editing" class="account-field field-wide">
+              <span>Expense number</span>
+              <input :value="form.id" type="text" readonly />
+            </label>
+            <label class="account-field">
+              <span>Date</span>
+              <input v-model="form.date" type="date" />
+            </label>
+            <label class="account-field">
+              <span>Category</span>
+              <select v-model="form.category">
+                <option v-for="c in CATEGORIES" :key="c">{{ c }}</option>
+              </select>
+            </label>
+            <label class="account-field">
+              <span>Amount</span>
+              <MoneyField v-model="form.amount" />
+            </label>
+            <label class="account-field">
+              <span>Payment status</span>
+              <select v-model="form.paymentStatus">
+                <option>Paid</option>
+                <option>Pending</option>
+              </select>
+            </label>
+            <label class="account-field field-wide">
+              <span>Related package or operation</span>
+              <input v-model.trim="form.relatedPackage" maxlength="120" />
+            </label>
+            <label class="account-field field-wide">
+              <span>Notes</span>
+              <input v-model.trim="form.notes" maxlength="240" />
+            </label>
+          </div>
+        </fieldset>
+
+        <RecordHistory
+          v-if="editing && canSeeHistory"
+          class="form-history"
+          entity-type="Expense"
+          :code="originalCode"
+          :version="historyVersion"
+        />
+
         <template #footer>
-          <button class="secondary-button" type="button" :disabled="saving" @click="showForm = false">Cancel</button>
-          <button class="primary-button" type="button" :disabled="saving" @click="save">
-            {{ saving ? 'Saving…' : 'Save expense' }}
-          </button>
+          <template v-if="editingExpense?.voided">
+            <button class="secondary-button" type="button" :disabled="restoring" @click="showForm = false">Close</button>
+            <button class="primary-button" type="button" :disabled="restoring" @click="restoreExpense">
+              <UiIcon name="restore" />
+              {{ restoring ? 'Restoring…' : 'Restore expense' }}
+            </button>
+          </template>
+          <template v-else>
+            <button
+              v-if="editing"
+              class="table-link danger-link"
+              type="button"
+              :disabled="saving || askVoid"
+              @click="startVoid"
+            >Void expense</button>
+            <span class="footer-spacer"></span>
+            <button class="secondary-button" type="button" :disabled="saving" @click="showForm = false">Cancel</button>
+            <button class="primary-button" type="button" :disabled="saving" @click="save">
+              {{ saving ? 'Saving…' : editing ? 'Save changes' : 'Save expense' }}
+            </button>
+          </template>
         </template>
       </Drawer>
 
       <div v-if="loading" class="content-panel">
-        <Skeleton :rows="6" />
+        <Skeleton :rows="8" />
       </div>
 
       <EmptyState
         v-else-if="expenses.length === 0"
         title="No expenses yet"
-        message="Record your first operating cost."
+        message="Record your first operating cost to see where the money goes."
       >
         <template #action>
           <button class="primary-button" type="button" @click="openForm">Add expense</button>
         </template>
       </EmptyState>
 
-      <div v-else class="dss-grid two-column expense-layout">
-        <section class="content-panel expense-ledger">
-          <div class="panel-header">
-            <div class="panel-title-group">
-              <h2>Expense ledger</h2>
-              <span class="panel-meta">{{ filtered.length }} of {{ expenses.length }} shown</span>
-            </div>
+      <section v-else class="content-panel records-panel" aria-label="Expenses">
+        <div class="records-tools">
+          <SearchField v-model="filters.q" placeholder="Search category, package, notes or ID" />
+          <PeriodSelect
+            v-model:period="periodKey"
+            v-model:from="filters.from"
+            v-model:to="filters.to"
+            :today="businessToday"
+          />
+          <button
+            type="button"
+            class="filter-chip"
+            :aria-pressed="pendingOnly"
+            @click="filters.pending = pendingOnly ? '' : '1'"
+          >
+            Pending
+            <span class="chip-count">{{ count(pendingInScope) }}</span>
+          </button>
+          <button
+            v-if="voidedInScope > 0"
+            type="button"
+            class="filter-chip"
+            :aria-pressed="showVoided"
+            @click="filters.voided = showVoided ? '' : '1'"
+          >
+            Show voided
+            <span class="chip-count">{{ count(voidedInScope) }}</span>
+          </button>
+          <label v-if="stacked" class="records-sort">
+            <span class="visually-hidden">Sort expenses</span>
+            <select v-model="filters.sort">
+              <option v-for="option in sortOptions" :key="option.key" :value="option.key">{{ option.label }}</option>
+            </select>
+          </label>
+        </div>
+
+        <div v-if="categoryTotals.length" class="category-split">
+          <div class="category-bar" role="img" :aria-label="categoryDescription">
+            <span
+              v-for="c in categoryTotals"
+              :key="c.category"
+              class="category-bar-part"
+              :class="{ dim: filters.category !== '' && filters.category !== c.category }"
+              :style="{ flexGrow: c.total, background: c.color }"
+            ></span>
           </div>
-
-          <div class="expense-toolbar">
-            <SearchField v-model="query" placeholder="Search category or package" />
-            <div class="chip-row" role="group" aria-label="Filter by category">
-              <button
-                v-for="chip in categoryChips"
-                :key="chip.value"
-                type="button"
-                class="chip"
-                :class="{ active: activeCategory === chip.value }"
-                @click="activeCategory = chip.value"
-              >
-                {{ chip.label }}
-                <span class="chip-count">{{ chip.count }}</span>
-              </button>
-            </div>
-          </div>
-
-          <div v-if="filtered.length === 0" class="no-match">
-            <p>No expenses match your search.</p>
-            <button class="table-link" type="button" @click="clearFilters">Clear filters</button>
-          </div>
-
-          <template v-else>
-            <div class="dss-table-frame">
-              <table class="dss-table">
-                <thead>
-                  <tr>
-                    <th>Expense ID</th>
-                    <th>Date</th>
-                    <th>Category</th>
-                    <th>Related package</th>
-                    <th class="num">Amount</th>
-                    <th>Payment status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="e in visibleExpenses" :key="e.id">
-                    <td><strong>{{ e.id }}</strong></td>
-                    <td class="cell-nowrap">{{ e.date }}</td>
-                    <td>{{ e.category }}</td>
-                    <td>{{ blank(e.relatedPackage) }}</td>
-                    <td class="num"><strong>{{ peso(e.amount) }}</strong></td>
-                    <td><span class="record-badge" :class="badge(e.paymentStatus)">{{ e.paymentStatus }}</span></td>
-                    <td><button class="table-link" type="button" @click="openEdit(e)">Edit</button></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <ListFooter
-              :shown="shown"
-              :total="total"
-              noun="expenses"
-              @more="loadMore"
-              @all="showAll"
-            />
-          </template>
-        </section>
-
-        <aside class="content-panel breakdown-panel">
-          <div class="panel-header">
-            <div class="panel-title-group">
-              <h2>Spending by category</h2>
-            </div>
-            <span class="panel-meta">{{ peso(totalAmount) }}</span>
-          </div>
-
-          <div class="breakdown">
+          <div class="category-chips" role="group" aria-label="Filter by category">
             <button
-              v-for="row in breakdown"
-              :key="row.category"
               type="button"
-              class="breakdown-row"
-              :class="{ active: activeCategory === row.category }"
-              @click="toggleCategory(row.category)"
+              class="filter-chip"
+              :aria-pressed="filters.category === ''"
+              @click="filters.category = ''"
             >
-              <span class="breakdown-head">
-                <span class="breakdown-name">{{ row.category }}</span>
-                <strong class="breakdown-value">{{ peso(row.total) }}</strong>
-              </span>
-              <span class="breakdown-track">
-                <span class="breakdown-fill" :style="{ width: barWidth(row.total) }"></span>
-              </span>
-              <span class="breakdown-foot">
-                <span>{{ row.count }} {{ row.count === 1 ? 'expense' : 'expenses' }}</span>
-                <span>{{ share(row.total) }}%</span>
-              </span>
+              All categories
+            </button>
+            <button
+              v-for="c in categoryTotals"
+              :key="c.category"
+              type="button"
+              class="filter-chip category-chip"
+              :aria-pressed="filters.category === c.category"
+              @click="filters.category = filters.category === c.category ? '' : c.category"
+            >
+              <span class="category-swatch" :style="{ background: c.color }" aria-hidden="true"></span>
+              {{ c.category }}
+              <span class="category-amount">{{ pesoCompact(c.total) }}</span>
+              <span class="chip-count">{{ c.share }}%</span>
             </button>
           </div>
-        </aside>
-      </div>
+        </div>
+
+        <p class="records-summary" aria-live="polite">
+          <span class="summary-figure"><strong>{{ count(active.length) }}</strong> {{ active.length === 1 ? 'expense' : 'expenses' }}</span>
+          <span class="summary-figure"><strong>{{ peso(activeTotal) }}</strong> total</span>
+          <span v-if="activePending.length" class="summary-figure tone-warning">
+            <strong>{{ peso(activePendingTotal) }}</strong> still owed on {{ activePending.length }} pending
+          </span>
+          <span class="summary-scope">{{ scopeText }}</span>
+          <button v-if="isFiltered" class="table-link" type="button" @click="clearFilters">Clear filters</button>
+        </p>
+
+        <template v-if="matching.length">
+          <ul v-if="stacked" class="record-list">
+            <template v-for="section in sections" :key="section.key">
+              <li v-if="section.label && section.summary" class="record-list-month">
+                <span>{{ section.label }}</span>
+                <span>{{ count(section.summary.count) }} {{ section.summary.count === 1 ? 'expense' : 'expenses' }} · {{ peso(section.summary.total) }}</span>
+              </li>
+              <li v-for="e in section.items" :key="e.id">
+                <button class="record-item" :class="{ 'is-voided': e.voided }" type="button" @click="openEdit(e)">
+                  <span class="record-item-top">
+                    <span class="record-item-title">{{ e.category }}</span>
+                    <span class="record-item-figure">{{ peso(e.amount) }}</span>
+                  </span>
+                  <span v-if="e.relatedPackage || e.notes" class="record-item-sub">{{ e.relatedPackage || e.notes }}</span>
+                  <span class="record-item-meta">
+                    <span>{{ dateLabel(e.date) }} · {{ e.id }}<template v-if="e.voided"> · Voided</template></span>
+                    <span class="record-badge" :class="badge(e.paymentStatus)">{{ e.paymentStatus }}</span>
+                  </span>
+                </button>
+              </li>
+            </template>
+          </ul>
+
+          <div v-else class="dss-table-frame">
+            <table class="dss-table records-table expenses-table">
+              <thead>
+                <tr>
+                  <SortHeader label="Date" field="date" :sort="filters.sort" @sort="sortBy" />
+                  <th scope="col">Expense</th>
+                  <th scope="col">Related to</th>
+                  <th scope="col">Notes</th>
+                  <SortHeader label="Amount" field="amount" align="right" :sort="filters.sort" @sort="sortBy" />
+                  <th scope="col">Payment</th>
+                </tr>
+              </thead>
+              <tbody v-for="section in sections" :key="section.key">
+                <tr v-if="section.label && section.summary" class="month-row">
+                  <th scope="rowgroup" colspan="4">
+                    {{ section.label }}
+                    <span class="month-count">· {{ count(section.summary.count) }} {{ section.summary.count === 1 ? 'expense' : 'expenses' }}</span>
+                  </th>
+                  <td class="num">{{ peso(section.summary.total) }}</td>
+                  <td>
+                    <span v-if="section.summary.pending" class="month-count">{{ section.summary.pending }} pending</span>
+                  </td>
+                </tr>
+                <tr
+                  v-for="e in section.items"
+                  :key="e.id"
+                  class="record-row"
+                  :class="{ 'is-voided': e.voided }"
+                  @click="openEdit(e)"
+                >
+                  <td class="cell-date">{{ dateLabel(e.date) }}</td>
+                  <td>
+                    <button class="row-open" type="button" @click.stop="openEdit(e)">{{ e.category }}</button>
+                    <span class="row-subtext">
+                      {{ e.id }}<span v-if="e.voided" class="voided-tag" :title="e.voidReason ?? ''">Voided</span>
+                    </span>
+                  </td>
+                  <td class="related-cell">{{ e.relatedPackage || '—' }}</td>
+                  <td class="notes-cell" :title="e.notes ?? ''">{{ e.notes || '—' }}</td>
+                  <td class="num"><strong>{{ peso(e.amount) }}</strong></td>
+                  <td><span class="record-badge" :class="badge(e.paymentStatus)">{{ e.paymentStatus }}</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <ListFooter
+            :shown="shown"
+            :total="total"
+            :page-size="PAGE"
+            noun="expenses"
+            @more="loadMore"
+            @all="showAll"
+          />
+        </template>
+
+        <div v-else class="records-empty">
+          <strong>No expenses match</strong>
+          <span>Try a different search, category or period.</span>
+          <button class="table-link" type="button" @click="clearFilters">Clear filters</button>
+        </div>
+      </section>
     </section>
   </AppShell>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, nextTick, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppShell from '../components/AppShell.vue';
 import Drawer from '../components/Drawer.vue';
@@ -199,13 +315,32 @@ import Skeleton from '../components/Skeleton.vue';
 import EmptyState from '../components/EmptyState.vue';
 import SearchField from '../components/SearchField.vue';
 import ListFooter from '../components/ListFooter.vue';
+import PeriodSelect from '../components/PeriodSelect.vue';
+import RecordHistory from '../components/RecordHistory.vue';
+import SortHeader from '../components/SortHeader.vue';
+import UiIcon from '../components/UiIcon.vue';
+import MoneyField from '../components/MoneyField.vue';
 import { usePaged } from '../composables/usePaged';
 import { useToast } from '../composables/useToast';
+import { useMediaQuery } from '../composables/useMediaQuery';
+import { useQueryState } from '../composables/useQueryState';
+import { useAuth } from '../stores/auth';
+import { canAccess } from '../nav';
 import { api, ApiError, type ExpenseRow, type ExpenseInput } from '../api';
-import { peso } from '../format';
-import MoneyField from '../components/MoneyField.vue';
+import { count, peso, pesoCompact } from '../format';
+import { describeRange, formatDate, formatDay, inRange, isIsoDate, isPeriodKey, resolvePeriod, type PeriodKey } from '../periods';
+import { monthSections, nextSort, singleSection, sortParts, type SortDirection } from '../listing';
+
+const PAGE = 50;
+const CATEGORIES = ['Tour operations', 'Marketing', 'Seasonal cost', 'Overhead'];
+// One navy family, darkest for the first category, so the split reads as shares of one whole.
+const CATEGORY_COLORS = ['#16346B', '#3D68A8', '#7A9DD0', '#B3C6E4'];
+const OTHER_COLOR = '#8A96AC';
 
 const toast = useToast();
+const route = useRoute();
+const router = useRouter();
+const { state: auth } = useAuth();
 
 const expenses = ref<ExpenseRow[]>([]);
 const loading = ref(true);
@@ -214,90 +349,204 @@ const saving = ref(false);
 const formError = ref('');
 const editing = ref(false);
 const originalCode = ref('');
+const historyVersion = ref(0);
+const canSeeHistory = computed(() => canAccess(auth.user?.role, '/reports'));
 
-const query = ref('');
-const activeCategory = ref('All');
-
-const CATEGORIES = ['Tour operations', 'Marketing', 'Seasonal cost', 'Overhead'];
+const askVoid = ref(false);
+const voidReason = ref('');
+const voidError = ref('');
+const voiding = ref(false);
+const restoring = ref(false);
+const voidPanel = ref<HTMLElement | null>(null);
+const reasonInput = ref<HTMLInputElement | null>(null);
 
 const businessToday = ref('');
 const businessDateError = 'Could not load the business date. Refresh and try again.';
 const form = reactive<ExpenseInput>(emptyForm());
 
 const drawerTitle = computed(() => (editing.value ? 'Edit expense' : 'New expense'));
-const totalAmount = computed(() => expenses.value.reduce((sum, e) => sum + e.amount, 0));
-const pendingCount = computed(() => expenses.value.filter((e) => e.paymentStatus === 'Pending').length);
-const pendingAmount = computed(() =>
-  expenses.value.filter((e) => e.paymentStatus === 'Pending').reduce((sum, e) => sum + e.amount, 0),
+const editingExpense = computed(() =>
+  editing.value ? expenses.value.find((e) => e.id === originalCode.value) ?? null : null,
 );
 
-const filtered = computed(() => {
-  const term = query.value.trim().toLowerCase();
+// ----- Filters, kept in the address -----
+
+const sortOptions = [
+  { key: 'date-desc', label: 'Newest first' },
+  { key: 'date-asc', label: 'Oldest first' },
+  { key: 'amount-desc', label: 'Largest amount' },
+  { key: 'amount-asc', label: 'Smallest amount' },
+];
+
+const firstDirection: Record<string, SortDirection> = { date: 'desc', amount: 'desc' };
+
+const filters = useQueryState(
+  { q: '', period: 'all', from: '', to: '', category: '', pending: '', voided: '', sort: 'date-desc' },
+  {
+    period: isPeriodKey,
+    from: isIsoDate,
+    to: isIsoDate,
+    category: (value) => value.length <= 60,
+    pending: (value) => value === '1',
+    voided: (value) => value === '1',
+    sort: (value) => sortOptions.some((option) => option.key === value),
+  },
+);
+
+const periodKey = computed<PeriodKey>({
+  get: () => (isPeriodKey(filters.period) ? filters.period : 'all'),
+  set: (value) => {
+    filters.period = value;
+    if (value !== 'custom') {
+      filters.from = '';
+      filters.to = '';
+    }
+  },
+});
+
+const pendingOnly = computed(() => filters.pending === '1');
+const showVoided = computed(() => filters.voided === '1');
+const stacked = useMediaQuery('(max-width: 860px)');
+
+const range = computed(() => resolvePeriod(periodKey.value, businessToday.value, filters.from, filters.to));
+
+const exportHref = computed(() => {
+  const params = new URLSearchParams();
+  if (range.value?.from) params.set('from', range.value.from);
+  if (range.value?.to) params.set('to', range.value.to);
+  const query = params.toString();
+  return '/api/export/expenses.csv' + (query ? '?' + query : '');
+});
+
+const searched = computed(() => {
+  const term = filters.q.trim().toLowerCase();
   return expenses.value.filter((e) => {
-    if (activeCategory.value !== 'All' && e.category !== activeCategory.value) return false;
+    if (!inRange(e.date, range.value)) return false;
     if (!term) return true;
-    return (
-      e.category.toLowerCase().includes(term) ||
-      (e.relatedPackage ?? '').toLowerCase().includes(term) ||
-      e.id.toLowerCase().includes(term)
-    );
+    return [e.category, e.relatedPackage, e.notes, e.id].some((field) => (field ?? '').toLowerCase().includes(term));
   });
 });
 
-const { visible: visibleExpenses, total, shown, loadMore, showAll } = usePaged(filtered);
+const voidedInScope = computed(() => searched.value.filter((e) => e.voided).length);
+const counted = computed(() => searched.value.filter((e) => !e.voided));
+const pendingInScope = computed(() => counted.value.filter((e) => e.paymentStatus === 'Pending').length);
 
-const categoryChips = computed(() => [
-  { value: 'All', label: 'All', count: expenses.value.length },
-  ...CATEGORIES.map((c) => ({
-    value: c,
-    label: c,
-    count: expenses.value.filter((e) => e.category === c).length,
-  })).filter((c) => c.count > 0),
-]);
-
-const breakdown = computed(() => {
-  const totals = new Map<string, { total: number; count: number }>();
-  for (const e of expenses.value) {
-    const entry = totals.get(e.category) ?? { total: 0, count: 0 };
-    entry.total += e.amount;
-    entry.count += 1;
-    totals.set(e.category, entry);
-  }
+// Shares are worked out before the category filter, so picking a category does not make it 100%.
+const categoryTotals = computed(() => {
+  const pool = pendingOnly.value ? counted.value.filter((e) => e.paymentStatus === 'Pending') : counted.value;
+  const totals = new Map<string, number>();
+  for (const e of pool) totals.set(e.category, (totals.get(e.category) ?? 0) + e.amount);
+  const sum = Array.from(totals.values()).reduce((a, b) => a + b, 0);
+  const order = (category: string) => {
+    const index = CATEGORIES.indexOf(category);
+    return index < 0 ? CATEGORIES.length : index;
+  };
   return Array.from(totals.entries())
-    .map(([category, v]) => ({ category, total: v.total, count: v.count }))
-    .sort((a, b) => b.total - a.total);
+    .filter(([, total]) => total > 0)
+    .sort(([a], [b]) => order(a) - order(b) || a.localeCompare(b))
+    .map(([category, total]) => ({
+      category,
+      total,
+      share: sum > 0 ? Math.round((total / sum) * 100) : 0,
+      color: CATEGORY_COLORS[CATEGORIES.indexOf(category)] ?? OTHER_COLOR,
+    }));
 });
 
-const maxCategoryTotal = computed(() => breakdown.value.reduce((max, r) => Math.max(max, r.total), 0));
+const categoryDescription = computed(() =>
+  'Spending by category: ' + categoryTotals.value.map((c) => `${c.category} ${c.share}%`).join(', '),
+);
 
-function barWidth(total: number): string {
-  const max = maxCategoryTotal.value;
-  if (max <= 0) return '2px';
-  return Math.max(2, Math.round((total / max) * 100)) + '%';
+const matching = computed(() =>
+  searched.value.filter((e) => {
+    if (e.voided && !showVoided.value) return false;
+    if (pendingOnly.value && (e.voided || e.paymentStatus !== 'Pending')) return false;
+    if (filters.category && e.category !== filters.category) return false;
+    return true;
+  }),
+);
+
+// Voided expenses can be listed, but they never count towards a total.
+const active = computed(() => matching.value.filter((e) => !e.voided));
+const activeTotal = computed(() => active.value.reduce((sum, e) => sum + e.amount, 0));
+const activePending = computed(() => active.value.filter((e) => e.paymentStatus === 'Pending'));
+const activePendingTotal = computed(() => activePending.value.reduce((sum, e) => sum + e.amount, 0));
+
+const sorted = computed(() => {
+  const { field, direction } = sortParts(filters.sort);
+  const sign = direction === 'asc' ? 1 : -1;
+  return [...matching.value].sort((a, b) => {
+    let order = field === 'amount' ? a.amount - b.amount : 0;
+    if (order === 0) order = a.date < b.date ? -1 : a.date > b.date ? 1 : a.backendId - b.backendId;
+    return order * sign;
+  });
+});
+
+const { visible, total, shown, loadMore, showAll } = usePaged(sorted, PAGE);
+
+const byDate = computed(() => sortParts(filters.sort).field === 'date');
+
+interface MonthTotals {
+  count: number;
+  total: number;
+  pending: number;
 }
 
-function share(total: number): number {
-  if (totalAmount.value <= 0) return 0;
-  return Math.round((total / totalAmount.value) * 100);
+function totalsOf(items: ExpenseRow[]): MonthTotals {
+  const live = items.filter((e) => !e.voided);
+  return {
+    count: live.length,
+    total: live.reduce((sum, e) => sum + e.amount, 0),
+    pending: live.filter((e) => e.paymentStatus === 'Pending').length,
+  };
 }
 
+const sections = computed(() =>
+  byDate.value
+    ? monthSections(visible.value, sorted.value, (e) => e.date, totalsOf)
+    : singleSection<ExpenseRow, MonthTotals>(visible.value),
+);
+
+const isFiltered = computed(
+  () =>
+    filters.q.trim() !== '' ||
+    periodKey.value !== 'all' ||
+    filters.category !== '' ||
+    pendingOnly.value ||
+    showVoided.value,
+);
+
+const scopeText = computed(() => {
+  const parts = [range.value ? describeRange(range.value) : 'All dates'];
+  if (filters.category) parts.push(filters.category);
+  if (pendingOnly.value) parts.push('pending only');
+  const term = filters.q.trim();
+  if (term) parts.push(`matching “${term}”`);
+  const listedVoided = matching.value.length - active.value.length;
+  if (listedVoided > 0) parts.push(`${listedVoided} voided listed, not counted`);
+  return parts.join(' · ');
+});
+
+function sortBy(field: string) {
+  filters.sort = nextSort(filters.sort, field, firstDirection[field] ?? 'desc');
+}
+
+function clearFilters() {
+  filters.q = '';
+  periodKey.value = 'all';
+  filters.category = '';
+  filters.pending = '';
+  filters.voided = '';
+}
+
+function dateLabel(date: string): string {
+  return byDate.value ? formatDay(date) : formatDate(date);
+}
 
 function badge(value: string): string {
   return 'status-' + value.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 }
 
-function blank(value: string | null | undefined): string {
-  return value && value.trim() ? value : '—';
-}
-
-function toggleCategory(category: string) {
-  activeCategory.value = activeCategory.value === category ? 'All' : category;
-}
-
-function clearFilters() {
-  query.value = '';
-  activeCategory.value = 'All';
-}
+// ----- The expense form -----
 
 function emptyForm(): ExpenseInput {
   return {
@@ -311,6 +560,12 @@ function emptyForm(): ExpenseInput {
   };
 }
 
+function resetVoid() {
+  askVoid.value = false;
+  voidReason.value = '';
+  voidError.value = '';
+}
+
 function openForm() {
   if (!businessToday.value) {
     formError.value = businessDateError;
@@ -322,6 +577,7 @@ function openForm() {
   editing.value = false;
   originalCode.value = '';
   formError.value = '';
+  resetVoid();
   showForm.value = true;
 }
 
@@ -338,7 +594,49 @@ function openEdit(expense: ExpenseRow) {
   editing.value = true;
   originalCode.value = expense.id;
   formError.value = '';
+  resetVoid();
   showForm.value = true;
+}
+
+async function startVoid() {
+  askVoid.value = true;
+  voidError.value = '';
+  await nextTick();
+  voidPanel.value?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  reasonInput.value?.focus();
+}
+
+async function confirmVoid() {
+  if (voiding.value || !voidReason.value) return;
+  voiding.value = true;
+  voidError.value = '';
+  try {
+    await api.voidExpense(originalCode.value, voidReason.value);
+    await load(false);
+    historyVersion.value += 1;
+    resetVoid();
+    toast.success('Expense ' + originalCode.value + ' voided');
+  } catch (e) {
+    voidError.value = e instanceof ApiError ? Object.values(e.fields)[0] ?? e.message : 'Could not void the expense.';
+  } finally {
+    voiding.value = false;
+  }
+}
+
+async function restoreExpense() {
+  if (restoring.value) return;
+  restoring.value = true;
+  formError.value = '';
+  try {
+    await api.restoreExpense(originalCode.value);
+    await load(false);
+    historyVersion.value += 1;
+    toast.success('Expense ' + originalCode.value + ' restored');
+  } catch (e) {
+    formError.value = e instanceof ApiError ? Object.values(e.fields)[0] ?? e.message : 'Could not restore the expense.';
+  } finally {
+    restoring.value = false;
+  }
 }
 
 function validate(): string {
@@ -350,15 +648,18 @@ function validate(): string {
   return '';
 }
 
-async function load() {
-  loading.value = true;
+async function load(showErrorToast = true): Promise<boolean> {
   try {
     const config = await api.appConfig();
     businessToday.value = config.today;
     expenses.value = await api.expenses();
+    return true;
   } catch {
-    if (!businessToday.value) toast.error(businessDateError);
-    toast.error('We could not load the expenses. Please refresh and try again.');
+    if (showErrorToast) {
+      if (!businessToday.value) toast.error(businessDateError);
+      toast.error('We could not load the expenses. Please refresh and try again.');
+    }
+    return false;
   } finally {
     loading.value = false;
   }
@@ -381,6 +682,7 @@ async function save() {
       await api.createExpense({ ...form });
     }
     await load();
+    historyVersion.value += 1;
     showForm.value = false;
     toast.success('Expense ' + savedId + ' saved');
   } catch (e) {
@@ -391,9 +693,6 @@ async function save() {
     saving.value = false;
   }
 }
-
-const route = useRoute();
-const router = useRouter();
 
 onMounted(async () => {
   await load();
@@ -406,191 +705,92 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.drawer-form-error {
+.form-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.form-history {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.voided-notice {
+  display: flex;
+  gap: 12px;
   margin-bottom: var(--space-4);
-  color: var(--color-danger-ink);
-  font-size: 13px;
+  padding: 12px 14px;
+  border: 1px solid var(--tone-danger-border);
+  border-radius: var(--radius-md);
+  background: var(--tone-danger-surface);
+  color: var(--tone-danger-ink);
+  font-size: var(--text-sm);
+  line-height: 1.5;
 }
 
-.expense-layout {
-  align-items: start;
+.voided-notice-icon {
+  margin-top: 2px;
+  font-size: 18px;
 }
 
-.expense-ledger {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.expense-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
-  justify-content: space-between;
-}
-
-.chip-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-pill);
-  background: var(--color-surface);
-  color: var(--color-text-secondary);
-  font-size: 12.5px;
-  font-weight: 500;
-  padding: 5px 12px;
-  cursor: pointer;
-  transition: border-color var(--transition-fast), background var(--transition-fast), color var(--transition-fast);
-}
-
-.chip:hover {
-  border-color: var(--color-text-faint);
-  color: var(--color-text-primary);
-}
-
-.chip.active {
-  border-color: var(--color-primary);
-  background: var(--color-primary-soft);
-  color: var(--color-primary-active);
+.voided-notice-title {
   font-weight: 600;
 }
 
-.chip-count {
-  color: var(--color-text-muted);
-  font-size: 11.5px;
-  font-variant-numeric: lining-nums tabular-nums;
+.void-panel {
+  margin-bottom: var(--space-4);
 }
 
-.chip.active .chip-count {
-  color: var(--color-primary);
+/* Where the money goes: one bar split by category, and the same categories as filters. */
+.category-split {
+  display: grid;
+  gap: 10px;
 }
 
-.dss-table-frame {
-  overflow-x: auto;
-  min-width: 0;
-}
-
-.no-match {
+.category-bar {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-2);
-  padding: var(--space-6) var(--space-2);
-  color: var(--color-text-muted);
-  font-size: 13.5px;
-}
-
-.breakdown-panel {
-  position: sticky;
-  top: var(--space-4);
-}
-
-.breakdown {
-  display: flex;
-  flex-direction: column;
-}
-
-.breakdown-row {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  width: 100%;
-  text-align: left;
-  border: none;
-  background: none;
-  cursor: pointer;
-  padding: var(--space-3) var(--space-2);
-  border-bottom: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-sm);
-  transition: background var(--transition-fast);
-}
-
-.breakdown-row:last-child {
-  border-bottom: none;
-}
-
-.breakdown-row:hover {
-  background: var(--color-surface-sunken);
-}
-
-.breakdown-row.active {
-  background: var(--color-primary-soft);
-}
-
-.breakdown-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.breakdown-name {
-  color: var(--color-text-primary);
-  font-size: 13.5px;
-  font-weight: 500;
-  min-width: 0;
-}
-
-.breakdown-value {
-  color: var(--color-text-primary);
-  font-size: 13.5px;
-  font-weight: 600;
-  white-space: nowrap;
-  font-variant-numeric: lining-nums tabular-nums;
-}
-
-.breakdown-track {
-  position: relative;
-  display: block;
-  height: 8px;
-  background: var(--color-surface-sunken);
-  border-radius: var(--radius-pill);
+  gap: 2px;
+  height: 10px;
   overflow: hidden;
-}
-
-.breakdown-fill {
-  position: absolute;
-  inset: 0 auto 0 0;
-  min-width: 2px;
-  background: var(--color-primary);
   border-radius: var(--radius-pill);
+  background: var(--color-surface-sunken);
 }
 
-.breakdown-row.active .breakdown-fill {
-  background: var(--color-accent);
+.category-bar-part {
+  flex-basis: 0;
+  min-width: 4px;
+  transition: opacity var(--transition-normal);
 }
 
-.breakdown-foot {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
-  color: var(--color-text-muted);
-  font-size: 12px;
+.category-bar-part.dim {
+  opacity: 0.22;
+}
+
+.category-swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+
+.category-amount {
+  color: var(--color-text-primary);
+  font-weight: 600;
   font-variant-numeric: lining-nums tabular-nums;
 }
 
-@media (max-width: 1024px) {
-  .breakdown-panel {
-    position: static;
-  }
+.related-cell {
+  max-width: 220px;
+  color: var(--color-text-secondary);
 }
 
-@media (max-width: 640px) {
-  .expense-toolbar {
-    align-items: stretch;
-  }
-
-  .chip-row {
-    width: 100%;
-  }
+.notes-cell {
+  max-width: 260px;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

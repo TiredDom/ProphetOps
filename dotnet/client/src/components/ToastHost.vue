@@ -34,15 +34,17 @@ const { toasts, dismiss } = useToastList();
 </script>
 
 <style scoped>
+/* Bottom centre on wide screens keeps notices clear of the side panels and their buttons. */
 .toast-host {
   position: fixed;
   bottom: var(--space-6);
-  right: var(--space-6);
+  left: 50%;
   z-index: var(--z-toast);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
   width: min(360px, calc(100vw - var(--space-8)));
+  transform: translateX(-50%);
   pointer-events: none;
 }
 
@@ -101,6 +103,7 @@ const { toasts, dismiss } = useToastList();
     left: var(--space-4);
     bottom: calc(var(--tab-bar-height) + env(safe-area-inset-bottom, 0px) + var(--space-3));
     width: auto;
+    transform: none;
   }
 }
 

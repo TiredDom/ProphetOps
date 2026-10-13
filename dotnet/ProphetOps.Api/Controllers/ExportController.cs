@@ -6,8 +6,9 @@ using ProphetOps.Data;
 
 namespace ProphetOps.Api.Controllers;
 
-/// Hands the records back as CSV files the import endpoints can read again unchanged, so an
-/// export is a complete copy rather than a view: voided bookings ride along, marked.
+/// Hands the records back as CSV files. Bookings and packages come back in the shape the import
+/// endpoints read, so those exports are complete copies rather than views: voided bookings ride
+/// along, marked. Expenses have no importer and can be limited to a period.
 [ApiController]
 [Route("api/export")]
 public class ExportController : ControllerBase
@@ -73,7 +74,59 @@ public class ExportController : ControllerBase
             rows);
     }
 
-    private FileContentResult Download(string subject, string header, IEnumerable<string[]> rows)
+    /// Expenses go to the accountant a period at a time, so this one can be limited to a range
+    /// of dates (inclusive, either end optional). Voided expenses ride along, marked, as they do
+    /// in the bookings export.
+    [HttpGet("expenses.csv")]
+    [Authorize(Policy = "Expenses")]
+    public IActionResult Expenses([FromQuery] string? from, [FromQuery] string? to)
+    {
+        var errors = new Dictionary<string, string>();
+        var start = ReadDate(from, "from", errors);
+        var end = ReadDate(to, "to", errors);
+        if (start is not null && end is not null && start > end)
+            errors["to"] = "The end date is before the start date.";
+        if (errors.Count > 0) return BadRequest(errors);
+
+        var rows = _db.Expenses
+            .OrderByDescending(e => e.ExpenseDate)
+            .ThenByDescending(e => e.Id)
+            .ToList()
+            .Where(e => (start is null || e.ExpenseDate >= start) && (end is null || e.ExpenseDate <= end))
+            .Select(e => new[]
+            {
+                e.Code,
+                e.ExpenseDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                e.Category,
+                Whole(e.Amount),
+                e.RelatedPackage,
+                e.PaymentStatus,
+                e.Notes ?? "",
+                e.IsVoided ? "yes" : "",
+                e.VoidReason ?? "",
+            });
+
+        var range = start is null && end is null
+            ? null
+            : $"prophetops-expenses-{start?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "start"}"
+              + $"-to-{end?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "latest"}.csv";
+
+        return Download("expenses",
+            "code,date,category,amount,related_package,payment,notes,voided,void_reason",
+            rows,
+            range);
+    }
+
+    private static DateOnly? ReadDate(string? value, string field, Dictionary<string, string> errors)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        if (DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+            return date;
+        errors[field] = "Use a date written as yyyy-mm-dd.";
+        return null;
+    }
+
+    private FileContentResult Download(string subject, string header, IEnumerable<string[]> rows, string? fileName = null)
     {
         var text = new StringBuilder(header).Append("\r\n");
         foreach (var row in rows)
@@ -86,7 +139,7 @@ public class ExportController : ControllerBase
             .ToArray();
 
         return File(bytes, "text/csv; charset=utf-8",
-            $"prophetops-{subject}-{DateTime.UtcNow:yyyy-MM-dd}.csv");
+            fileName ?? $"prophetops-{subject}-{DateTime.UtcNow:yyyy-MM-dd}.csv");
     }
 
     private static readonly char[] Reserved = { ',', '"', '\r', '\n' };
