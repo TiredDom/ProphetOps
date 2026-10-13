@@ -56,28 +56,16 @@
 
       <p v-if="actionError" class="drawer-form-error" role="alert">{{ actionError }}</p>
 
-      <div v-if="askVoid && !booking.voided" ref="voidPanel" class="void-panel" role="group" aria-label="Void this booking">
-        <p class="void-lead">
-          Voiding keeps the record and its history, but takes it out of every total and out of the forecast.
-          Any seats it holds go back to the package.
-        </p>
-        <label class="account-field">
-          <span>Why is it being voided?</span>
-          <input
-            ref="reasonInput"
-            v-model.trim="reason"
-            maxlength="160"
-            placeholder="Duplicate entry, client cancelled, recorded in error"
-          />
-        </label>
-        <p v-if="voidError" class="drawer-form-error" role="alert">{{ voidError }}</p>
-        <div class="void-actions">
-          <button class="secondary-button" type="button" :disabled="busy === 'void'" @click="askVoid = false">Keep it</button>
-          <button class="danger-button" type="button" :disabled="busy === 'void' || !reason" @click="emit('void', reason)">
-            {{ busy === 'void' ? 'Voiding…' : 'Void booking' }}
-          </button>
-        </div>
-      </div>
+      <VoidPanel
+        v-if="askVoid && !booking.voided"
+        noun="booking"
+        lead="Voiding keeps the record and its history, but takes it out of every total and out of the forecast. Any seats it holds go back to the package."
+        placeholder="Duplicate entry, client cancelled, recorded in error"
+        :busy="busy === 'void'"
+        :error="voidError"
+        @cancel="askVoid = false"
+        @confirm="(reason) => emit('void', reason)"
+      />
 
       <dl class="detail-list">
         <div>
@@ -118,7 +106,7 @@
           Void booking
         </button>
         <span class="footer-spacer"></span>
-        <button class="primary-button" type="button" :disabled="busy !== ''" @click="emit('edit')">
+        <button class="primary-button" type="button" :disabled="busy !== ''" aria-keyshortcuts="E" @click="emit('edit')">
           <UiIcon name="pencil" />
           Edit booking
         </button>
@@ -132,13 +120,14 @@ export type BookingBusy = '' | 'paid' | 'confirm' | 'void' | 'restore';
 </script>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import type { Booking } from '../api';
 import { peso, stateLabel } from '../format';
 import { formatDate } from '../periods';
 import Drawer from './Drawer.vue';
 import RecordHistory from './RecordHistory.vue';
 import UiIcon from './UiIcon.vue';
+import VoidPanel from './VoidPanel.vue';
 
 const props = withDefaults(
   defineProps<{
@@ -163,9 +152,6 @@ const emit = defineEmits<{
 }>();
 
 const askVoid = ref(false);
-const reason = ref('');
-const voidPanel = ref<HTMLElement | null>(null);
-const reasonInput = ref<HTMLInputElement | null>(null);
 
 const canMarkPaid = computed(() => props.booking !== null && props.booking.paymentStatus !== 'Paid');
 const canConfirm = computed(() => props.booking !== null && props.booking.bookingStatus !== 'Confirmed');
@@ -175,131 +161,14 @@ watch(
   () => [props.open, props.booking?.id],
   () => {
     askVoid.value = false;
-    reason.value = '';
   },
 );
 
-async function startVoid() {
+function startVoid() {
   askVoid.value = true;
-  await nextTick();
-  voidPanel.value?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  reasonInput.value?.focus();
 }
 
 function badge(value: string): string {
   return 'status-' + value.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 }
 </script>
-
-<style scoped>
-.record-detail {
-  display: grid;
-  gap: 20px;
-}
-
-.detail-head {
-  display: grid;
-  gap: 4px;
-}
-
-.detail-name {
-  color: var(--color-text-primary);
-  font-size: var(--text-lg);
-  font-weight: 650;
-  letter-spacing: -0.01em;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
-}
-
-.detail-sub {
-  color: var(--color-text-secondary);
-  font-size: var(--text-base);
-}
-
-.detail-figure {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 12px;
-  margin-top: 10px;
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-}
-
-.detail-figure strong {
-  color: var(--color-text-primary);
-  font-size: var(--text-xl);
-  font-weight: 650;
-  letter-spacing: -0.015em;
-  font-variant-numeric: lining-nums tabular-nums;
-}
-
-.detail-figure strong.struck {
-  color: var(--color-text-muted);
-  text-decoration: line-through;
-  text-decoration-color: var(--color-text-faint);
-}
-
-.detail-states {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 24px;
-  margin: 6px 0 0;
-}
-
-.detail-states > div {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  line-height: 20px;
-}
-
-.detail-states dt {
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  line-height: 20px;
-}
-
-.detail-states dd {
-  margin: 0;
-}
-
-.detail-states .record-badge {
-  color: var(--color-text-primary);
-  font-size: var(--text-sm);
-  line-height: 20px;
-  vertical-align: top;
-}
-
-.detail-quick {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: -6px;
-}
-
-.detail-quick .ui-icon {
-  font-size: 16px;
-}
-
-.detail-voided {
-  display: flex;
-  gap: 12px;
-  padding: 12px 14px;
-  border: 1px solid var(--tone-danger-border);
-  border-radius: var(--radius-md);
-  background: var(--tone-danger-surface);
-  color: var(--tone-danger-ink);
-  font-size: var(--text-sm);
-  line-height: 1.5;
-}
-
-.detail-voided-icon {
-  margin-top: 2px;
-  font-size: 18px;
-}
-
-.detail-voided-title {
-  font-weight: 600;
-}
-</style>

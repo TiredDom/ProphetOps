@@ -2,10 +2,14 @@
   <div class="money-field" :class="{ focused }">
     <span class="money-field-prefix" aria-hidden="true">₱</span>
     <input
+      :id="id"
       :value="display"
       type="text"
       inputmode="numeric"
       autocomplete="off"
+      :disabled="disabled"
+      :aria-invalid="invalid ? 'true' : undefined"
+      :aria-describedby="describedBy"
       @input="onInput"
       @focus="onFocus"
       @blur="onBlur"
@@ -17,8 +21,14 @@
 import { ref, watch } from 'vue';
 import { count, digitsOnly } from '../format';
 
-const props = defineProps<{ modelValue: number }>();
-const emit = defineEmits<{ 'update:modelValue': [number] }>();
+const props = defineProps<{
+  modelValue: number;
+  id?: string;
+  invalid?: boolean;
+  describedBy?: string;
+  disabled?: boolean;
+}>();
+const emit = defineEmits<{ 'update:modelValue': [number]; blur: [] }>();
 
 const focused = ref(false);
 const display = ref(count(props.modelValue));
@@ -46,6 +56,7 @@ function onFocus() {
 function onBlur() {
   focused.value = false;
   display.value = count(digitsOnly(display.value));
+  emit('blur');
 }
 </script>
 
@@ -71,6 +82,10 @@ function onBlur() {
 .money-field.focused {
   border-color: var(--color-primary);
   box-shadow: var(--focus-ring);
+}
+
+.money-field:has(input[aria-invalid='true']) {
+  border-color: var(--color-danger);
 }
 
 .money-field-prefix {

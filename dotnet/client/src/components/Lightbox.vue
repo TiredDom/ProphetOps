@@ -37,12 +37,16 @@ const label = computed(() => (props.caption ? `Photo of ${props.caption}` : 'Pho
 
 useModalFocus(panel, () => !!props.url);
 
+// Listens in the capture phase and marks the key handled, so a panel underneath the photo
+// stays open when Esc closes the photo.
 function onKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape' && props.url) emit('close');
+  if (event.key !== 'Escape' || !props.url) return;
+  event.preventDefault();
+  emit('close');
 }
 
-onMounted(() => document.addEventListener('keydown', onKeydown));
-onUnmounted(() => document.removeEventListener('keydown', onKeydown));
+onMounted(() => document.addEventListener('keydown', onKeydown, true));
+onUnmounted(() => document.removeEventListener('keydown', onKeydown, true));
 </script>
 
 <style scoped>

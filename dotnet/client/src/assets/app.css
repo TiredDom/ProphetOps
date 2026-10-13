@@ -1516,9 +1516,232 @@ th.num .sort-button {
     white-space: nowrap;
 }
 
+/* Selecting several records: a narrow column of checkboxes on wide screens, and on phones a
+   Select mode where a tap ticks the row instead of opening it. */
+.records-table .select-cell {
+    width: 40px;
+    padding-right: 0;
+    cursor: default;
+}
+
+.records-table .select-cell input {
+    display: block;
+    width: 17px;
+    height: 17px;
+    margin: 0;
+    cursor: pointer;
+}
+
+.records-table .select-cell input:disabled {
+    cursor: not-allowed;
+    opacity: 0.4;
+}
+
+.records-table tbody tr.record-row.is-selected,
+.records-table tbody tr.record-row.is-selected:hover {
+    background: var(--color-primary-soft);
+}
+
+.record-item.selectable {
+    grid-template-columns: 24px minmax(0, 1fr);
+    column-gap: 12px;
+}
+
+.record-item.selectable > :not(.record-check) {
+    grid-column: 2;
+}
+
+.record-item.selectable:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+.record-check {
+    display: grid;
+    place-items: center;
+    grid-row: 1 / span 3;
+    align-self: center;
+    width: 22px;
+    height: 22px;
+    border: 1.5px solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: #FFFFFF;
+    font-size: 15px;
+}
+
+.record-item.is-selected {
+    background: var(--color-primary-soft);
+}
+
+.record-item.is-selected .record-check {
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+}
+
 /* ============================================================
    Record panels and forms in drawers
    ============================================================ */
+
+/* Record panels: every record opens the same way. A heading with the figure that matters,
+   its states, quick updates, the details, then the change history. Edit is in the footer. */
+.record-detail {
+    display: grid;
+    gap: 20px;
+}
+
+.detail-head {
+    display: grid;
+    gap: 4px;
+}
+
+.detail-name {
+    color: var(--color-text-primary);
+    font-size: var(--text-lg);
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+}
+
+.detail-sub {
+    color: var(--color-text-secondary);
+    font-size: var(--text-base);
+}
+
+.detail-figure {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 12px;
+    margin-top: 10px;
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+}
+
+.detail-figure strong {
+    color: var(--color-text-primary);
+    font-size: var(--text-xl);
+    font-weight: 650;
+    letter-spacing: -0.015em;
+    font-variant-numeric: lining-nums tabular-nums;
+}
+
+.detail-figure strong.struck {
+    color: var(--color-text-muted);
+    text-decoration: line-through;
+    text-decoration-color: var(--color-text-faint);
+}
+
+.detail-states {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 24px;
+    margin: 6px 0 0;
+}
+
+.detail-states > div {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    line-height: 20px;
+}
+
+.detail-states dt {
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+    line-height: 20px;
+}
+
+.detail-states dd {
+    margin: 0;
+}
+
+.detail-states .record-badge {
+    color: var(--color-text-primary);
+    font-size: var(--text-sm);
+    line-height: 20px;
+    vertical-align: top;
+}
+
+.detail-quick {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: -6px;
+}
+
+.detail-quick .ui-icon {
+    font-size: 16px;
+}
+
+.detail-voided {
+    display: flex;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--tone-danger-border);
+    border-radius: var(--radius-md);
+    background: var(--tone-danger-surface);
+    color: var(--tone-danger-ink);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+}
+
+.detail-voided-icon {
+    margin-top: 2px;
+    font-size: 18px;
+}
+
+.detail-voided-title {
+    font-weight: 600;
+}
+
+.detail-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    justify-self: start;
+    color: var(--color-primary);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.detail-link:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.detail-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 20px;
+}
+
+.detail-note {
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+}
+
+/* Slots on a package: sold in navy, reserved in amber, what is left stays open. */
+.slot-meter {
+    display: flex;
+    width: 100%;
+    max-width: 220px;
+    height: 6px;
+    overflow: hidden;
+    border-radius: var(--radius-pill);
+    background: var(--color-surface-sunken);
+}
+
+.slot-sold {
+    background: var(--color-primary);
+}
+
+.slot-reserved {
+    background: var(--color-warning);
+}
 
 .detail-list {
     display: grid;
@@ -1756,6 +1979,17 @@ textarea[aria-invalid='true'] {
     border-color: var(--color-danger);
 }
 
+/* A field shown for reference, such as a record's ID once saved: no border to click into. */
+input[readonly] {
+    border-color: var(--color-border);
+    background: var(--color-surface-sunken);
+    color: var(--color-text-secondary);
+}
+
+input[readonly]:hover {
+    border-color: var(--color-border);
+}
+
 /* Form grid (drawers) */
 .form-grid {
     display: grid;
@@ -1801,6 +2035,127 @@ textarea[aria-invalid='true'] {
 .form-helper {
     color: var(--color-text-muted);
     font-size: 12.5px;
+}
+
+/* One field: its label, the control, then advice, a problem or a hint, each tied to the
+   control. Optional fields say so; the rest are needed. */
+.form-field {
+    display: grid;
+    align-content: start;
+    gap: 6px;
+    min-width: 0;
+}
+
+.form-field .form-field-label {
+    display: block;
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    font-weight: 500;
+}
+
+.form-field .form-field-optional {
+    margin-left: 6px;
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    font-weight: 400;
+}
+
+.form-field input:not([type='checkbox']):not([type='radio']),
+.form-field select,
+.form-field textarea {
+    width: 100%;
+    min-width: 0;
+}
+
+.field-hint {
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    line-height: 1.45;
+}
+
+.field-error,
+.field-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: var(--text-sm);
+    line-height: 1.45;
+}
+
+.field-error {
+    color: var(--color-danger-ink);
+    font-weight: 500;
+}
+
+.field-note {
+    color: var(--tone-warning-ink);
+}
+
+.field-message-icon {
+    flex: none;
+    margin-top: 2px;
+    font-size: 14px;
+}
+
+.field-note-action {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--color-primary);
+    font: inherit;
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+}
+
+/* Several problems after a save attempt: each named, each a way back to its field. */
+.form-problems {
+    margin-bottom: var(--space-4);
+    padding: 12px 14px;
+    border: 1px solid var(--tone-danger-border);
+    border-radius: var(--radius-md);
+    background: var(--tone-danger-surface);
+    color: var(--tone-danger-ink);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+}
+
+.form-problems-title {
+    margin-bottom: 4px;
+    font-weight: 600;
+}
+
+.form-problems-list {
+    display: grid;
+    gap: 2px;
+    margin: 0;
+    padding-left: 18px;
+}
+
+.form-problems-link {
+    margin-right: 6px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+}
+
+/* Someone else saved the record while it was open: what was merged, in the form's own words. */
+.drawer-form-merge {
+    margin-bottom: var(--space-4);
+    padding: 10px 12px;
+    border: 1px solid var(--tone-primary-border);
+    border-radius: var(--radius-md);
+    background: var(--tone-primary-surface);
+    color: var(--tone-primary-ink);
+    font-size: var(--text-sm);
+    line-height: 1.5;
 }
 
 /* Ten navigation links sit before the content on every page; this gives a keyboard or

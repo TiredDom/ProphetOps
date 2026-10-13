@@ -9,116 +9,120 @@
         <UiIcon name="download" />
         Export CSV
       </a>
-      <button class="primary-button" type="button" @click="openForm">
+      <button class="primary-button" type="button" aria-keyshortcuts="N" @click="openForm">
         <UiIcon name="plus" />
         Add expense
       </button>
     </template>
 
     <section class="dss-page">
-      <Drawer :open="showForm" :title="drawerTitle" @close="showForm = false">
+      <ExpenseDetail
+        :open="detailOpen"
+        :expense="detailExpense"
+        :can-see-history="canSeeHistory"
+        :history-version="historyVersion"
+        :busy="detailBusy"
+        :void-error="detailVoidError"
+        :action-error="detailActionError"
+        @close="detailOpen = false"
+        @edit="editFromDetail"
+        @mark-paid="markPaidFromDetail"
+        @void="voidFromDetail"
+        @restore="restoreFromDetail"
+      />
+
+      <Drawer :open="showForm" :title="drawerTitle" :dirty="formDirty" @close="closeForm">
         <p v-if="formError" class="drawer-form-error" role="alert">{{ formError }}</p>
+        <FormProblems :problems="attempted ? problems : []" @focus="focusField" />
 
-        <div v-if="editingExpense?.voided" class="voided-notice" role="note">
-          <UiIcon name="void" class="voided-notice-icon" />
-          <div>
-            <p class="voided-notice-title">Voided</p>
-            <p v-if="editingExpense.voidReason">{{ editingExpense.voidReason }}</p>
-            <p>Left out of every total. Restore it to count it again or to change it.</p>
-          </div>
-        </div>
+        <div class="form-grid">
+          <FormField v-if="editing" id="expense-code" label="Expense ID" wide v-slot="f">
+            <input :id="f.id" :value="form.id" type="text" readonly />
+          </FormField>
 
-        <div v-if="askVoid && editing && !editingExpense?.voided" ref="voidPanel" class="void-panel" role="group" aria-label="Void this expense">
-          <p class="void-lead">
-            Voiding keeps the expense and its history, but takes it out of every cost total.
-          </p>
-          <label class="account-field">
-            <span>Why is it being voided?</span>
+          <FormField :id="fieldId('date')" label="Date" :error="errors.date" :note="dateNote" v-slot="f">
             <input
-              ref="reasonInput"
-              v-model.trim="voidReason"
-              maxlength="160"
-              placeholder="Duplicate entry, refunded, recorded in error"
+              :id="f.id"
+              v-model="form.date"
+              type="date"
+              required
+              :aria-invalid="f.invalid ? 'true' : undefined"
+              :aria-describedby="f.describedBy"
+              @blur="touch('date')"
             />
-          </label>
-          <p v-if="voidError" class="drawer-form-error" role="alert">{{ voidError }}</p>
-          <div class="void-actions">
-            <button class="secondary-button" type="button" :disabled="voiding" @click="askVoid = false">Keep it</button>
-            <button class="danger-button" type="button" :disabled="voiding || !voidReason" @click="confirmVoid">
-              {{ voiding ? 'Voiding…' : 'Void expense' }}
-            </button>
-          </div>
+          </FormField>
+
+          <FormField :id="fieldId('category')" label="Category" :error="errors.category" v-slot="f">
+            <select
+              :id="f.id"
+              v-model="form.category"
+              required
+              :aria-invalid="f.invalid ? 'true' : undefined"
+              :aria-describedby="f.describedBy"
+            >
+              <option v-for="c in CATEGORIES" :key="c" :value="c">{{ c }}</option>
+            </select>
+          </FormField>
+
+          <FormField :id="fieldId('amount')" label="Amount" :error="errors.amount" :note="amountNote" v-slot="f">
+            <MoneyField
+              :id="f.id"
+              v-model="form.amount"
+              :invalid="f.invalid"
+              :described-by="f.describedBy"
+              @blur="touch('amount')"
+            />
+          </FormField>
+
+          <FormField
+            :id="fieldId('paymentStatus')"
+            label="Payment status"
+            hint="Pending counts as still owed"
+            v-slot="f"
+          >
+            <select :id="f.id" v-model="form.paymentStatus" :aria-describedby="f.describedBy">
+              <option value="Paid">Paid</option>
+              <option value="Pending">Pending</option>
+            </select>
+          </FormField>
+
+          <FormField
+            :id="fieldId('relatedPackage')"
+            label="Related package or operation"
+            optional
+            wide
+            hint="Pick a package name to keep its costs together in Reports"
+            v-slot="f"
+          >
+            <input
+              :id="f.id"
+              v-model.trim="form.relatedPackage"
+              maxlength="120"
+              list="expense-related"
+              autocomplete="off"
+              :aria-describedby="f.describedBy"
+            />
+            <datalist id="expense-related">
+              <option v-for="name in relatedNames" :key="name" :value="name"></option>
+            </datalist>
+          </FormField>
+
+          <FormField :id="fieldId('notes')" label="Notes" optional wide v-slot="f">
+            <input
+              :id="f.id"
+              v-model.trim="form.notes"
+              maxlength="240"
+              placeholder="Supplier, receipt number, what it was for"
+              :aria-describedby="f.describedBy"
+            />
+          </FormField>
         </div>
 
-        <fieldset class="form-fieldset" :disabled="!!editingExpense?.voided">
-          <legend class="visually-hidden">Expense details</legend>
-          <div class="form-grid">
-            <label v-if="editing" class="account-field field-wide">
-              <span>Expense number</span>
-              <input :value="form.id" type="text" readonly />
-            </label>
-            <label class="account-field">
-              <span>Date</span>
-              <input v-model="form.date" type="date" />
-            </label>
-            <label class="account-field">
-              <span>Category</span>
-              <select v-model="form.category">
-                <option v-for="c in CATEGORIES" :key="c">{{ c }}</option>
-              </select>
-            </label>
-            <label class="account-field">
-              <span>Amount</span>
-              <MoneyField v-model="form.amount" />
-            </label>
-            <label class="account-field">
-              <span>Payment status</span>
-              <select v-model="form.paymentStatus">
-                <option>Paid</option>
-                <option>Pending</option>
-              </select>
-            </label>
-            <label class="account-field field-wide">
-              <span>Related package or operation</span>
-              <input v-model.trim="form.relatedPackage" maxlength="120" />
-            </label>
-            <label class="account-field field-wide">
-              <span>Notes</span>
-              <input v-model.trim="form.notes" maxlength="240" />
-            </label>
-          </div>
-        </fieldset>
-
-        <RecordHistory
-          v-if="editing && canSeeHistory"
-          class="form-history"
-          entity-type="Expense"
-          :code="originalCode"
-          :version="historyVersion"
-        />
-
-        <template #footer>
-          <template v-if="editingExpense?.voided">
-            <button class="secondary-button" type="button" :disabled="restoring" @click="showForm = false">Close</button>
-            <button class="primary-button" type="button" :disabled="restoring" @click="restoreExpense">
-              <UiIcon name="restore" />
-              {{ restoring ? 'Restoring…' : 'Restore expense' }}
-            </button>
-          </template>
-          <template v-else>
-            <button
-              v-if="editing"
-              class="table-link danger-link"
-              type="button"
-              :disabled="saving || askVoid"
-              @click="startVoid"
-            >Void expense</button>
-            <span class="footer-spacer"></span>
-            <button class="secondary-button" type="button" :disabled="saving" @click="showForm = false">Cancel</button>
-            <button class="primary-button" type="button" :disabled="saving" @click="save">
-              {{ saving ? 'Saving…' : editing ? 'Save changes' : 'Save expense' }}
-            </button>
-          </template>
+        <template #footer="{ requestClose }">
+          <button class="secondary-button" type="button" :disabled="saving" @click="requestClose">Cancel</button>
+          <button class="primary-button" type="button" :disabled="saving" @click="save">
+            {{ saving ? 'Saving…' : editing ? 'Save changes' : 'Save expense' }}
+          </button>
         </template>
       </Drawer>
 
@@ -181,6 +185,15 @@
               <option v-for="option in sortOptions" :key="option.key" :value="option.key">{{ option.label }}</option>
             </select>
           </label>
+          <button
+            v-if="stacked"
+            type="button"
+            class="filter-chip select-toggle"
+            :aria-pressed="selecting"
+            @click="toggleSelecting"
+          >
+            {{ selecting ? 'Done selecting' : 'Select' }}
+          </button>
         </div>
 
         <div v-if="categoryTotals.length" class="category-split">
@@ -236,7 +249,17 @@
                 <span>{{ count(section.summary.count) }} {{ section.summary.count === 1 ? 'expense' : 'expenses' }} · {{ peso(section.summary.total) }}</span>
               </li>
               <li v-for="e in section.items" :key="e.id">
-                <button class="record-item" :class="{ 'is-voided': e.voided }" type="button" @click="openEdit(e)">
+                <button
+                  class="record-item"
+                  :class="{ 'is-voided': e.voided, selectable: selecting, 'is-selected': selected.has(e.id) }"
+                  type="button"
+                  :aria-pressed="selecting ? selected.has(e.id) : undefined"
+                  :disabled="selecting && e.voided"
+                  @click="selecting ? toggle(e) : openDetail(e)"
+                >
+                  <span v-if="selecting" class="record-check" aria-hidden="true">
+                    <UiIcon v-if="selected.has(e.id)" name="check" :stroke-width="2.6" />
+                  </span>
                   <span class="record-item-top">
                     <span class="record-item-title">{{ e.category }}</span>
                     <span class="record-item-figure">{{ peso(e.amount) }}</span>
@@ -255,6 +278,16 @@
             <table class="dss-table records-table expenses-table">
               <thead>
                 <tr>
+                  <th scope="col" class="select-cell">
+                    <input
+                      type="checkbox"
+                      :checked="allShownSelected"
+                      :indeterminate.prop="someShownSelected && !allShownSelected"
+                      :disabled="selectableShown.length === 0"
+                      :aria-label="`Select all ${selectableShown.length} expenses shown`"
+                      @change="toggleAllShown"
+                    />
+                  </th>
                   <SortHeader label="Date" field="date" :sort="filters.sort" @sort="sortBy" />
                   <th scope="col">Expense</th>
                   <th scope="col">Related to</th>
@@ -265,7 +298,7 @@
               </thead>
               <tbody v-for="section in sections" :key="section.key">
                 <tr v-if="section.label && section.summary" class="month-row">
-                  <th scope="rowgroup" colspan="4">
+                  <th scope="rowgroup" colspan="5">
                     {{ section.label }}
                     <span class="month-count">· {{ count(section.summary.count) }} {{ section.summary.count === 1 ? 'expense' : 'expenses' }}</span>
                   </th>
@@ -278,12 +311,21 @@
                   v-for="e in section.items"
                   :key="e.id"
                   class="record-row"
-                  :class="{ 'is-voided': e.voided }"
-                  @click="openEdit(e)"
+                  :class="{ 'is-voided': e.voided, 'is-selected': selected.has(e.id) }"
+                  @click="openDetail(e)"
                 >
+                  <td class="select-cell" @click.stop>
+                    <input
+                      type="checkbox"
+                      :checked="selected.has(e.id)"
+                      :disabled="e.voided"
+                      :aria-label="`Select expense ${e.id}, ${e.category}, ${peso(e.amount)}`"
+                      @click="onCheck(e, $event)"
+                    />
+                  </td>
                   <td class="cell-date">{{ dateLabel(e.date) }}</td>
                   <td>
-                    <button class="row-open" type="button" @click.stop="openEdit(e)">{{ e.category }}</button>
+                    <button class="row-open" type="button" @click.stop="openDetail(e)">{{ e.category }}</button>
                     <span class="row-subtext">
                       {{ e.id }}<span v-if="e.voided" class="voided-tag" :title="e.voidReason ?? ''">Voided</span>
                     </span>
@@ -305,6 +347,18 @@
             @more="loadMore"
             @all="showAll"
           />
+
+          <SelectionBar :count="selected.size" :detail="selectionDetail" @clear="clearSelection">
+            <button
+              class="primary-button compact-button"
+              type="button"
+              :disabled="bulkBusy || selectedPending.length === 0"
+              @click="bulkMarkPaid"
+            >
+              <UiIcon name="wallet" />
+              {{ bulkBusy ? 'Saving…' : selectedPending.length ? `Mark ${selectedPending.length} as paid` : 'All paid' }}
+            </button>
+          </SelectionBar>
         </template>
 
         <div v-else class="records-empty">
@@ -318,7 +372,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppShell from '../components/AppShell.vue';
 import Drawer from '../components/Drawer.vue';
@@ -326,22 +380,27 @@ import Skeleton from '../components/Skeleton.vue';
 import EmptyState from '../components/EmptyState.vue';
 import SearchField from '../components/SearchField.vue';
 import ListFooter from '../components/ListFooter.vue';
+import SelectionBar from '../components/SelectionBar.vue';
 import PeriodSelect from '../components/PeriodSelect.vue';
-import RecordHistory from '../components/RecordHistory.vue';
 import SortHeader from '../components/SortHeader.vue';
 import UiIcon from '../components/UiIcon.vue';
 import MoneyField from '../components/MoneyField.vue';
+import FormField from '../components/FormField.vue';
+import FormProblems from '../components/FormProblems.vue';
+import ExpenseDetail, { type ExpenseBusy } from '../components/ExpenseDetail.vue';
 import SpendingGuide from '../components/forecast/SpendingGuide.vue';
 import { usePaged } from '../composables/usePaged';
-import { useToast } from '../composables/useToast';
+import { undoAction, useToast } from '../composables/useToast';
 import { useMediaQuery } from '../composables/useMediaQuery';
 import { useQueryState } from '../composables/useQueryState';
+import { useFieldErrors } from '../composables/useFieldErrors';
 import { useAuth } from '../stores/auth';
 import { canAccess } from '../nav';
 import { api, ApiError, type ExpenseRow, type ExpenseInput } from '../api';
 import { count, peso, pesoCompact, stateLabel } from '../format';
 import { describeRange, formatDate, formatDay, inRange, isIsoDate, isPeriodKey, resolvePeriod, type PeriodKey } from '../periods';
 import { monthSections, nextSort, singleSection, sortParts, type SortDirection } from '../listing';
+import { isAfter, nextCode, suggestions } from '../records';
 
 const PAGE = 50;
 const CATEGORIES = ['Tour operations', 'Marketing', 'Seasonal cost', 'Overhead'];
@@ -355,6 +414,7 @@ const router = useRouter();
 const { state: auth } = useAuth();
 
 const expenses = ref<ExpenseRow[]>([]);
+const packageNames = ref<string[]>([]);
 const loading = ref(true);
 const showForm = ref(false);
 const saving = ref(false);
@@ -364,22 +424,11 @@ const originalCode = ref('');
 const historyVersion = ref(0);
 const canSeeHistory = computed(() => canAccess(auth.user?.role, '/reports'));
 
-const askVoid = ref(false);
-const voidReason = ref('');
-const voidError = ref('');
-const voiding = ref(false);
-const restoring = ref(false);
-const voidPanel = ref<HTMLElement | null>(null);
-const reasonInput = ref<HTMLInputElement | null>(null);
-
 const businessToday = ref('');
 const businessDateError = 'Could not load the business date. Refresh and try again.';
 const form = reactive<ExpenseInput>(emptyForm());
 
 const drawerTitle = computed(() => (editing.value ? 'Edit expense' : 'New expense'));
-const editingExpense = computed(() =>
-  editing.value ? expenses.value.find((e) => e.id === originalCode.value) ?? null : null,
-);
 
 // ----- Filters, kept in the address -----
 
@@ -566,7 +615,284 @@ function badge(value: string): string {
   return 'status-' + value.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 }
 
+function toInput(e: ExpenseRow): ExpenseInput {
+  return {
+    id: e.id,
+    date: e.date,
+    category: e.category,
+    amount: e.amount,
+    relatedPackage: e.relatedPackage,
+    paymentStatus: e.paymentStatus,
+    notes: e.notes ?? '',
+  };
+}
+
+/** Whether a record is still as a change left it; an undo never overwrites someone else's edit. */
+function unchangedSince(after: ExpenseRow): boolean {
+  const now = expenses.value.find((e) => e.id === after.id);
+  return !!now && JSON.stringify(toInput(now)) === JSON.stringify(toInput(after)) && !!now.voided === !!after.voided;
+}
+
+// ----- Selecting several expenses -----
+
+const selected = reactive(new Set<string>());
+const selecting = ref(false);
+const bulkBusy = ref(false);
+let lastChecked: string | null = null;
+
+const selectableShown = computed(() => visible.value.filter((e) => !e.voided));
+const allShownSelected = computed(() => selectableShown.value.length > 0 && selectableShown.value.every((e) => selected.has(e.id)));
+const someShownSelected = computed(() => selectableShown.value.some((e) => selected.has(e.id)));
+const selectedExpenses = computed(() => expenses.value.filter((e) => selected.has(e.id) && !e.voided));
+const selectedPending = computed(() => selectedExpenses.value.filter((e) => e.paymentStatus !== 'Paid'));
+const selectionDetail = computed(() => `${peso(selectedExpenses.value.reduce((sum, e) => sum + e.amount, 0))} in all`);
+
+function toggle(e: ExpenseRow) {
+  if (e.voided) return;
+  if (selected.has(e.id)) selected.delete(e.id);
+  else selected.add(e.id);
+  lastChecked = e.id;
+}
+
+/** Shift-click selects every expense between the last one ticked and this one. */
+function onCheck(e: ExpenseRow, event: MouseEvent) {
+  const order = visible.value;
+  const from = lastChecked ? order.findIndex((item) => item.id === lastChecked) : -1;
+  const to = order.findIndex((item) => item.id === e.id);
+  if (event.shiftKey && from >= 0 && to >= 0) {
+    const turnOn = !selected.has(e.id);
+    for (const item of order.slice(Math.min(from, to), Math.max(from, to) + 1)) {
+      if (item.voided) continue;
+      if (turnOn) selected.add(item.id);
+      else selected.delete(item.id);
+    }
+    lastChecked = e.id;
+    return;
+  }
+  toggle(e);
+}
+
+function toggleAllShown() {
+  if (allShownSelected.value) for (const e of selectableShown.value) selected.delete(e.id);
+  else for (const e of selectableShown.value) selected.add(e.id);
+}
+
+function clearSelection() {
+  selected.clear();
+  lastChecked = null;
+}
+
+function toggleSelecting() {
+  selecting.value = !selecting.value;
+  if (!selecting.value) clearSelection();
+}
+
+// A filter that hides an expense also lets go of it, so nothing unseen is changed.
+watch(matching, (list) => {
+  const still = new Set(list.map((e) => e.id));
+  for (const id of [...selected]) if (!still.has(id)) selected.delete(id);
+});
+
+/** Marks each selected pending expense as paid, one at a time, and says plainly if any failed. */
+async function bulkMarkPaid() {
+  if (bulkBusy.value) return;
+  const targets = selectedPending.value.map((e) => ({ ...e }));
+  if (targets.length === 0) return;
+  bulkBusy.value = true;
+  const done: { before: ExpenseRow; after: ExpenseRow }[] = [];
+  const failed: string[] = [];
+  for (const e of targets) {
+    try {
+      done.push({ before: e, after: await api.updateExpense(e.id, { ...toInput(e), paymentStatus: 'Paid' }) });
+    } catch {
+      failed.push(e.id);
+    }
+  }
+  await load(false);
+  historyVersion.value += 1;
+  clearSelection();
+  selecting.value = false;
+  bulkBusy.value = false;
+  if (done.length > 0) {
+    const noun = done.length === 1 ? 'expense' : 'expenses';
+    toast.success(`${done.length} ${noun} marked as paid`, {
+      action: undoAction(async () => {
+        for (const step of done) await undoTo(step.before, step.after, '', true);
+        await load(false);
+        historyVersion.value += 1;
+        toast.success(`${done.length} ${noun} pending again`);
+      }),
+    });
+  }
+  if (failed.length > 0) {
+    toast.error(`Could not mark ${failed.join(', ')} as paid. Check the connection, then try again.`);
+  }
+}
+
+// ----- The expense panel -----
+
+const detailOpen = ref(false);
+const detailCode = ref<string | null>(null);
+const detailExpense = computed(() => expenses.value.find((e) => e.id === detailCode.value) ?? null);
+const detailBusy = ref<ExpenseBusy>('');
+const detailVoidError = ref('');
+const detailActionError = ref('');
+// Set when the form was opened from an expense's panel, so closing the form goes back to it.
+const returnToDetail = ref(false);
+
+function openDetail(e: ExpenseRow) {
+  detailCode.value = e.id;
+  detailVoidError.value = '';
+  detailActionError.value = '';
+  detailOpen.value = true;
+}
+
+function editFromDetail() {
+  const e = detailExpense.value;
+  if (!e) return;
+  detailOpen.value = false;
+  openEdit(e);
+  returnToDetail.value = true;
+}
+
+async function undoTo(before: ExpenseRow, after: ExpenseRow, done: string, quiet = false) {
+  if (!(await load(false)) || !unchangedSince(after)) {
+    toast.error(`Expense ${before.id} changed after that, so the change could not be undone. Open it to change it by hand.`);
+    return;
+  }
+  try {
+    if (!!before.voided !== !!after.voided) {
+      if (before.voided) await api.voidExpense(before.id, before.voidReason || 'Voided again after a restore');
+      else await api.restoreExpense(before.id);
+    } else {
+      await api.updateExpense(before.id, toInput(before));
+    }
+    if (quiet) return;
+    await load(false);
+    historyVersion.value += 1;
+    toast.success(done);
+  } catch (e) {
+    await load(false);
+    toast.error(e instanceof ApiError ? Object.values(e.fields)[0] ?? e.message : 'Could not undo the change. Check the connection, then change the expense by hand.');
+  }
+}
+
+async function markPaidFromDetail() {
+  const e = detailExpense.value;
+  if (!e || detailBusy.value) return;
+  detailBusy.value = 'paid';
+  detailActionError.value = '';
+  const before = { ...e };
+  try {
+    const after = await api.updateExpense(e.id, { ...toInput(e), paymentStatus: 'Paid' });
+    await load(false);
+    historyVersion.value += 1;
+    toast.success(`Expense ${e.id} marked as paid`, {
+      action: undoAction(() => undoTo(before, after, `Expense ${e.id} is pending again`)),
+    });
+  } catch (err) {
+    detailActionError.value = err instanceof ApiError ? Object.values(err.fields)[0] ?? err.message : 'Could not update the expense. Check the connection, then try again.';
+  } finally {
+    detailBusy.value = '';
+  }
+}
+
+async function voidFromDetail(reason: string) {
+  const e = detailExpense.value;
+  if (!e || detailBusy.value || !reason) return;
+  detailBusy.value = 'void';
+  detailVoidError.value = '';
+  const before = { ...e };
+  try {
+    const after = await api.voidExpense(e.id, reason);
+    await load(false);
+    historyVersion.value += 1;
+    toast.success(`Expense ${e.id} voided`, {
+      action: undoAction(() => undoTo(before, after, `Expense ${e.id} restored`)),
+    });
+  } catch (err) {
+    detailVoidError.value = err instanceof ApiError ? Object.values(err.fields)[0] ?? err.message : 'Could not void the expense. Check the connection, then try again.';
+  } finally {
+    detailBusy.value = '';
+  }
+}
+
+async function restoreFromDetail() {
+  const e = detailExpense.value;
+  if (!e || detailBusy.value) return;
+  detailBusy.value = 'restore';
+  detailActionError.value = '';
+  const before = { ...e };
+  try {
+    const after = await api.restoreExpense(e.id);
+    await load(false);
+    historyVersion.value += 1;
+    toast.success(`Expense ${e.id} restored`, {
+      action: undoAction(() => undoTo(before, after, `Expense ${e.id} voided again`)),
+    });
+  } catch (err) {
+    detailActionError.value = err instanceof ApiError ? Object.values(err.fields)[0] ?? err.message : 'Could not restore the expense. Check the connection, then try again.';
+  } finally {
+    detailBusy.value = '';
+  }
+}
+
 // ----- The expense form -----
+
+const FIELD_LABELS = {
+  date: 'Date',
+  category: 'Category',
+  amount: 'Amount',
+  paymentStatus: 'Payment status',
+  relatedPackage: 'Related package or operation',
+  notes: 'Notes',
+} as const;
+type ExpenseField = keyof typeof FIELD_LABELS;
+
+const openedSnapshot = ref('');
+
+const {
+  errors,
+  attempted,
+  problems,
+  touch,
+  recheck,
+  validateAll,
+  placeServerErrors,
+  reset: resetFieldErrors,
+  fieldId,
+  focusField,
+} = useFieldErrors<ExpenseField>('expense', FIELD_LABELS, {
+  date: () => (form.date ? '' : 'Choose the date of the expense.'),
+  category: () => (form.category ? '' : 'Choose a category.'),
+  amount: () => (Number.isFinite(form.amount) && form.amount > 0 ? '' : 'Enter the amount spent, more than ₱0.'),
+});
+
+watch(form, recheck);
+
+const dateNote = computed(() =>
+  isAfter(form.date, businessToday.value) ? 'This is after today. Check the date, or record it when it is paid.' : '',
+);
+
+/** An amount far above this category's usual is worth a second look before it skews Reports. */
+const amountNote = computed(() => {
+  const amounts = expenses.value
+    .filter((e) => !e.voided && e.category === form.category && e.id !== originalCode.value)
+    .map((e) => e.amount)
+    .sort((a, b) => a - b);
+  if (amounts.length < 8 || form.amount <= 0) return '';
+  const middle = amounts[Math.floor(amounts.length / 2)];
+  if (middle <= 0 || form.amount < middle * 10) return '';
+  return `${peso(form.amount)} is more than ten times the usual ${form.category.toLowerCase()} expense (about ${peso(middle)}). Check for a stray digit.`;
+});
+
+const relatedNames = computed(() => suggestions([...packageNames.value, ...expenses.value.map((e) => e.relatedPackage)]));
+
+function snapshotForm(): string {
+  return JSON.stringify({ ...form });
+}
+
+const formDirty = computed(() => showForm.value && snapshotForm() !== openedSnapshot.value);
 
 function emptyForm(): ExpenseInput {
   return {
@@ -580,12 +906,6 @@ function emptyForm(): ExpenseInput {
   };
 }
 
-function resetVoid() {
-  askVoid.value = false;
-  voidReason.value = '';
-  voidError.value = '';
-}
-
 function openForm() {
   if (!businessToday.value) {
     formError.value = businessDateError;
@@ -593,79 +913,31 @@ function openForm() {
     return;
   }
   Object.assign(form, emptyForm());
-  form.id = 'EXP-' + (3100 + expenses.value.length + 1);
+  form.id = nextCode('EXP', expenses.value.map((e) => e.id), 3101);
   editing.value = false;
   originalCode.value = '';
   formError.value = '';
-  resetVoid();
+  resetFieldErrors();
+  returnToDetail.value = false;
+  detailOpen.value = false;
+  openedSnapshot.value = snapshotForm();
   showForm.value = true;
 }
 
 function openEdit(expense: ExpenseRow) {
-  Object.assign(form, {
-    id: expense.id,
-    date: expense.date,
-    category: expense.category,
-    amount: expense.amount,
-    relatedPackage: expense.relatedPackage,
-    paymentStatus: expense.paymentStatus,
-    notes: expense.notes ?? '',
-  });
+  Object.assign(form, toInput(expense));
   editing.value = true;
   originalCode.value = expense.id;
   formError.value = '';
-  resetVoid();
+  resetFieldErrors();
+  openedSnapshot.value = snapshotForm();
   showForm.value = true;
 }
 
-async function startVoid() {
-  askVoid.value = true;
-  voidError.value = '';
-  await nextTick();
-  voidPanel.value?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  reasonInput.value?.focus();
-}
-
-async function confirmVoid() {
-  if (voiding.value || !voidReason.value) return;
-  voiding.value = true;
-  voidError.value = '';
-  try {
-    await api.voidExpense(originalCode.value, voidReason.value);
-    await load(false);
-    historyVersion.value += 1;
-    resetVoid();
-    toast.success('Expense ' + originalCode.value + ' voided');
-  } catch (e) {
-    voidError.value = e instanceof ApiError ? Object.values(e.fields)[0] ?? e.message : 'Could not void the expense.';
-  } finally {
-    voiding.value = false;
-  }
-}
-
-async function restoreExpense() {
-  if (restoring.value) return;
-  restoring.value = true;
-  formError.value = '';
-  try {
-    await api.restoreExpense(originalCode.value);
-    await load(false);
-    historyVersion.value += 1;
-    toast.success('Expense ' + originalCode.value + ' restored');
-  } catch (e) {
-    formError.value = e instanceof ApiError ? Object.values(e.fields)[0] ?? e.message : 'Could not restore the expense.';
-  } finally {
-    restoring.value = false;
-  }
-}
-
-function validate(): string {
-  if (!form.date) return 'Please choose the date of this expense.';
-  if (!form.category) return 'Please choose a category.';
-  if (typeof form.amount !== 'number' || Number.isNaN(form.amount) || form.amount < 0) {
-    return 'Please enter an amount of zero or more.';
-  }
-  return '';
+function closeForm() {
+  showForm.value = false;
+  if (returnToDetail.value && detailExpense.value) detailOpen.value = true;
+  returnToDetail.value = false;
 }
 
 async function load(showErrorToast = true): Promise<boolean> {
@@ -685,30 +957,61 @@ async function load(showErrorToast = true): Promise<boolean> {
   }
 }
 
+/** Package names for the related-package suggestions; the form works without them. */
+async function loadPackageNames() {
+  try {
+    packageNames.value = (await api.packages()).map((p) => p.packageName);
+  } catch {
+    packageNames.value = [];
+  }
+}
+
 async function save() {
   if (saving.value) return;
-  const problem = validate();
-  if (problem) {
-    formError.value = problem;
+  formError.value = '';
+  const found = validateAll();
+  if (found.length > 0) {
+    void focusField(found[0].key);
     return;
   }
-  formError.value = '';
+
   saving.value = true;
-  const savedId = form.id;
+  const wasEditing = editing.value;
+  const before = wasEditing ? expenses.value.find((e) => e.id === originalCode.value) ?? null : null;
   try {
-    if (editing.value) {
-      await api.updateExpense(originalCode.value, { ...form });
-    } else {
-      await api.createExpense({ ...form });
-    }
+    const saved = wasEditing
+      ? await api.updateExpense(originalCode.value, { ...form })
+      : await api.createExpense({ ...form });
     await load();
     historyVersion.value += 1;
     showForm.value = false;
-    toast.success('Expense ' + savedId + ' saved');
+    if (wasEditing && before) {
+      const snapshot = { ...before };
+      toast.success(`Expense ${saved.id} saved`, {
+        action: undoAction(() => undoTo(snapshot, saved, `Expense ${saved.id} is back as it was`)),
+      });
+      detailCode.value = saved.id;
+      if (returnToDetail.value) detailOpen.value = true;
+    } else {
+      toast.success(`Expense ${saved.id} saved`, {
+        action: {
+          label: 'Open',
+          run: () => {
+            detailCode.value = saved.id;
+            detailOpen.value = true;
+          },
+        },
+      });
+    }
+    returnToDetail.value = false;
   } catch (e) {
-    const message = e instanceof ApiError ? Object.values(e.fields)[0] ?? e.message : 'Could not save the expense.';
-    formError.value = message;
-    toast.error(message);
+    if (e instanceof ApiError) {
+      const unplaced = placeServerErrors(e.fields, {});
+      if (problems.value.length > 0) void focusField(problems.value[0].key);
+      formError.value = unplaced[0] ?? (problems.value.length > 0 ? '' : e.message);
+    } else {
+      formError.value = 'Could not reach the server, so nothing was saved. Your entries are still here; check the connection and save again.';
+    }
   } finally {
     saving.value = false;
   }
@@ -723,59 +1026,35 @@ async function retryLoad() {
   if (!(await load())) loadError.value = true;
 }
 
+/** A link such as /expenses?open=EXP-3104 (from search or another page) opens that expense. */
+function openFromAddress() {
+  const code = typeof route.query.open === 'string' ? route.query.open : '';
+  if (!code) return;
+  const found = expenses.value.find((e) => e.id.toLowerCase() === code.toLowerCase());
+  if (found) openDetail(found);
+  void router.replace({ query: { ...route.query, open: undefined } });
+}
+
 onMounted(async () => {
+  void loadPackageNames();
   if (!(await load())) {
     loadError.value = true;
     return;
   }
+  openFromAddress();
   // Home's "Add an expense" arrives with ?new=1; open the form once the business date is known.
   if (route.query.new === '1') {
     openForm();
     void router.replace({ query: { ...route.query, new: undefined } });
   }
 });
+
+watch(() => route.query.open, (value) => {
+  if (value && !loading.value) openFromAddress();
+});
 </script>
 
 <style scoped>
-.form-fieldset {
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-
-.form-history {
-  margin-top: 28px;
-  padding-top: 20px;
-  border-top: 1px solid var(--color-border-subtle);
-}
-
-.voided-notice {
-  display: flex;
-  gap: 12px;
-  margin-bottom: var(--space-4);
-  padding: 12px 14px;
-  border: 1px solid var(--tone-danger-border);
-  border-radius: var(--radius-md);
-  background: var(--tone-danger-surface);
-  color: var(--tone-danger-ink);
-  font-size: var(--text-sm);
-  line-height: 1.5;
-}
-
-.voided-notice-icon {
-  margin-top: 2px;
-  font-size: 18px;
-}
-
-.voided-notice-title {
-  font-weight: 600;
-}
-
-.void-panel {
-  margin-bottom: var(--space-4);
-}
-
 /* Where the money goes: one bar split by category, and the same categories as filters. */
 .category-split {
   display: grid;
