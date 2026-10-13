@@ -234,6 +234,8 @@ test('The forecast leads Home and follows into the record pages', async (t) => {
     assert.ok(text.includes('Peak December 2026'), text);
     await pulse.click();
     await page.waitForURL('**/home');
+    await page.locator('.overview-tool').waitFor();
+    assert.equal(await page.locator('.forecast-pulse').count(), 0, 'Home is the forecast itself, so the sidebar does not repeat it');
     await page.close();
   });
 

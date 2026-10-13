@@ -40,7 +40,8 @@
         </RouterLink>
       </nav>
 
-      <ForecastPulse />
+      <!-- Home is the forecast itself; elsewhere the sidebar keeps this month's figure in view. -->
+      <ForecastPulse v-if="route.path !== '/home'" />
 
       <footer class="sidebar-account">
         <div class="sheet-heading">
