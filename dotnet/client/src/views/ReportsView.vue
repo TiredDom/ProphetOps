@@ -773,7 +773,8 @@ onMounted(load);
 }
 
 .report-foot {
-  max-width: 90ch;
+  /* Inter's average letter is narrower than the 0 that "ch" measures, so 60ch holds about 75. */
+  max-width: 60ch;
   color: var(--color-text-muted);
   font-size: var(--text-sm);
   line-height: 1.5;

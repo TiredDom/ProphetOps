@@ -122,7 +122,6 @@
           @toggle="onDetailsToggle"
         >
           <summary class="details-summary">
-            <span class="details-mark" aria-hidden="true"><UiIcon name="table" /></span>
             <span class="details-summary-text">
               <span class="panel-heading">Monthly figures and model details</span>
               <span class="details-summary-meta">{{ detailsRange }}</span>
@@ -406,9 +405,8 @@ onMounted(load);
   flex-wrap: wrap;
   align-items: flex-start;
   gap: 6px 10px;
-  padding: 10px 14px;
-  border: 1px solid var(--tone-warning-border);
-  border-radius: var(--radius-md);
+  padding: 10px 24px;
+  border-bottom: 1px solid var(--tone-warning-border);
   background: var(--tone-warning-surface);
   color: var(--tone-warning-ink);
   font-size: var(--text-sm);
@@ -437,6 +435,10 @@ onMounted(load);
 }
 
 @media (max-width: 760px) {
+  .forecast-gap {
+    padding: 10px 14px;
+  }
+
   .forecast-headline {
     font-size: 20px;
   }
@@ -548,18 +550,6 @@ onMounted(load);
   margin-bottom: 8px;
   border-bottom: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-}
-
-.details-mark {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-md);
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
-  font-size: 18px;
 }
 
 .details-summary-text {
@@ -685,7 +675,7 @@ onMounted(load);
     order: 3;
     flex-basis: 100%;
     justify-content: flex-start;
-    padding-left: 50px;
+    padding-left: 0;
   }
 
   .chart-placeholder {

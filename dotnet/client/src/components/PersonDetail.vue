@@ -168,7 +168,8 @@ function badge(value: string): string {
 }
 
 .person-avatar-large.suspended {
-  background: var(--color-text-faint);
+  /* Greyed out, with initials still legible at 4.5:1 or more. */
+  background: var(--color-text-muted);
 }
 
 .person-you {

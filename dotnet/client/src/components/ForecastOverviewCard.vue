@@ -462,9 +462,7 @@
             </div>
             <div class="range-labels-row">
               <span class="range-lbl-lower">{{ short(rec.evidence.lower) }}</span>
-              <span class="range-lbl-current" :style="{ left: rangeDotPosition(rec.evidence) }">
-                {{ short(rec.evidence.value) }}
-              </span>
+              <span class="range-lbl-current" :style="{ left: rangeDotPosition(rec.evidence) }">forecast</span>
               <span class="range-lbl-upper">{{ short(rec.evidence.upper) }}</span>
             </div>
           </div>
@@ -838,7 +836,7 @@ onMounted(async () => {
 }
 
 .overview-notice {
-  padding: 16px 24px 0;
+  padding: 0;
 }
 
 .overview-chart-section {
@@ -935,37 +933,35 @@ onMounted(async () => {
 /* History Segmented Toggle Controls */
 .history-toggle-group {
   display: inline-flex;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  background: var(--color-surface);
-  padding: 2px;
-  gap: 2px;
+  gap: 6px;
 }
 
 .history-toggle-btn {
-  min-height: 40px;
-  padding: 0 16px;
-  border: none;
-  background: transparent;
-  font-size: 14px;
-  font-weight: 400;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  border-radius: 4px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s ease, color 0.15s ease;
-  letter-spacing: 0;
+  min-height: 32px;
+  padding: 0 13px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
 }
 
 .history-toggle-btn:hover {
+  border-color: var(--color-text-faint);
   background: var(--color-surface-hover);
+  color: var(--color-text-primary);
 }
 
 .history-toggle-btn.active {
+  border-color: var(--color-primary);
   background: var(--color-primary-soft);
-  color: var(--color-primary);
+  color: var(--color-primary-active);
   font-weight: 600;
 }
 
@@ -1104,7 +1100,7 @@ onMounted(async () => {
   gap: 8px;
   margin: 0;
   color: var(--color-model-ink);
-  font-size: var(--text-md);
+  font-size: 18px;
   font-weight: 650;
 }
 
@@ -1207,7 +1203,7 @@ onMounted(async () => {
 
 .rec-action-heading {
   margin: 0;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
   color: var(--color-text-primary);
   line-height: 1.3;
@@ -1386,7 +1382,7 @@ onMounted(async () => {
   }
 
   .overview-notice {
-    padding: 14px 14px 0;
+    padding: 0;
   }
 
   .overview-header-row {
@@ -1407,7 +1403,7 @@ onMounted(async () => {
 
   .history-toggle-btn {
     flex: 1;
-    min-height: 44px;
+    min-height: 40px;
   }
 
   .overview-legend-row {
@@ -1428,8 +1424,9 @@ onMounted(async () => {
     width: 100%;
   }
 
+  .rec-section-title,
   .rec-action-heading {
-    font-size: 18px;
+    font-size: var(--text-md);
   }
 
   .rec-section-head {

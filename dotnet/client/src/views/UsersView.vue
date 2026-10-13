@@ -746,7 +746,8 @@ watch(() => route.query.open, (value) => {
 }
 
 .person.suspended .person-avatar {
-  background: var(--color-text-faint);
+  /* Greyed out, with initials still legible at 4.5:1 or more. */
+  background: var(--color-text-muted);
 }
 
 .person-main {
