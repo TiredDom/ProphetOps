@@ -428,15 +428,6 @@
               <option v-for="option in sortOptions" :key="option.key" :value="option.key">{{ option.label }}</option>
             </select>
           </label>
-          <button
-            v-if="stacked"
-            type="button"
-            class="filter-chip select-toggle"
-            :aria-pressed="selecting"
-            @click="toggleSelecting"
-          >
-            {{ selecting ? 'Done selecting' : 'Select' }}
-          </button>
         </div>
 
         <div class="records-filters" role="group" aria-label="Filter by payment">
@@ -474,6 +465,9 @@
           </span>
           <span class="summary-scope">{{ scopeText }}</span>
           <button v-if="isFiltered" class="table-link" type="button" @click="clearFilters">Clear filters</button>
+          <button v-if="stacked" class="table-link" type="button" @click="toggleSelecting">
+            {{ selecting ? 'Done' : 'Select' }}<span class="visually-hidden"> bookings</span>
+          </button>
         </p>
 
         <template v-if="matching.length">

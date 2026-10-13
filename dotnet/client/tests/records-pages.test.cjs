@@ -271,6 +271,13 @@ test('Bookings, Packages and Expenses lists', async (t) => {
         assert.equal(await page.locator('.records-table').count(), 0, `${path} at ${width}px uses the stacked list`);
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
         assert.ok(overflow <= 0, `${path} at ${width}px scrolls sideways by ${overflow}px`);
+        // The title, search and account button share the first row; the page's actions come after.
+        const rows = await page.evaluate(() => {
+          const top = (selector) => Math.round(document.querySelector(selector).getBoundingClientRect().top);
+          return { title: top('.page-title'), search: top('.header-search'), account: top('.account-button'), actions: top('.page-actions') };
+        });
+        assert.ok(Math.abs(rows.account - rows.title) < 24 && Math.abs(rows.search - rows.title) < 24, `${path} at ${width}px keeps the header on one row: ${JSON.stringify(rows)}`);
+        assert.ok(rows.actions > rows.title + 24, `${path} at ${width}px puts the actions on their own row`);
       }
 
       await page.goto(`${BASE_URL}/bookings`);

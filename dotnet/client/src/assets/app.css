@@ -1281,6 +1281,10 @@ html {
     padding: 0 2px;
 }
 
+.records-summary .table-link + .table-link {
+    margin-left: 14px;
+}
+
 .load-error {
     display: grid;
     justify-items: start;
@@ -2597,19 +2601,20 @@ input[type='checkbox']:focus-visible {
     }
 }
 
-/* On phones, with more than one action, the buttons drop to their own row: the overflow menu
-   keeps its width and the main action takes the rest. */
+/* On phones the page's actions take a row of their own, after the title, search and the
+   account button: the title is never cut short, and the overflow menu keeps its width while the
+   main action takes the rest. */
 @media (max-width: 640px) {
-    .page-actions:has(> :nth-child(2)) {
-        order: 4;
+    .page-actions {
+        order: 5;
         flex: 1 1 100%;
     }
 
-    .page-actions:has(> :nth-child(2)) > * {
+    .page-actions > * {
         flex: 1 1 0;
     }
 
-    .page-actions:has(> :nth-child(2)) > .action-menu {
+    .page-actions > .action-menu {
         flex: 0 0 auto;
     }
 }
