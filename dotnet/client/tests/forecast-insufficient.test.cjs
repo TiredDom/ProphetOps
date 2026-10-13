@@ -95,6 +95,7 @@ const mockActivity = [
 // Every page that renders Home needs these answered; individual tests override the forecast.
 async function routeHome(page, forecast, dashboard = mockInsufficientDashboard) {
   await page.route('**/api/auth/me', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockUser) }));
+  await page.route('**/api/app/config', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ today: '2026-10-13', timeZone: 'Asia/Manila' }) }));
   await page.route('**/api/dashboard', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(dashboard) }));
   await page.route('**/api/forecast', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(forecast) }));
   await page.route('**/api/activity**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockActivity) }));

@@ -219,6 +219,13 @@
         </template>
       </Drawer>
 
+      <OutlookStrip
+        v-if="!loading && packages.length"
+        :low-count="lowPackages.length"
+        :low-active="lowOnly"
+        @show-low="filters.stock = 'low'"
+      />
+
       <div v-if="loading" class="content-panel">
         <Skeleton :rows="8" />
       </div>
@@ -375,6 +382,7 @@ import RecordHistory from '../components/RecordHistory.vue';
 import SortHeader from '../components/SortHeader.vue';
 import UiIcon from '../components/UiIcon.vue';
 import MoneyField from '../components/MoneyField.vue';
+import OutlookStrip from '../components/forecast/OutlookStrip.vue';
 import { usePaged } from '../composables/usePaged';
 import { useToast } from '../composables/useToast';
 import { useMediaQuery } from '../composables/useMediaQuery';

@@ -50,6 +50,15 @@
     --color-danger-ink: #94170F;
     --color-info: #16346B;
 
+    /* Model output: the Holt-Winters forecast and what it suggests. Teal, the colour of the
+       forecast line, so a figure from the model never reads as a recorded one. */
+    --color-model: #13796C;
+    --color-model-ink: #0E5F55;
+    --color-model-soft: #EAF4F0;
+    --color-model-band: #C6E0D6;
+    --color-model-border: #BCD7CC;
+    --color-model-on-shell: #86D9C5;
+
     /* Semantic tints (used sparingly — rules and washes) */
     --tint-primary: rgba(22, 52, 107, 0.08);
     --tint-success: rgba(18, 128, 91, 0.1);
@@ -3264,6 +3273,43 @@ meter::-webkit-meter-even-less-good-value {
     gap: 2px;
 }
 
+.login-aside-tagline {
+    max-width: 22ch;
+    margin-top: 28px;
+    color: #FFFFFF;
+    font-size: var(--text-xl);
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    line-height: 1.25;
+}
+
+.login-aside-points {
+    display: grid;
+    gap: 12px;
+    max-width: 36ch;
+    margin: 24px 0 0;
+    padding: 0;
+    list-style: none;
+    color: #C3D0E6;
+    font-size: var(--text-base);
+    line-height: 1.5;
+}
+
+.login-aside-points li {
+    position: relative;
+    padding-left: 22px;
+}
+
+/* A short dashed stroke, the forecast line's own mark, in place of a bullet. */
+.login-aside-points li::before {
+    content: '';
+    position: absolute;
+    top: 0.72em;
+    left: 0;
+    width: 12px;
+    border-top: 2px dashed var(--color-model-on-shell);
+}
+
 .login-aside-foot {
     color: var(--color-shell-muted);
     font-size: 12px;
@@ -3520,7 +3566,8 @@ input[type='checkbox']:focus-visible {
         justify-content: center;
     }
 
-    .login-aside-foot {
+    .login-aside-foot,
+    .login-aside-points {
         display: none;
     }
 

@@ -101,6 +101,8 @@ async function routeRecords(page, user = owner) {
   const json = (body) => ({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
   await page.route('**/api/auth/me', (route) => route.fulfill(json(user)));
   await page.route('**/api/app/config', (route) => route.fulfill(json({ today: '2026-10-13', timeZone: 'Asia/Manila' })));
+  // These tests are about the lists; the forecast bands have their own suite.
+  await page.route('**/api/forecast', (route) => route.fulfill({ status: 404, contentType: 'application/json', body: '{}' }));
   await page.route('**/api/bookings', (route) => route.fulfill(json({ bookings, packages: packages.map((p) => ({ ...p })) })));
   await page.route('**/api/inventory', (route) => route.fulfill(json(packages)));
   await page.route('**/api/expenses', (route) => route.fulfill(json(expenses)));

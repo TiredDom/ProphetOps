@@ -122,6 +122,12 @@
         </template>
       </Drawer>
 
+      <SpendingGuide
+        v-if="!loading && expenses.length"
+        :active-from="periodKey === 'custom' ? filters.from : ''"
+        @show-month="showMonth"
+      />
+
       <div v-if="loading" class="content-panel">
         <Skeleton :rows="8" />
       </div>
@@ -320,6 +326,7 @@ import RecordHistory from '../components/RecordHistory.vue';
 import SortHeader from '../components/SortHeader.vue';
 import UiIcon from '../components/UiIcon.vue';
 import MoneyField from '../components/MoneyField.vue';
+import SpendingGuide from '../components/forecast/SpendingGuide.vue';
 import { usePaged } from '../composables/usePaged';
 import { useToast } from '../composables/useToast';
 import { useMediaQuery } from '../composables/useMediaQuery';
@@ -528,6 +535,14 @@ const scopeText = computed(() => {
 
 function sortBy(field: string) {
   filters.sort = nextSort(filters.sort, field, firstDirection[field] ?? 'desc');
+}
+
+/** Shows one month of spending, as the forecast band's buttons ask for. */
+function showMonth(from: string, to: string) {
+  filters.period = 'custom';
+  filters.from = from;
+  filters.to = to;
+  filters.category = '';
 }
 
 function clearFilters() {

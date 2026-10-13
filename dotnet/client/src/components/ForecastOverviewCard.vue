@@ -1,11 +1,46 @@
 <template>
   <section class="overview-tool" aria-label="Forecast overview">
+    <!-- The model's summary: what made it, and what it says -->
+    <div class="overview-brief">
+      <div class="overview-title-group">
+        <span class="overview-mark" aria-hidden="true"><UiIcon name="forecast" :stroke-width="2" /></span>
+        <div class="overview-title-text">
+          <h2 class="overview-title">{{ title }}</h2>
+          <p v-if="subtitle" class="overview-subtitle">{{ subtitle }}</p>
+        </div>
+      </div>
+      <div v-if="$slots.lead" class="overview-lead">
+        <slot name="lead" />
+      </div>
+    </div>
+
+    <div v-if="$slots.notice" class="overview-notice">
+      <slot name="notice" />
+    </div>
+
     <!-- Top Section: White Chart -->
     <div ref="chartBox" class="overview-chart-section forecast-chart">
-      <!-- Header Row: Title & Segmented Controls -->
+      <!-- Chart toolbar: legend, then the monthly figures link and the history range -->
       <div class="overview-header-row">
-        <div class="overview-title-group">
-          <h2 class="overview-title">{{ title }}</h2>
+        <div class="overview-legend-row" aria-label="Chart legend">
+          <div class="legend-item">
+            <svg class="legend-swatch-line" width="24" height="14" aria-hidden="true">
+              <line x1="0" y1="7" x2="24" y2="7" stroke="#233e69" stroke-width="2.5" />
+              <circle cx="12" cy="7" r="2.5" fill="#233e69" />
+            </svg>
+            <span>{{ isNarrow ? 'Recorded' : 'Recorded revenue' }}</span>
+          </div>
+          <div class="legend-item">
+            <svg class="legend-swatch-line" width="24" height="14" aria-hidden="true">
+              <line x1="0" y1="7" x2="24" y2="7" stroke="#13796c" stroke-width="2.5" stroke-dasharray="5 4" />
+              <circle cx="12" cy="7" r="2.5" fill="#ffffff" stroke="#13796c" stroke-width="1.5" />
+            </svg>
+            <span>{{ isNarrow ? 'Forecast' : 'Forecast revenue' }}</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-swatch-band" aria-hidden="true"></span>
+            <span>80% prediction range</span>
+          </div>
         </div>
         <div class="overview-header-actions">
           <a
@@ -39,27 +74,6 @@
         </div>
       </div>
 
-      <!-- Legend Row -->
-      <div class="overview-legend-row" aria-label="Chart legend">
-        <div class="legend-item">
-          <svg class="legend-swatch-line" width="24" height="14" aria-hidden="true">
-            <line x1="0" y1="7" x2="24" y2="7" stroke="#233e69" stroke-width="2.5" />
-            <circle cx="12" cy="7" r="2.5" fill="#233e69" />
-          </svg>
-          <span>{{ isNarrow ? 'Recorded' : 'Recorded revenue' }}</span>
-        </div>
-        <div class="legend-item">
-          <svg class="legend-swatch-line" width="24" height="14" aria-hidden="true">
-            <line x1="0" y1="7" x2="24" y2="7" stroke="#13796c" stroke-width="2.5" stroke-dasharray="5 4" />
-            <circle cx="12" cy="7" r="2.5" fill="#ffffff" stroke="#13796c" stroke-width="1.5" />
-          </svg>
-          <span>{{ isNarrow ? 'Forecast' : 'Forecast revenue' }}</span>
-        </div>
-        <div class="legend-item">
-          <span class="legend-swatch-band" aria-hidden="true"></span>
-          <span>80% prediction range</span>
-        </div>
-      </div>
 
       <!-- Responsive SVG Plot -->
       <div v-if="chartModel" class="overview-plot-wrapper">
@@ -337,16 +351,22 @@
       <!-- Concise Source & Honest Model Provenance Footers -->
       <div class="overview-footer-meta">
         <span class="overview-meta-item">{{ sourceNote }}</span>
-        <span class="overview-meta-item">{{ modelInfoNote }}</span>
       </div>
     </div>
 
-    <!-- Bottom Section: Lightly Tinted Green Recommendations Area (#edf3ef) -->
+    <!-- Bottom Section: the decisions the forecast points to, each with its evidence -->
     <div
       v-if="showRecommendations && recommendations.length"
       class="overview-recommendations-section"
-      aria-label="Action recommendations"
+      :aria-labelledby="`${idPrefix}-decisions-title`"
     >
+      <div class="rec-section-head">
+        <h3 :id="`${idPrefix}-decisions-title`" class="rec-section-title">
+          Decisions to review
+          <span class="rec-section-count">{{ recommendations.length }}</span>
+        </h3>
+        <p class="rec-section-note">Suggested from the forecast. Select one to see its months on the chart. The decision is yours.</p>
+      </div>
       <div
         v-for="rec in recommendations"
         :key="rec.id"
@@ -355,16 +375,19 @@
           selected: selectedRecId === rec.id,
           [`rec-kind-${rec.kind}`]: true
         }"
-        role="button"
-        tabindex="0"
-        :aria-pressed="selectedRecId === rec.id"
-        :aria-label="`${rec.action}. Highlight related forecast months.`"
         @click="toggleRec(rec.id)"
-        @keydown.enter.space.prevent="toggleRec(rec.id)"
       >
         <!-- Left: Action Heading and Finding with Indicator Triangle -->
         <div class="rec-main-col">
-          <h3 class="rec-action-heading">{{ rec.action }}</h3>
+          <h4 class="rec-action-heading">
+            <button
+              type="button"
+              class="rec-toggle"
+              :aria-pressed="selectedRecId === rec.id"
+              :aria-describedby="`${idPrefix}-finding-${rec.id}`"
+              @click.stop="toggleRec(rec.id)"
+            >{{ rec.action }}</button>
+          </h4>
           <div class="rec-finding-line">
             <svg class="rec-triangle-svg" width="16" height="14" viewBox="0 0 16 14" aria-hidden="true">
               <!-- Increase: Green Up Triangle -->
@@ -378,8 +401,17 @@
                 <circle cx="8" cy="11" r="0.9" fill="#ffffff" />
               </g>
             </svg>
-            <span class="rec-finding-text" :class="`finding-kind-${rec.kind}`">{{ rec.finding }}</span>
+            <span :id="`${idPrefix}-finding-${rec.id}`" class="rec-finding-text" :class="`finding-kind-${rec.kind}`">{{ rec.finding }}</span>
           </div>
+          <RouterLink
+            v-if="nextStep(rec)"
+            class="rec-next"
+            :to="nextStep(rec)!.to"
+            @click.stop
+          >
+            {{ nextStep(rec)!.label }}
+            <UiIcon name="arrow-right" />
+          </RouterLink>
         </div>
 
         <!-- Right / Stacking: Evidence Mini-Visual -->
@@ -433,6 +465,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue';
+import type { RouteLocationRaw } from 'vue-router';
 import { api, type ForecastData } from '../api';
 import { useContentWidth } from '../composables/useContentWidth';
 import {
@@ -440,6 +473,7 @@ import {
   buildForecastDecisions,
   formatConcisePeso,
   type ComparisonEvidence,
+  type DecisionRecommendation,
   type RangeEvidence,
 } from '../forecastChart';
 import { peso } from '../format';
@@ -451,14 +485,20 @@ export interface ForecastOverviewCardProps {
   /** Id of the element holding the monthly figures; shows a link to it when set. */
   detailsTarget?: string;
   title?: string;
+  /** How the forecast was made, under the title. */
+  subtitle?: string;
   idPrefix?: string;
+  /** Where to act on a decision: a page that holds its evidence. */
+  decisionLink?: (rec: DecisionRecommendation) => { to: RouteLocationRaw; label: string } | null;
 }
 
 const props = withDefaults(defineProps<ForecastOverviewCardProps>(), {
   showRecommendations: true,
   detailsTarget: '',
   title: 'Overview',
+  subtitle: '',
   idPrefix: 'foc',
+  decisionLink: undefined,
 });
 
 const emit = defineEmits<{ details: [] }>();
@@ -486,6 +526,10 @@ const expenseMap = ref<Record<string, MonthExpenses>>({});
 function setHistoryMonths(count: 6 | 12) {
   historyMonths.value = count;
   clearActiveMonth();
+}
+
+function nextStep(rec: DecisionRecommendation) {
+  return props.decisionLink ? props.decisionLink(rec) : null;
 }
 
 function toggleRec(recId: string) {
@@ -670,10 +714,6 @@ const sourceNote = computed(() => {
   return 'Live booking revenue forecast.';
 });
 
-const modelInfoNote = computed(() => {
-  return 'Holt-Winters triple exponential smoothing · 6-month outlook (₱) · ~80% prediction interval';
-});
-
 async function loadSafeExpenses() {
   if (!props.data?.ok || !props.data.dataSource?.usingLiveRecords) {
     expenseMap.value = {};
@@ -728,8 +768,34 @@ onMounted(async () => {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
+/* Navy, like the sidebar, so the model's summary reads as its own voice; its figures are teal. */
+.overview-brief {
+  display: grid;
+  gap: 18px;
+  padding: 24px 28px 26px;
+  background: var(--color-shell);
+  color: #FFFFFF;
+}
+
+.overview-brief .overview-mark {
+  background: rgba(134, 217, 197, 0.14);
+  color: var(--color-model-on-shell);
+}
+
+.overview-brief .overview-title {
+  color: #FFFFFF;
+}
+
+.overview-brief .overview-subtitle {
+  color: var(--color-shell-muted);
+}
+
+.overview-notice {
+  padding: 16px 24px 0;
+}
+
 .overview-chart-section {
-  padding: 24px 24px 16px;
+  padding: 20px 24px 16px;
   background: #ffffff;
 }
 
@@ -744,7 +810,27 @@ onMounted(async () => {
 .overview-title-group {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* The forecast's mark: the same teal as the forecast line, wherever model output appears. */
+.overview-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-lg);
+  background: var(--color-model-soft);
+  color: var(--color-model);
+  font-size: 24px;
+}
+
+.overview-title-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
 }
 
 .overview-title {
@@ -752,7 +838,17 @@ onMounted(async () => {
   font-size: 22px;
   font-weight: 600;
   color: #26323d;
-  letter-spacing: 0;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.overview-subtitle {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.overview-lead {
+  min-width: 0;
 }
 
 .overview-header-actions {
@@ -823,12 +919,15 @@ onMounted(async () => {
 .overview-legend-row {
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 10px 24px;
   flex-wrap: wrap;
-  margin: 12px 0 16px;
   font-size: 13.5px;
   color: #26323d;
   letter-spacing: 0;
+}
+
+.overview-header-row + .overview-plot-wrapper {
+  margin-top: 16px;
 }
 
 .legend-item {
@@ -890,7 +989,88 @@ onMounted(async () => {
 .overview-recommendations-section {
   background: #edf3ef;
   border-top: 1px solid #c7d4ce;
-  padding: 4px 0;
+  padding: 0 0 4px;
+}
+
+.rec-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 20px;
+  padding: 18px 24px 12px 28px;
+  border-bottom: 1px solid #c7d4ce;
+}
+
+.rec-section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--color-model-ink);
+  font-size: var(--text-md);
+  font-weight: 650;
+}
+
+.rec-section-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: var(--radius-pill);
+  background: var(--color-model);
+  color: #FFFFFF;
+  font-size: var(--text-xs);
+  font-weight: 650;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.rec-section-note {
+  color: #3f5a52;
+  font-size: var(--text-sm);
+}
+
+.rec-toggle {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rec-toggle:focus-visible {
+  outline: 2px solid var(--color-model);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
+}
+
+.rec-next {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 6px;
+  margin-top: 2px;
+  color: var(--color-model-ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.rec-next:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.rec-next .ui-icon {
+  font-size: 15px;
+  transition: transform var(--transition-fast);
+}
+
+.rec-next:hover .ui-icon {
+  transform: translateX(2px);
 }
 
 .rec-row {
@@ -920,10 +1100,6 @@ onMounted(async () => {
   box-shadow: inset 0 0 0 2px #13796c;
 }
 
-.rec-row:focus-visible {
-  outline: 2px solid #456a60;
-  outline-offset: -2px;
-}
 
 .rec-main-col {
   flex: 1;
@@ -1104,6 +1280,15 @@ onMounted(async () => {
     padding: 16px 14px 12px;
   }
 
+  .overview-brief {
+    gap: 14px;
+    padding: 18px 16px 20px;
+  }
+
+  .overview-notice {
+    padding: 14px 14px 0;
+  }
+
   .overview-header-row {
     flex-direction: column;
     align-items: flex-start;
@@ -1145,6 +1330,16 @@ onMounted(async () => {
 
   .rec-action-heading {
     font-size: 18px;
+  }
+
+  .rec-section-head {
+    padding: 14px 14px 10px;
+  }
+
+  .overview-mark {
+    width: 40px;
+    height: 40px;
+    font-size: 22px;
   }
 
   .rec-evidence-col {

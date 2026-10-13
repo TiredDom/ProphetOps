@@ -45,3 +45,8 @@ export function canAccess(role: string | undefined, path: string): boolean {
   if (!knownPaths.has(path)) return true;
   return allowed(role).includes(path);
 }
+
+/** Owner and Admin can read the forecast; Staff work with bookings and packages only. */
+export function canSeeForecast(role: string | undefined): boolean {
+  return allowed(role).includes('/home');
+}

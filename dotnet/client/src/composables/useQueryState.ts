@@ -1,12 +1,13 @@
 import { onBeforeUnmount, reactive, watch } from 'vue';
-import { onBeforeRouteLeave, useRoute, useRouter, type LocationQueryRaw } from 'vue-router';
+import { onBeforeRouteLeave, useRoute, useRouter, type LocationQuery, type LocationQueryRaw } from 'vue-router';
 
 type Validators<T> = Partial<Record<keyof T, (value: string) => boolean>>;
 
 /**
  * Keeps a list page's filters and sort order in the address, so a filtered list survives a
  * reload and can be bookmarked or sent to someone. Values equal to their default stay out of
- * the address, and anything a validator rejects falls back to the default.
+ * the address, and anything a validator rejects falls back to the default. A link to the same
+ * page with different filters (the sidebar, a band's button) updates the state as well.
  */
 export function useQueryState<T extends Record<string, string>>(defaults: T, validators: Validators<T> = {}): T {
   const route = useRoute();
@@ -15,17 +16,36 @@ export function useQueryState<T extends Record<string, string>>(defaults: T, val
   const keys = Object.keys(defaults) as (keyof T & string)[];
   const state = reactive({ ...defaults }) as T;
 
-  for (const key of keys) {
-    const raw = route.query[key];
-    const value = Array.isArray(raw) ? raw[0] : raw;
-    if (typeof value !== 'string') continue;
-    const accept = validators[key];
-    if (!accept || accept(value)) (state as Record<string, string>)[key] = value;
+  function fromQuery(query: LocationQuery): T {
+    const next = { ...defaults };
+    for (const key of keys) {
+      const raw = query[key];
+      const value = Array.isArray(raw) ? raw[0] : raw;
+      if (typeof value !== 'string') continue;
+      const accept = validators[key];
+      if (!accept || accept(value)) (next as Record<string, string>)[key] = value;
+    }
+    return next;
   }
+
+  function toQuery(values: T): LocationQueryRaw {
+    const query: LocationQueryRaw = {};
+    for (const key of keys) {
+      const value = values[key];
+      if (value && value !== defaults[key]) query[key] = value;
+    }
+    return query;
+  }
+
+  const serialize = (query: LocationQueryRaw | LocationQuery) =>
+    keys.map((key) => `${key}=${String(query[key] ?? '')}`).join('&');
+
+  Object.assign(state, fromQuery(route.query));
 
   // Typing in the search box changes the state on every keystroke. Browsers throttle history
   // updates, so the address catches up once typing pauses.
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let lastWritten = serialize(toQuery(state));
 
   function cancel() {
     if (timer) clearTimeout(timer);
@@ -34,11 +54,8 @@ export function useQueryState<T extends Record<string, string>>(defaults: T, val
 
   function write() {
     timer = undefined;
-    const query: LocationQueryRaw = {};
-    for (const key of keys) {
-      const value = state[key];
-      if (value && value !== defaults[key]) query[key] = value;
-    }
+    const query = toQuery(state);
+    lastWritten = serialize(query);
     void router.replace({ path, query });
   }
 
@@ -47,6 +64,20 @@ export function useQueryState<T extends Record<string, string>>(defaults: T, val
     () => {
       cancel();
       timer = setTimeout(write, 250);
+    },
+  );
+
+  // A change to the address that did not come from here, such as a link to this page with other
+  // filters, becomes the new state. Our own writes are recognised and skipped, so a write that
+  // lands while someone is still typing cannot undo their latest keystrokes.
+  watch(
+    () => route.query,
+    (query) => {
+      if (route.path !== path || serialize(query) === lastWritten) return;
+      cancel();
+      const next = fromQuery(query);
+      lastWritten = serialize(toQuery(next));
+      Object.assign(state, next);
     },
   );
 

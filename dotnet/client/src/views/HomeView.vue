@@ -29,9 +29,29 @@
           :data="forecast"
           :show-recommendations="true"
           details-target="forecast-details"
-          title="Revenue outlook"
+          title="Revenue forecast"
+          :subtitle="forecastBasis"
+          :decision-link="decisionLink"
           @details="openDetails"
-        />
+        >
+          <template #lead>
+            <p class="forecast-headline"><template v-for="(part, index) in headline" :key="index"><strong v-if="part.strong">{{ part.text }}</strong><template v-else>{{ part.text }}</template></template></p>
+            <p class="forecast-subline">
+              About <strong>{{ formatConcisePeso(sixMonthTotal) }}</strong> in booking revenue across {{ forecastMonths }},
+              each month with an 80% range.
+            </p>
+          </template>
+          <template v-if="gap" #notice>
+            <div class="forecast-gap" role="note">
+              <UiIcon name="alert" class="forecast-gap-icon" />
+              <p class="forecast-gap-text">
+                No bookings are recorded for {{ describeMonths(gap) }}, so the forecast works from
+                {{ gap.lastRecorded }}. Record those months to bring it up to date.
+              </p>
+              <RouterLink to="/bookings" class="forecast-gap-link">Open bookings <UiIcon name="arrow-right" /></RouterLink>
+            </div>
+          </template>
+        </ForecastOverviewCard>
 
         <section
           v-else-if="forecast && !forecast.ok"
@@ -117,8 +137,19 @@ import UiIcon from '../components/UiIcon.vue';
 import ActivityFeed from '../components/home/ActivityFeed.vue';
 import AttentionInbox from '../components/home/AttentionInbox.vue';
 import MonthScoreboard from '../components/home/MonthScoreboard.vue';
-import { api, type DashboardData, type ForecastData } from '../api';
+import { api, type DashboardData } from '../api';
 import { pesoCompact } from '../format';
+import { formatConcisePeso, type DecisionRecommendation } from '../forecastChart';
+import {
+  describeMonths,
+  forecastHeadline,
+  forecastSpan,
+  forecastTotal,
+  monthKeyOfLabel,
+  sameMonthLastYear,
+  unrecordedMonths,
+} from '../forecastFacts';
+import { useForecast } from '../composables/useForecast';
 
 const DETAILS_HASH = '#forecast-details';
 
@@ -126,7 +157,8 @@ const route = useRoute();
 const router = useRouter();
 
 const data = ref<DashboardData | null>(null);
-const forecast = ref<ForecastData | null>(null);
+const forecastStore = useForecast();
+const forecast = computed(() => forecastStore.state.data);
 const loading = ref(true);
 const error = ref('');
 const forecastError = ref('');
@@ -142,6 +174,36 @@ const detailsRange = computed(() => {
   const steps = forecast.value?.steps ?? [];
   return steps.length ? `${steps[0].monthLabel} – ${steps[steps.length - 1].monthLabel}` : '';
 });
+
+// Home reads the business date off the month-so-far figures, which end today.
+const today = computed(() => data.value?.thisMonth?.current.to ?? '');
+
+const headline = computed(() => forecastHeadline(forecast.value));
+const sixMonthTotal = computed(() => forecastTotal(forecast.value));
+const forecastMonths = computed(() => forecastSpan(forecast.value));
+const gap = computed(() => unrecordedMonths(forecast.value, today.value));
+
+const forecastBasis = computed(() => {
+  const source = forecast.value?.dataSource;
+  if (!source) return '';
+  if (source.usingSample) return 'Holt-Winters · 6 months ahead · sample series, not recorded bookings';
+  const until = source.lastRecordedMonth ? ` to ${source.lastRecordedMonth}` : '';
+  return `Holt-Winters · 6 months ahead · learned from ${source.liveMonthsAvailable} months of bookings${until}`;
+});
+
+/** Each decision opens the spending for the same month last year, the season the forecast leans on. */
+function decisionLink(rec: DecisionRecommendation) {
+  const steps = forecast.value?.steps ?? [];
+  const stepNumber = rec.stepNumbers[rec.stepNumbers.length - 1];
+  const step = steps.find((s) => s.step === stepNumber);
+  const key = step ? monthKeyOfLabel(step.monthLabel) : null;
+  if (!key) return { to: '/expenses', label: 'Review spending' };
+  const last = sameMonthLastYear(key);
+  return {
+    to: { path: '/expenses', query: { period: 'custom', from: last.from, to: last.to } },
+    label: `See spending in ${last.label}`,
+  };
+}
 
 const peak = computed(() => {
   const steps = forecast.value?.steps ?? [];
@@ -167,12 +229,9 @@ async function openDetails() {
 
 async function loadForecast() {
   forecastError.value = '';
-  try {
-    forecast.value = await api.forecast();
-  } catch (err: unknown) {
-    forecast.value = null;
-    forecastError.value = err instanceof Error ? err.message : 'The forecast could not be loaded.';
-  }
+  // Home always asks for a fresh forecast; the other pages reuse it.
+  const result = await forecastStore.load(true);
+  if (!result) forecastError.value = forecastStore.state.error || 'The forecast could not be loaded.';
 }
 
 /** A change came through the activity feed; bring the counts up to date without a loading state. */
@@ -215,6 +274,80 @@ onMounted(load);
   color: var(--color-text-primary);
   font-size: var(--text-md);
   font-weight: 600;
+}
+
+/* What the forecast says, in a sentence, on the navy band: the figures carry the model's teal. */
+.forecast-headline {
+  max-width: 44ch;
+  color: #FFFFFF;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.016em;
+  line-height: 1.3;
+  text-wrap: pretty;
+}
+
+.forecast-headline strong {
+  color: var(--color-model-on-shell);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.forecast-subline {
+  margin-top: 8px;
+  color: #C3D0E6;
+  font-size: var(--text-base);
+}
+
+.forecast-subline strong {
+  color: #FFFFFF;
+  font-weight: 650;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.forecast-gap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 6px 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--tone-warning-border);
+  border-radius: var(--radius-md);
+  background: var(--tone-warning-surface);
+  color: var(--tone-warning-ink);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.forecast-gap-icon {
+  margin-top: 2px;
+  font-size: 17px;
+}
+
+.forecast-gap-text {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.forecast-gap-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--tone-warning-ink);
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .forecast-headline {
+    font-size: 20px;
+  }
+
+  .forecast-subline {
+    font-size: var(--text-sm);
+  }
 }
 
 .text-link {

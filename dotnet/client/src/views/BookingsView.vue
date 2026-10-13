@@ -221,6 +221,8 @@
         @restore="restoreFromDetail"
       />
 
+      <MonthAgainstForecast v-if="!loading && businessToday" :recorded="monthToDate" :today="businessToday" />
+
       <div v-if="loading" class="content-panel">
         <Skeleton :rows="8" />
       </div>
@@ -404,6 +406,8 @@ import PeriodSelect from '../components/PeriodSelect.vue';
 import SortHeader from '../components/SortHeader.vue';
 import UiIcon from '../components/UiIcon.vue';
 import MoneyField from '../components/MoneyField.vue';
+import MonthAgainstForecast from '../components/forecast/MonthAgainstForecast.vue';
+import { invalidateForecast } from '../composables/useForecast';
 import { usePaged } from '../composables/usePaged';
 import { useToast } from '../composables/useToast';
 import { useMediaQuery } from '../composables/useMediaQuery';
@@ -589,6 +593,15 @@ const activeRevenue = computed(() => active.value.reduce((sum, b) => sum + b.gro
 const unpaidInView = computed(() => active.value.filter(isUnpaid));
 const unpaidValue = computed(() => unpaidInView.value.reduce((sum, b) => sum + b.grossRevenue, 0));
 
+// Booking revenue recorded so far this month, voided bookings left out, for the forecast band.
+const monthToDate = computed(() => {
+  const month = businessToday.value.slice(0, 7);
+  if (!month) return 0;
+  return bookings.value
+    .filter((b) => !b.voided && b.ds.startsWith(month))
+    .reduce((sum, b) => sum + b.grossRevenue, 0);
+});
+
 const sorted = computed(() => {
   const { field, direction } = sortParts(filters.sort);
   const sign = direction === 'asc' ? 1 : -1;
@@ -714,6 +727,7 @@ async function voidFromDetail(reason: string) {
   detailVoidError.value = '';
   try {
     await api.voidBooking(b.id, reason, b.revision);
+    invalidateForecast();
     await load(false);
     historyVersion.value += 1;
     toast.success('Booking ' + b.id + ' voided');
@@ -732,6 +746,7 @@ async function restoreFromDetail() {
   detailActionError.value = '';
   try {
     await api.restoreBooking(b.id, b.revision);
+    invalidateForecast();
     await load(false);
     historyVersion.value += 1;
     toast.success('Booking ' + b.id + ' restored');
@@ -914,6 +929,7 @@ async function commitImport() {
   importError.value = '';
   try {
     const result = await api.importBookingsCommit(file);
+    invalidateForecast();
     await load();
     showImport.value = false;
     toast.success(result.imported + ' booking' + (result.imported === 1 ? '' : 's') + ' imported');
@@ -1061,6 +1077,7 @@ async function save() {
   try {
     if (editing.value) await api.updateBooking(originalCode.value, payload);
     else await api.createBooking(payload);
+    invalidateForecast();
     await load();
     pendingRecovery.value = null;
     confirmUnusual.value = false;

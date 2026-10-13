@@ -34,6 +34,8 @@
         </RouterLink>
       </nav>
 
+      <ForecastPulse />
+
       <footer class="sidebar-account">
         <div class="sheet-heading">
           <h2 id="account-sheet-title">Account</h2>
@@ -118,6 +120,7 @@ import { accountLinksFor, navFor } from '../nav';
 import { useMediaQuery } from '../composables/useMediaQuery';
 import { useModalFocus } from '../composables/useModalFocus';
 import NavIcon from './NavIcon.vue';
+import ForecastPulse from './forecast/ForecastPulse.vue';
 import ToastHost from './ToastHost.vue';
 
 defineProps<{ title: string }>();

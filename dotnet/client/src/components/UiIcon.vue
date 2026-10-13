@@ -93,6 +93,17 @@
       <circle cx="9" cy="10" r="1.6" />
       <path d="M4 17.5 8.5 13l3.5 3 3-2.5 5 4.5" />
     </template>
+    <!-- Recorded line turning into a dashed forecast: the mark for anything the model produced. -->
+    <template v-else-if="name === 'forecast'">
+      <polyline points="3.5 17.5 8 13 11 15 13.5 11.5" />
+      <polyline points="13.5 11.5 16.8 8.2 20.5 6" stroke-dasharray="1.4 2.6" />
+      <circle cx="13.5" cy="11.5" r="1.5" fill="currentColor" stroke="none" />
+    </template>
+    <template v-else-if="name === 'alert'">
+      <path d="M12 4.5 20.5 19h-17Z" />
+      <line x1="12" y1="10" x2="12" y2="13.8" />
+      <circle cx="12" cy="16.4" r="0.9" fill="currentColor" stroke="none" />
+    </template>
     <template v-else-if="name === 'close'">
       <line x1="6.5" y1="6.5" x2="17.5" y2="17.5" />
       <line x1="17.5" y1="6.5" x2="6.5" y2="17.5" />
@@ -129,6 +140,8 @@ export type UiIconName =
   | 'download'
   | 'image'
   | 'close'
+  | 'forecast'
+  | 'alert'
   | 'up'
   | 'down';
 </script>
