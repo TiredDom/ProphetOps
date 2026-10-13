@@ -49,6 +49,15 @@ export interface RecentBooking {
   ds: string;
 }
 
+/** Totals for an inclusive range of business dates (yyyy-MM-dd), voided records excluded. */
+export interface PeriodTotals {
+  from: string;
+  to: string;
+  revenue: number;
+  bookings: number;
+  expenses: number;
+}
+
 export interface DashboardData {
   totalsScope: 'lifetime';
   excludesVoided: true;
@@ -58,6 +67,8 @@ export interface DashboardData {
   bookings: number;
   packages: number;
   expenses: number;
+  /** This month so far, and the same run of days in the previous month. */
+  thisMonth?: { current: PeriodTotals; previous: PeriodTotals };
   forecast: DashboardForecast;
   lowStockPackages: LowStockPackage[];
   pendingPayments: PendingPayments;
@@ -470,10 +481,11 @@ export const api = {
     request<ExpenseRow>('POST', `/api/expenses/${encodeURIComponent(code)}/void`, { reason }),
   restoreExpense: (code: string) =>
     request<ExpenseRow>('POST', `/api/expenses/${encodeURIComponent(code)}/restore`, {}),
-  activity: (entityType?: string, entityCode?: string) => {
+  activity: (entityType?: string, entityCode?: string, take?: number) => {
     const params = new URLSearchParams();
     if (entityType) params.set('entityType', entityType);
     if (entityCode) params.set('entityCode', entityCode);
+    if (take) params.set('take', String(take));
     const query = params.toString();
     return request<ActivityEntry[]>('GET', '/api/activity' + (query ? '?' + query : ''));
   },

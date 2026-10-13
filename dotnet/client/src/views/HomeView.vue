@@ -1,0 +1,455 @@
+<template>
+  <AppShell title="Home">
+    <div class="home-page">
+      <div v-if="loading" class="home-page" aria-busy="true" aria-label="Loading home">
+        <section class="content-panel">
+          <div class="placeholder-block chart-placeholder"></div>
+        </section>
+        <section class="content-panel">
+          <Skeleton :rows="2" />
+        </section>
+        <div class="home-columns">
+          <section class="content-panel"><Skeleton :rows="4" /></section>
+          <section class="content-panel"><Skeleton :rows="4" /></section>
+        </div>
+      </div>
+
+      <section v-else-if="error" class="home-alert" role="alert">
+        <div>
+          <h2 class="home-alert-title">Home could not be loaded</h2>
+          <p class="home-alert-text">{{ error }}</p>
+        </div>
+        <button type="button" class="secondary-button" @click="load">Try again</button>
+      </section>
+
+      <template v-else-if="data">
+        <!-- 1. The forecast and the actions it suggests -->
+        <ForecastOverviewCard
+          v-if="forecast?.ok"
+          :data="forecast"
+          :show-recommendations="true"
+          details-target="forecast-details"
+          title="Revenue outlook"
+          @details="openDetails"
+        />
+
+        <section
+          v-else-if="forecast && !forecast.ok"
+          class="content-panel forecast-unavailable"
+          aria-labelledby="forecast-unavailable-title"
+        >
+          <div class="unavailable-head">
+            <h2 id="forecast-unavailable-title" class="panel-heading">Forecast unavailable</h2>
+            <span class="unavailable-count">{{ forecast.dataSource.recordedMonths }} of {{ forecast.dataSource.minimumMonths }} months recorded</span>
+          </div>
+          <p class="unavailable-text">
+            Holt-Winters needs two full years of monthly booking records to tell the seasonal pattern apart from the
+            trend.
+            <template v-if="monthsNeeded > 0">
+              {{ monthsNeeded }} more {{ monthsNeeded === 1 ? 'month is' : 'months are' }} needed before the forecast can start.
+            </template>
+          </p>
+          <p class="unavailable-note">The forecast covers booking revenue in pesos, not passenger numbers, profit or cash received.</p>
+          <RouterLink to="/bookings" class="text-link">View booking records <UiIcon name="arrow-right" /></RouterLink>
+        </section>
+
+        <section v-else-if="forecastError" class="content-panel forecast-unavailable" aria-labelledby="forecast-error-title">
+          <div class="unavailable-head">
+            <h2 id="forecast-error-title" class="panel-heading">Forecast could not be loaded</h2>
+          </div>
+          <p class="unavailable-text">{{ forecastError }}</p>
+          <div>
+            <button type="button" class="secondary-button" @click="loadForecast">Try again</button>
+          </div>
+        </section>
+
+        <!-- 2. The numbers behind the forecast: closed by default, with a preview of what is inside -->
+        <details
+          v-if="forecast?.ok"
+          id="forecast-details"
+          ref="detailsEl"
+          class="content-panel forecast-details"
+          :open="detailsOpen"
+          @toggle="onDetailsToggle"
+        >
+          <summary class="details-summary">
+            <span class="details-mark" aria-hidden="true"><UiIcon name="table" /></span>
+            <span class="details-summary-text">
+              <span class="panel-heading">Monthly figures and model details</span>
+              <span class="details-summary-meta">{{ detailsRange }}</span>
+            </span>
+            <span class="details-preview">
+              <span v-if="peak" class="details-chip">
+                <span class="details-chip-label">Highest</span> {{ peak.month }} · {{ pesoCompact(peak.value) }}
+              </span>
+              <span v-if="forecast.metrics?.mape != null" class="details-chip">
+                <span class="details-chip-label">Average miss</span> {{ forecast.metrics.mape.toFixed(1) }}%
+              </span>
+            </span>
+            <UiIcon name="chevron-down" class="details-chevron" />
+          </summary>
+          <ForecastDetails :data="forecast" />
+        </details>
+
+        <!-- 3. This month so far against the same days last month -->
+        <MonthScoreboard v-if="data.thisMonth" :month="data.thisMonth" />
+
+        <div class="home-columns">
+          <!-- 4. What needs someone's attention now -->
+          <AttentionInbox :unpaid="data.pendingPayments" :low="data.lowStockPackages" />
+
+          <!-- 5. Who changed what; refreshes on its own and tells Home when something changed -->
+          <ActivityFeed :limit="6" @changed="refreshDashboard" />
+        </div>
+      </template>
+    </div>
+  </AppShell>
+</template>
+
+<script setup lang="ts">
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import AppShell from '../components/AppShell.vue';
+import ForecastDetails from '../components/ForecastDetails.vue';
+import ForecastOverviewCard from '../components/ForecastOverviewCard.vue';
+import Skeleton from '../components/Skeleton.vue';
+import UiIcon from '../components/UiIcon.vue';
+import ActivityFeed from '../components/home/ActivityFeed.vue';
+import AttentionInbox from '../components/home/AttentionInbox.vue';
+import MonthScoreboard from '../components/home/MonthScoreboard.vue';
+import { api, type DashboardData, type ForecastData } from '../api';
+import { pesoCompact } from '../format';
+
+const DETAILS_HASH = '#forecast-details';
+
+const route = useRoute();
+const router = useRouter();
+
+const data = ref<DashboardData | null>(null);
+const forecast = ref<ForecastData | null>(null);
+const loading = ref(true);
+const error = ref('');
+const forecastError = ref('');
+const detailsOpen = ref(false);
+const detailsEl = ref<HTMLDetailsElement | null>(null);
+
+const monthsNeeded = computed(() => {
+  const source = forecast.value?.dataSource;
+  return source ? Math.max(0, source.minimumMonths - source.recordedMonths) : 0;
+});
+
+const detailsRange = computed(() => {
+  const steps = forecast.value?.steps ?? [];
+  return steps.length ? `${steps[0].monthLabel} – ${steps[steps.length - 1].monthLabel}` : '';
+});
+
+const peak = computed(() => {
+  const steps = forecast.value?.steps ?? [];
+  if (steps.length === 0) return null;
+  const top = steps.reduce((best, step) => (step.value > best.value ? step : best), steps[0]);
+  return { month: top.monthLabel.split(' ')[0], value: top.value };
+});
+
+function onDetailsToggle(event: Event) {
+  detailsOpen.value = (event.target as HTMLDetailsElement).open;
+}
+
+async function openDetails() {
+  detailsOpen.value = true;
+  await nextTick();
+  const el = detailsEl.value;
+  if (!el) return;
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+  el.querySelector<HTMLElement>('summary')?.focus({ preventScroll: true });
+  if (route.hash !== DETAILS_HASH) await router.replace({ hash: DETAILS_HASH });
+}
+
+async function loadForecast() {
+  forecastError.value = '';
+  try {
+    forecast.value = await api.forecast();
+  } catch (err: unknown) {
+    forecast.value = null;
+    forecastError.value = err instanceof Error ? err.message : 'The forecast could not be loaded.';
+  }
+}
+
+/** A change came through the activity feed; bring the counts up to date without a loading state. */
+async function refreshDashboard() {
+  try {
+    data.value = await api.dashboard();
+  } catch {
+    // The figures on screen stay as they were; the next change will try again.
+  }
+}
+
+async function load() {
+  loading.value = true;
+  error.value = '';
+  try {
+    const [dashboard] = await Promise.all([api.dashboard(), loadForecast()]);
+    data.value = dashboard;
+  } catch (err: unknown) {
+    error.value = err instanceof Error ? err.message : 'Please check your connection and try again.';
+  } finally {
+    loading.value = false;
+  }
+  if (route.hash === DETAILS_HASH && forecast.value?.ok) await openDetails();
+}
+
+watch(() => route.hash, (hash) => {
+  if (hash === DETAILS_HASH && !detailsOpen.value && forecast.value?.ok) void openDetails();
+});
+
+onMounted(load);
+</script>
+
+<style scoped>
+.home-page {
+  display: grid;
+  gap: 20px;
+}
+
+.panel-heading {
+  color: var(--color-text-primary);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  color: var(--color-primary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.text-link:hover {
+  color: var(--color-primary-hover);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Forecast unavailable or failed */
+.forecast-unavailable {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+}
+
+.unavailable-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+}
+
+.unavailable-count {
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.unavailable-text {
+  max-width: 70ch;
+  color: var(--color-text-secondary);
+  font-size: var(--text-base);
+  line-height: 1.55;
+}
+
+.unavailable-note {
+  max-width: 70ch;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+/* Forecast details: a drawer of figures that says what it holds before it opens */
+.forecast-details {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.forecast-details[open] {
+  padding-bottom: 24px;
+}
+
+.details-summary {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 64px;
+  margin: 0 -24px;
+  padding: 12px 24px;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  list-style: none;
+  transition: background var(--transition-fast);
+}
+
+.details-summary::-webkit-details-marker {
+  display: none;
+}
+
+.details-summary:hover {
+  background: var(--color-surface-hover);
+}
+
+.details-summary:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: -2px;
+}
+
+.forecast-details[open] .details-summary {
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.details-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-size: 18px;
+}
+
+.details-summary-text {
+  display: grid;
+  flex: 1 1 0;
+  gap: 1px;
+  min-width: 0;
+}
+
+.details-summary-meta {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.details-preview {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.details-chip {
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--tone-neutral-surface);
+  color: var(--color-text-primary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  font-variant-numeric: lining-nums tabular-nums;
+  white-space: nowrap;
+}
+
+.details-chip-label {
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.details-chevron {
+  color: var(--color-text-muted);
+  font-size: 20px;
+  transition: transform var(--transition-normal);
+}
+
+.forecast-details[open] .details-chevron {
+  transform: rotate(180deg);
+}
+
+/* Needs attention and recent activity sit side by side on wide screens */
+.home-columns {
+  display: grid;
+  gap: 20px;
+  align-items: start;
+}
+
+/* Load failure */
+.home-alert {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  background: var(--tone-danger-surface);
+  border: 1px solid var(--tone-danger-border);
+  border-radius: var(--radius-lg);
+}
+
+.home-alert-title {
+  color: var(--tone-danger-ink);
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.home-alert-text {
+  margin-top: 2px;
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+}
+
+/* Loading */
+.placeholder-block {
+  border-radius: var(--radius-md);
+  background: linear-gradient(90deg, var(--color-surface-sunken) 0%, var(--color-border-subtle) 50%, var(--color-surface-sunken) 100%);
+  background-size: 200% 100%;
+  animation: placeholder-shimmer 1.4s ease-in-out infinite;
+}
+
+.chart-placeholder {
+  height: 320px;
+}
+
+@keyframes placeholder-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .placeholder-block {
+    animation: none;
+    background: var(--color-surface-sunken);
+  }
+}
+
+@media (min-width: 1100px) {
+  .home-columns {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .details-summary {
+    flex-wrap: wrap;
+    margin: 0 -16px;
+    padding: 12px 16px;
+  }
+
+  .details-preview {
+    order: 3;
+    flex-basis: 100%;
+    justify-content: flex-start;
+    padding-left: 50px;
+  }
+
+  .chart-placeholder {
+    height: 260px;
+  }
+}
+</style>

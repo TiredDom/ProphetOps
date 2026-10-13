@@ -2940,6 +2940,12 @@ input[type='checkbox']:focus-visible {
     }
 }
 
+@media (max-width: 760px) {
+    .content-panel {
+        padding: 16px;
+    }
+}
+
 @media (max-width: 640px) {
     .form-grid {
         grid-template-columns: minmax(0, 1fr);

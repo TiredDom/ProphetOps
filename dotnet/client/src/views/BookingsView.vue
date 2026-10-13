@@ -351,6 +351,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import AppShell from '../components/AppShell.vue';
 import Drawer from '../components/Drawer.vue';
 import Skeleton from '../components/Skeleton.vue';
@@ -407,9 +408,13 @@ const editingVoided = computed(
   () => bookings.value.find((b) => b.id === originalCode.value)?.voided ?? false,
 );
 
+const route = useRoute();
+const router = useRouter();
 const query = ref('');
-const paymentOptions = ['All', 'Paid', 'Partially Paid', 'Pending'];
-const paymentFilter = ref('All');
+// Unpaid matches what Home counts: every active booking that is not fully paid.
+const paymentOptions = ['All', 'Unpaid', 'Paid', 'Partially Paid', 'Pending'];
+const requestedPayment = String(route.query.payment ?? '').toLowerCase();
+const paymentFilter = ref(paymentOptions.find((option) => option.toLowerCase() === requestedPayment) ?? 'All');
 
 const businessToday = ref('');
 const businessDateError = 'Could not load the business date. Refresh and try again.';
@@ -418,16 +423,25 @@ const form = reactive<BookingForm>(blank());
 const totalPassengers = computed(() => bookings.value.reduce((sum, b) => sum + b.y, 0));
 const totalRevenue = computed(() => bookings.value.reduce((sum, b) => sum + b.grossRevenue, 0));
 
+function isUnpaid(b: Booking): boolean {
+  return !b.voided && b.paymentStatus !== 'Paid';
+}
+
 const paymentCounts = computed(() => {
-  const counts: Record<string, number> = { All: bookings.value.length };
-  for (const b of bookings.value) counts[b.paymentStatus] = (counts[b.paymentStatus] ?? 0) + 1;
+  const counts: Record<string, number> = { All: bookings.value.length, Unpaid: 0 };
+  for (const b of bookings.value) {
+    counts[b.paymentStatus] = (counts[b.paymentStatus] ?? 0) + 1;
+    if (isUnpaid(b)) counts.Unpaid += 1;
+  }
   return counts;
 });
 
 const matching = computed(() => {
   const term = query.value.trim().toLowerCase();
   return bookings.value.filter((b) => {
-    if (paymentFilter.value !== 'All' && b.paymentStatus !== paymentFilter.value) return false;
+    if (paymentFilter.value === 'Unpaid') {
+      if (!isUnpaid(b)) return false;
+    } else if (paymentFilter.value !== 'All' && b.paymentStatus !== paymentFilter.value) return false;
     if (!term) return true;
     return [b.client, b.package, b.destination, b.id].some((field) => (field ?? '').toLowerCase().includes(term));
   });
@@ -832,7 +846,14 @@ async function save() {
   }
 }
 
-onMounted(load);
+onMounted(async () => {
+  await load();
+  // Home's "Record a booking" arrives with ?new=1; open the form once the data it needs is in.
+  if (route.query.new === '1') {
+    openForm();
+    void router.replace({ query: { ...route.query, new: undefined } });
+  }
+});
 </script>
 
 <style scoped>

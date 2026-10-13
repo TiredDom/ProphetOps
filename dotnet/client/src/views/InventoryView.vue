@@ -254,7 +254,19 @@
             <span class="catalog-toolbar-title">Every package</span>
             <span class="catalog-toolbar-count">{{ resultLabel }}</span>
           </div>
-          <SearchField v-model="query" placeholder="Search packages or destinations" />
+          <div class="catalog-toolbar-tools">
+            <button
+              type="button"
+              class="filter-toggle"
+              :class="{ active: lowOnly }"
+              :aria-pressed="lowOnly"
+              @click="lowOnly = !lowOnly"
+            >
+              Low on slots
+              <span class="filter-toggle-count">{{ lowPackages.length }}</span>
+            </button>
+            <SearchField v-model="query" placeholder="Search packages or destinations" />
+          </div>
         </div>
 
         <template v-if="filtered.length > 0">
@@ -334,10 +346,10 @@
         <EmptyState
           v-else
           title="No matches"
-          :message="`No packages match “${query.trim()}”. Try a different name, code, or destination.`"
+          :message="emptyMessage"
         >
           <template #action>
-            <button class="secondary-button" type="button" @click="query = ''">Clear search</button>
+            <button class="secondary-button" type="button" @click="clearFilters">Show all packages</button>
           </template>
         </EmptyState>
       </template>
@@ -348,6 +360,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
+import { useRoute } from 'vue-router';
 import AppShell from '../components/AppShell.vue';
 import Drawer from '../components/Drawer.vue';
 import Skeleton from '../components/Skeleton.vue';
@@ -367,6 +380,7 @@ type PackageRecovery =
 
 const toast = useToast();
 
+const route = useRoute();
 const packages = ref<PackageRow[]>([]);
 const loading = ref(true);
 const query = ref('');
@@ -398,10 +412,20 @@ const importable = computed(() => {
 const totalAvailable = computed(() => packages.value.reduce((sum, p) => sum + p.availableSlots, 0));
 const totalSold = computed(() => packages.value.reduce((sum, p) => sum + p.soldCount, 0));
 
+// Same rule as the Home attention list: packages flagged Low or Critical, or, when none are
+// flagged, any package with five or fewer slots.
+const lowPackages = computed(() => {
+  const flagged = packages.value.filter((p) => p.status === 'Low' || p.status === 'Critical');
+  return flagged.length > 0 ? flagged : packages.value.filter((p) => p.availableSlots <= 5);
+});
+
+const lowOnly = ref(route.query.stock === 'low');
+
 const filtered = computed(() => {
   const q = query.value.trim().toLowerCase();
-  if (!q) return packages.value;
-  return packages.value.filter((p) =>
+  const pool = lowOnly.value ? lowPackages.value : packages.value;
+  if (!q) return pool;
+  return pool.filter((p) =>
     p.packageName.toLowerCase().includes(q) ||
     p.id.toLowerCase().includes(q) ||
     (p.destination ?? '').toLowerCase().includes(q)
@@ -412,9 +436,21 @@ const { visible: visiblePackages, total, shown, loadMore, showAll } = usePaged(f
 
 const resultLabel = computed(() => {
   const count = packages.value.length;
-  if (query.value.trim()) return `${filtered.value.length} of ${count} shown`;
+  if (query.value.trim() || lowOnly.value) return `${filtered.value.length} of ${count} shown`;
   return count === 1 ? '1 package' : `${count} packages`;
 });
+
+const emptyMessage = computed(() => {
+  const q = query.value.trim();
+  if (q && lowOnly.value) return `No package low on slots matches “${q}”.`;
+  if (q) return `No packages match “${q}”. Try a different name, code, or destination.`;
+  return 'No packages are low on slots.';
+});
+
+function clearFilters() {
+  query.value = '';
+  lowOnly.value = false;
+}
 
 const fileInput = ref<HTMLInputElement | null>(null);
 const imageBusy = ref(false);
@@ -782,6 +818,68 @@ onMounted(load);
   align-items: baseline;
   gap: var(--space-3);
   min-width: 0;
+}
+
+.catalog-toolbar-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.catalog-toolbar-tools :deep(.search-field) {
+  flex: 0 1 320px;
+  width: 320px;
+}
+
+@media (max-width: 640px) {
+  .catalog-toolbar-tools {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .catalog-toolbar-tools :deep(.search-field) {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+}
+
+.filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.filter-toggle:hover {
+  border-color: var(--color-text-faint);
+  background: var(--color-surface-hover);
+}
+
+.filter-toggle.active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-active);
+  font-weight: 600;
+}
+
+.filter-toggle-count {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.filter-toggle.active .filter-toggle-count {
+  color: var(--color-primary);
 }
 
 .catalog-toolbar-title {

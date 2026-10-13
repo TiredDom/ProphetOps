@@ -192,6 +192,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import AppShell from '../components/AppShell.vue';
 import Drawer from '../components/Drawer.vue';
 import Skeleton from '../components/Skeleton.vue';
@@ -391,7 +392,17 @@ async function save() {
   }
 }
 
-onMounted(load);
+const route = useRoute();
+const router = useRouter();
+
+onMounted(async () => {
+  await load();
+  // Home's "Add an expense" arrives with ?new=1; open the form once the business date is known.
+  if (route.query.new === '1') {
+    openForm();
+    void router.replace({ query: { ...route.query, new: undefined } });
+  }
+});
 </script>
 
 <style scoped>

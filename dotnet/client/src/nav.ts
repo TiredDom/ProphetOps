@@ -17,11 +17,11 @@ const sections: NavItem[] = [
 // Account utilities sit with the signed-in user rather than in the operational navigation.
 const accountLinks: NavItem[] = [{ label: 'Team & access', path: '/team', icon: 'team' }];
 
-// Forecast and Analytics are being folded into Home and Reports. Until then they stay reachable
-// by link for the roles that could open them before, but they are no longer navigation sections.
+// Analytics is being folded into Reports. Until then it stays reachable by link for the roles
+// that could open it before, but it is no longer a navigation section.
 const allowedPaths: Record<string, string[]> = {
-  'Owner / Management': ['/home', '/bookings', '/packages', '/expenses', '/reports', '/team', '/forecast', '/analytics'],
-  Admin: ['/home', '/bookings', '/packages', '/expenses', '/reports', '/forecast', '/analytics'],
+  'Owner / Management': ['/home', '/bookings', '/packages', '/expenses', '/reports', '/team', '/analytics'],
+  Admin: ['/home', '/bookings', '/packages', '/expenses', '/reports', '/analytics'],
   Staff: ['/bookings', '/packages'],
 };
 

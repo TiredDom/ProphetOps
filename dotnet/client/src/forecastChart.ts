@@ -683,8 +683,15 @@ export function buildOverviewChartModel(params: BuildOverviewChartParams): Overv
     };
   });
 
-  const tickCount = isNarrow ? Math.max(3, Math.floor(plotWidth / 64)) : Math.max(5, Math.floor(plotWidth / 82));
-  const tickIndexes = [...new Set(Array.from({ length: tickCount }, (_, i) => Math.round((i * (totalPoints - 1)) / (tickCount - 1))))];
+  // Month labels sit at a fixed interval counted back from the last forecast month, so the gap
+  // between labels never changes. With a six-month horizon the last recorded month always gets one.
+  const maxTicks = isNarrow ? Math.max(3, Math.floor(plotWidth / 64)) : Math.max(5, Math.floor(plotWidth / 82));
+  const fits = (every: number) => Math.floor((totalPoints - 1) / every) + 1 <= maxTicks;
+  const every = [1, 2, 3, 6, 12].find(fits) ?? Math.ceil(totalPoints / maxTicks);
+  const tickIndexes: number[] = [];
+  for (let idx = totalPoints - 1; idx >= 0; idx -= every) tickIndexes.unshift(idx);
+  // The first month gets a label too when it sits far enough from the next one to stay legible.
+  if (tickIndexes[0] > 0 && tickIndexes[0] >= every * 0.75 && tickIndexes.length < maxTicks) tickIndexes.unshift(0);
   const xTicks = tickIndexes.map((idx) => ({
     index: idx,
     x: entries[idx].x,

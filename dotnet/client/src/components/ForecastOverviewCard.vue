@@ -8,13 +8,14 @@
           <h2 class="overview-title">{{ title }}</h2>
         </div>
         <div class="overview-header-actions">
-          <RouterLink
-            v-if="showForecastLink"
-            to="/forecast"
+          <a
+            v-if="detailsTarget"
+            :href="`#${detailsTarget}`"
             class="compact-action-link view-full-link"
+            @click.prevent="emit('details')"
           >
-            View full forecast <span aria-hidden="true">→</span>
-          </RouterLink>
+            Monthly figures <UiIcon name="arrow-down" />
+          </a>
           <div class="history-toggle-group" role="group" aria-label="Recorded history display range">
             <button
               type="button"
@@ -205,16 +206,17 @@
             >
               {{ lbl.shortMonth }}
             </text>
+            <!-- The year appears under the first label and wherever it changes, not under every month. -->
             <text
-              v-for="lbl in chartModel.xTicks"
+              v-for="(lbl, tickIdx) in chartModel.xTicks"
               :key="`x-yr-${lbl.index}`"
               :x="lbl.x"
               :y="chartModel.plotBottom + 32"
               text-anchor="middle"
-              font-size="11"
+              font-size="12"
               fill="#57616d"
             >
-              {{ lbl.year ?? '' }}
+              {{ tickIdx === 0 || lbl.year !== chartModel.xTicks[tickIdx - 1].year ? (lbl.year ?? '') : '' }}
             </text>
           </g>
 
@@ -441,21 +443,25 @@ import {
   type RangeEvidence,
 } from '../forecastChart';
 import { peso } from '../format';
+import UiIcon from './UiIcon.vue';
 
 export interface ForecastOverviewCardProps {
   data: ForecastData;
   showRecommendations?: boolean;
-  showForecastLink?: boolean;
+  /** Id of the element holding the monthly figures; shows a link to it when set. */
+  detailsTarget?: string;
   title?: string;
   idPrefix?: string;
 }
 
 const props = withDefaults(defineProps<ForecastOverviewCardProps>(), {
   showRecommendations: true,
-  showForecastLink: false,
+  detailsTarget: '',
   title: 'Overview',
   idPrefix: 'foc',
 });
+
+const emit = defineEmits<{ details: [] }>();
 
 const chartBox = ref<HTMLElement | null>(null);
 const { width: chartWidth, attach: attachChart } = useContentWidth(chartBox, 760);
@@ -892,11 +898,10 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   gap: 24px;
-  padding: 20px 24px;
+  padding: 20px 24px 20px 28px;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
   border-bottom: 1px solid #c7d4ce;
-  border-left: 4px solid transparent;
   min-height: 44px;
   letter-spacing: 0;
 }
@@ -909,9 +914,10 @@ onMounted(async () => {
   background: #e1ece5;
 }
 
+/* Selection outlines the whole row rather than marking one edge. */
 .rec-row.selected {
   background: #dce9e2;
-  border-left-color: #13796c;
+  box-shadow: inset 0 0 0 2px #13796c;
 }
 
 .rec-row:focus-visible {

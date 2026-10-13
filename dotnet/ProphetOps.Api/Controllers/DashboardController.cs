@@ -28,10 +28,27 @@ public class DashboardController : ControllerBase
     public IActionResult Get()
     {
         var bookings = _db.Bookings.Where(b => b.VoidedAt == null).ToList();
+        var activeExpenses = _db.Expenses.Where(e => e.VoidedAt == null).ToList();
         var packages = _db.TravelPackages.ToList();
 
         var revenue = bookings.Sum(b => (long)b.GrossRevenue);
-        var costs = _db.Expenses.Where(e => e.VoidedAt == null).Sum(e => (long)e.Amount);
+        var costs = activeExpenses.Sum(e => (long)e.Amount);
+
+        // This month so far against the same run of days last month, so a part-month is never
+        // compared with a whole one. The earlier range is cut short when that month is shorter.
+        var today = _clock.Today;
+        var monthStart = new DateOnly(today.Year, today.Month, 1);
+        var previousStart = monthStart.AddMonths(-1);
+        var previousEnd = previousStart.AddDays(Math.Min(today.Day, DateTime.DaysInMonth(previousStart.Year, previousStart.Month)) - 1);
+
+        object Period(DateOnly from, DateOnly to) => new
+        {
+            from = from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            to = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            revenue = bookings.Where(b => b.BookingDate >= from && b.BookingDate <= to).Sum(b => (long)b.GrossRevenue),
+            bookings = bookings.Count(b => b.BookingDate >= from && b.BookingDate <= to),
+            expenses = activeExpenses.Where(e => e.ExpenseDate >= from && e.ExpenseDate <= to).Sum(e => (long)e.Amount),
+        };
 
         var demand = DemandSeriesBuilder.Build(_db, _clock.Today, AllowSampleFallback());
         var anchor = demand.LastMonth;
@@ -103,7 +120,12 @@ public class DashboardController : ControllerBase
             estimatedProfit = revenue - costs,
             bookings = bookings.Count,
             packages = packages.Count,
-            expenses = _db.Expenses.Count(e => e.VoidedAt == null),
+            expenses = activeExpenses.Count,
+            thisMonth = new
+            {
+                current = Period(monthStart, today),
+                previous = Period(previousStart, previousEnd),
+            },
             forecast = new
             {
                 method = "Holt-Winters",

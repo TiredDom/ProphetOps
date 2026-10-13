@@ -77,11 +77,29 @@ const mockInsufficientDashboard = {
       lastRecordedMonth: 'September 2026'
     }
   },
+  thisMonth: {
+    current: { from: '2026-10-01', to: '2026-10-13', revenue: 1248500, bookings: 12, expenses: 812000 },
+    previous: { from: '2026-09-01', to: '2026-09-13', revenue: 1102000, bookings: 14, expenses: 790000 }
+  },
   lowStockPackages: [],
   pendingPayments: { count: 0, amount: 0 },
   recentBookings: [],
   lastUpdated: 'Oct 2, 2026'
 };
+
+const mockActivity = [
+  { at: '2026-10-12T07:40:00Z', actor: 'owner@prophetops.com', actorName: 'Renan & Tina', action: 'Voided', entityType: 'Booking', entityCode: 'BKG-2597', summary: 'Client cancelled after the airline moved the flight.' },
+  { at: '2026-10-11T02:15:00Z', actor: 'owner@prophetops.com', actorName: 'Renan & Tina', action: 'Created', entityType: 'Expense', entityCode: 'EXP-3190', summary: 'Overhead - PHP 45,000' }
+];
+
+// Every page that renders Home needs these answered; individual tests override the forecast.
+async function routeHome(page, forecast, dashboard = mockInsufficientDashboard) {
+  await page.route('**/api/auth/me', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockUser) }));
+  await page.route('**/api/dashboard', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(dashboard) }));
+  await page.route('**/api/forecast', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(forecast) }));
+  await page.route('**/api/activity**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockActivity) }));
+  await page.route('**/api/expenses', route => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
+}
 
 const mockActiveForecast = {
   method: 'Holt-Winters',
@@ -144,7 +162,7 @@ function waitForServer(url, timeoutMs = 20000) {
   });
 }
 
-test('Forecast & Dashboard Insufficient Data & Mobile UX Test Suite', async (t) => {
+test('Home forecast, insufficient history and mobile UX', async (t) => {
   let serverProcess = null;
   let browser = null;
 
@@ -177,120 +195,83 @@ test('Forecast & Dashboard Insufficient Data & Mobile UX Test Suite', async (t) 
     setTimeout(() => process.exit(process.exitCode || 0), 100);
   });
 
-  await t.test('1. Forecast page with ok:false does NOT render stale insight claims, March 2027, or accuracy figures', async () => {
+  await t.test('1. Home with ok:false shows one truthful status panel and no stale forecast claims', async () => {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-    await page.route('**/api/auth/me', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockUser) }));
-    await page.route('**/api/forecast', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockInsufficientForecastWithStaleNotes) }));
-
-    await page.goto(`${BASE_URL}/forecast`);
-    await page.waitForSelector('.insufficient-full-panel');
-
-    // 1. Must NOT render .forecast-brief or .brief-up/.brief-down
-    const briefCount = await page.locator('.forecast-brief').count();
-    assert.equal(briefCount, 0, 'Must not render .forecast-brief when data.ok is false');
-
-    // 2. Must NOT render .forecast-chart
-    const chartCount = await page.locator('.forecast-chart').count();
-    assert.equal(chartCount, 0, 'Must not render .forecast-chart when data.ok is false');
-
-    // 3. Must NOT render .step-panel
-    const stepCount = await page.locator('.step-panel').count();
-    assert.equal(stepCount, 0, 'Must not render monthly step breakdown when data.ok is false');
-
-    // 4. Must NOT leak stale insight content into the page text
-    const fullText = await page.innerText('body');
-    assert.ok(!fullText.includes('March 2027'), 'Page must not mention March 2027 from stale insight payload');
-    assert.ok(!fullText.includes('trending upward'), 'Page must not mention trend direction from stale insight payload');
-    assert.ok(!fullText.includes('5.8%'), 'Page must not mention accuracy or MAPE metrics from stale insight payload');
-    assert.ok(!fullText.includes('peak seasonal revenue'), 'Page must not render observation notes from stale insight payload');
-    assert.ok(!fullText.includes('heavy seasonal demand'), 'Page must not contain heavy seasonal demand text');
-
-    // 5. Must render clean insufficient panel with accurate month counts and navigation
-    assert.ok(fullText.includes('8 of 24 recorded months'), 'Must show actual recorded-month count vs 24-month requirement');
-    assert.ok(fullText.includes('Not enough history for a revenue forecast'), 'Must show headline requirement');
-    assert.ok(fullText.includes('16 more months needed'), 'Must show remaining months needed');
-
-    const bookingsLink = page.locator('.insufficient-side a[href="/bookings"]');
-    assert.equal(await bookingsLink.count(), 1, 'Must render link to bookings on the right side');
-    const bookingsLinkText = await bookingsLink.innerText();
-    assert.ok(bookingsLinkText.includes('View booking records'), 'Link text must be "View booking records"');
-    assert.ok(!bookingsLinkText.includes('record activity'), 'Must not imply one booking will unlock forecasting');
-    const reportsLink = page.locator('.insufficient-how-it-works a[href="/reports"]');
-    assert.equal(await reportsLink.count(), 1, 'Must render link to reports in technical explanation');
-
-    await page.close();
-  });
-
-  await t.test('2. Dashboard revenue outlook with ok:false is simplified and has no nested box or CTAs', async () => {
-    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-    await page.route('**/api/auth/me', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockUser) }));
-    await page.route('**/api/dashboard', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockInsufficientDashboard) }));
-    await page.route('**/api/forecast', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockInsufficientForecastWithStaleNotes) }));
+    await routeHome(page, mockInsufficientForecastWithStaleNotes);
 
     await page.goto(`${BASE_URL}/home`);
-    await page.waitForSelector('.revenue-unavailable-panel');
+    await page.waitForSelector('.forecast-unavailable');
 
-    // 1. Must render flat .revenue-unavailable-panel
-    const unavailablePanel = page.locator('.revenue-unavailable-panel');
-    assert.equal(await unavailablePanel.count(), 1, 'Must render revenue-unavailable-panel');
+    assert.equal(await page.locator('.forecast-unavailable').count(), 1, 'Exactly one forecast status panel');
+    assert.equal(await page.locator('.forecast-chart').count(), 0, 'No chart when data.ok is false');
+    assert.equal(await page.locator('.step-panel, #forecast-details').count(), 0, 'No monthly breakdown when data.ok is false');
 
-    // 2. Must state forecast unavailable and show recorded count vs 24
-    const panelText = await unavailablePanel.innerText();
-    assert.ok(panelText.includes('Forecast unavailable'), 'Must show short Forecast unavailable heading');
-    assert.ok(panelText.includes('8 of 24 required months'), 'Must show actual recorded-month count vs 24');
+    const fullText = await page.innerText('body');
+    assert.ok(!fullText.includes('March 2027'), 'Must not mention March 2027 from the stale insight payload');
+    assert.ok(!fullText.includes('trending upward'), 'Must not mention a trend from the stale insight payload');
+    assert.ok(!fullText.includes('5.8%'), 'Must not mention accuracy or MAPE figures from the stale payload');
+    assert.ok(!fullText.includes('peak seasonal revenue'), 'Must not render observation notes from the stale payload');
 
-    // 3. Must have exactly one link to forecast requirements
-    const forecastLinks = page.locator('.revenue-panel a[href="/forecast"]');
-    assert.equal(await forecastLinks.count(), 1, 'Must have exactly one link to forecast requirements');
-    const linkText = await forecastLinks.first().innerText();
-    assert.ok(linkText.includes('View forecast requirements'), 'Link text must point to forecast requirements');
+    const panelText = await page.locator('.forecast-unavailable').innerText();
+    assert.ok(panelText.includes('Forecast unavailable'), 'States that the forecast is unavailable');
+    assert.ok(panelText.includes('8 of 24 months recorded'), 'Shows recorded months against the 24-month requirement');
+    assert.ok(panelText.includes('16 more months are needed'), 'Shows how many months are still needed');
+    assert.ok(!panelText.includes('Record bookings'), 'No call to action implying one booking unlocks forecasting');
+    assert.equal(await page.locator('.forecast-unavailable progress, .forecast-unavailable .progress-bar').count(), 0, 'No progress bar');
 
-    // 4. Must NOT have nested gray box, progress bar, or "Record bookings" CTA
-    const nestedBox = await page.locator('.insufficient-data-box').count();
-    assert.equal(nestedBox, 0, 'Must remove .insufficient-data-box');
-    const progressBar = await page.locator('.progress-bar, progress, .insufficient-progress-box, .insufficient-progress-bar').count();
-    assert.equal(progressBar, 0, 'Must remove progress bar from dashboard revenue panel');
-    assert.ok(!panelText.includes('Record bookings'), 'Must remove Record bookings CTA');
+    const bookingsLink = page.locator('.forecast-unavailable a[href="/bookings"]');
+    assert.equal(await bookingsLink.count(), 1, 'Links to the booking records');
+    assert.ok((await bookingsLink.innerText()).includes('View booking records'));
+    assert.equal(await page.locator('a[href="/forecast"]').count(), 0, 'No links to the retired forecast page');
+
+    // The rest of Home still works without a forecast.
+    assert.ok(await page.locator('#month-title').isVisible(), 'This month so far is still shown');
+    assert.ok(await page.locator('#attention-title').isVisible(), 'Needs attention is still shown');
+    assert.equal(await page.locator('.feed-item').count(), mockActivity.length, 'Recent activity lists the log entries');
+    assert.ok((await page.locator('.feed-item').first().innerText()).includes('voided booking BKG-2597'));
+    assert.ok(await page.locator('.live-status').isVisible(), 'Recent activity shows its live status');
 
     await page.close();
   });
 
-  await t.test('3. Mobile dashboard overview leads with recommendations, and forecast page shows breakdown', async () => {
-    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
-    await page.route('**/api/auth/me', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockUser) }));
-    await page.route('**/api/dashboard', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockInsufficientDashboard) }));
-    await page.route('**/api/forecast', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockActiveForecast) }));
-    await page.route('**/api/expenses', route => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
+  await t.test('2. The old /forecast address opens Home with the monthly figures expanded', async () => {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    await routeHome(page, mockActiveForecast);
 
-    // 1. Dashboard: overview tool is the main highlight and leads on mobile
+    await page.goto(`${BASE_URL}/forecast`);
+    await page.waitForURL('**/home#forecast-details');
+    await page.waitForSelector('#forecast-details[open] .step-panel');
+
+    assert.ok(await page.locator('.step-panel').isVisible(), 'Monthly breakdown is visible');
+    const detailsText = await page.locator('#forecast-details').innerText();
+    assert.ok(detailsText.includes('Fit on recorded months'), 'Model figures are labelled as fit on recorded months');
+    assert.ok(!detailsText.includes('Model accuracy'), 'No "Model accuracy" claim');
+    assert.ok(detailsText.includes('not a test on months it has not seen'), 'States the limit of the fit figures');
+
+    await page.close();
+  });
+
+  await t.test('3. Mobile Home leads with the chart and recommendations, and monthly figures open in place', async () => {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await routeHome(page, mockActiveForecast);
+
     await page.goto(`${BASE_URL}/home`);
     await page.waitForSelector('.overview-tool');
     await page.waitForSelector('.forecast-chart');
 
-    const overviewTitle = page.locator('.overview-title');
-    assert.ok(await overviewTitle.isVisible(), 'Overview heading must be visible on mobile dashboard');
-
-    const recHeading = page.locator('.rec-action-heading');
-    assert.ok(await recHeading.first().isVisible(), 'Action recommendation heading must be visible on mobile dashboard');
+    assert.ok(await page.locator('.overview-title').isVisible(), 'Forecast heading is visible on mobile Home');
+    assert.ok(await page.locator('.rec-action-heading').first().isVisible(), 'Recommendation heading is visible on mobile Home');
 
     const chartBox = await page.locator('.forecast-chart').boundingBox();
-    assert.ok(chartBox !== null, 'Chart bounding box must exist on dashboard');
-    assert.ok(chartBox.y < 600, `Chart Y-position (${chartBox.y}px) should appear high up on 844px mobile screen`);
+    assert.ok(chartBox !== null && chartBox.y < 600, `Chart should start high on an 844px screen (y=${chartBox && chartBox.y})`);
 
-    // Verify link to forecast exists in dashboard overview
-    const viewFullLink = page.locator('.overview-header-actions a[href="/forecast"]');
-    assert.equal(await viewFullLink.count(), 1, 'Dashboard overview must include link to full forecast');
-
-    // 2. Forecast page: acts as detailed analysis destination with visible breakdown table
-    await page.goto(`${BASE_URL}/forecast`);
-    await page.waitForSelector('.forecast-chart');
-    await page.waitForSelector('.step-panel');
-
-    const stepPanel = page.locator('.step-panel');
-    assert.ok(await stepPanel.isVisible(), 'Monthly forecast breakdown table must be directly visible on forecast page');
-
-    const insufficientCount = await page.locator('.insufficient-full-panel').count();
-    assert.equal(insufficientCount, 0, 'Must not render insufficient panel when data.ok is true');
+    const detailsLink = page.locator('.overview-header-actions a[href="#forecast-details"]');
+    assert.equal(await detailsLink.count(), 1, 'Forecast card links to the monthly figures');
+    assert.equal(await page.locator('#forecast-details[open]').count(), 0, 'Monthly figures start closed');
+    await detailsLink.click();
+    await page.waitForSelector('#forecast-details[open] .step-panel');
+    assert.ok(await page.locator('.step-panel').isVisible(), 'Monthly breakdown opens in place');
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'Opening the details must not cause sideways scrolling');
 
     await page.close();
   });
@@ -306,6 +287,7 @@ test('Forecast & Dashboard Insufficient Data & Mobile UX Test Suite', async (t) 
     }));
     await page.route('**/api/dashboard', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockInsufficientDashboard) }));
     await page.route('**/api/forecast', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockActiveForecast) }));
+    await page.route('**/api/activity**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockActivity) }));
     await page.route('**/api/expenses', route => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
     await page.route('**/api/auth/logout', route => {
       if (failLogout) return route.fulfill({ status: 503, contentType: 'application/json', body: '{"message":"Unavailable"}' });
@@ -336,12 +318,14 @@ test('Forecast & Dashboard Insufficient Data & Mobile UX Test Suite', async (t) 
       assert.ok(await footer.getByRole('button', { name: 'Log out', exact: true }).isVisible());
       assert.ok(await footer.getByRole('link', { name: 'Team & access' }).isVisible(), 'Owner must reach Team & access from the account area');
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'Page must not overflow horizontally');
-      assert.ok(await page.locator('.dashboard-totals .stat-value').evaluateAll(values => values.every(value => {
+      const figures = page.locator('.score-grid .score-value');
+      assert.equal(await figures.count(), 3, 'This month so far shows three figures');
+      assert.ok(await figures.evaluateAll(values => values.every(value => {
         const range = document.createRange();
         range.selectNodeContents(value);
         return range.getBoundingClientRect().height < parseFloat(getComputedStyle(value).lineHeight) * 1.5;
-      })), 'Dashboard currency totals must stay on one line');
-      if (screenshotDir) await page.screenshot({ path: path.join(screenshotDir, `dashboard-${viewport.width}.png`), fullPage: true });
+      })), 'Currency figures must stay on one line');
+      if (screenshotDir) await page.screenshot({ path: path.join(screenshotDir, `home-${viewport.width}.png`), fullPage: true });
       if (narrow) await page.keyboard.press('Escape');
     }
 
@@ -357,9 +341,9 @@ test('Forecast & Dashboard Insufficient Data & Mobile UX Test Suite', async (t) 
     assert.ok(tooltipBox && chartBox && tooltipBox.x >= chartBox.x && tooltipBox.x + tooltipBox.width <= chartBox.x + chartBox.width + 1, 'Monthly preview must fit inside the chart on mobile');
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(`${BASE_URL}/forecast`);
-    await page.waitForSelector('.step-panel');
-    if (screenshotDir) await page.screenshot({ path: path.join(screenshotDir, 'forecast-390.png'), fullPage: true });
+    await page.goto(`${BASE_URL}/home#forecast-details`);
+    await page.waitForSelector('#forecast-details[open] .step-panel');
+    if (screenshotDir) await page.screenshot({ path: path.join(screenshotDir, 'home-details-390.png'), fullPage: true });
     await page.getByRole('button', { name: 'Account' }).click();
     await page.locator('.sidebar-logout').click();
     await page.waitForSelector('.sidebar-account-error');
