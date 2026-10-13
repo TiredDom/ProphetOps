@@ -33,7 +33,10 @@ router.beforeEach(async (to) => {
   const { state, loadSession } = useAuth();
   if (!state.ready) await loadSession();
 
-  if (!to.meta.public && !state.user) return '/login';
+  // Signing in again goes back to the page that was asked for.
+  if (!to.meta.public && !state.user) {
+    return to.fullPath === '/' || to.path === '/home' ? '/login' : { path: '/login', query: { next: to.fullPath } };
+  }
   if (to.path === '/login' && state.user) return state.user.defaultPath;
   if (!to.meta.public && state.user && !canAccess(state.user.role, to.path)) return state.user.defaultPath;
   return true;

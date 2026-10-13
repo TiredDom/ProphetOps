@@ -15,7 +15,7 @@
           type="date"
           :value="from"
           :max="to || undefined"
-          @change="emit('update:from', ($event.target as HTMLInputElement).value)"
+          @change="setFrom(($event.target as HTMLInputElement).value)"
         />
       </label>
       <label class="period-date">
@@ -24,7 +24,7 @@
           type="date"
           :value="to"
           :min="from || undefined"
-          @change="emit('update:to', ($event.target as HTMLInputElement).value)"
+          @change="setTo(($event.target as HTMLInputElement).value)"
         />
       </label>
     </div>
@@ -41,6 +41,18 @@ const emit = defineEmits<{
   'update:from': [string];
   'update:to': [string];
 }>();
+
+// A range cannot run backwards: a start typed after the end moves the end with it, and the
+// other way round, so the list never goes blank over a slip.
+function setFrom(value: string) {
+  emit('update:from', value);
+  if (value && props.to && value > props.to) emit('update:to', value);
+}
+
+function setTo(value: string) {
+  emit('update:to', value);
+  if (value && props.from && value < props.from) emit('update:from', value);
+}
 
 function choose(value: string) {
   if (!isPeriodKey(value)) return;

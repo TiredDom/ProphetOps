@@ -1570,16 +1570,50 @@ async function commitImport() {
   if (!file || importBusy.value) return;
   importBusy.value = true;
   importError.value = '';
+  const known = new Set(bookings.value.map((b) => b.id));
   try {
     const result = await api.importBookingsCommit(file);
     invalidateForecast();
     await load();
     showImport.value = false;
-    toast.success(result.imported + ' booking' + (result.imported === 1 ? '' : 's') + ' imported');
+    // What the import added, so it can be taken back as one step.
+    const added = bookings.value.filter((b) => !known.has(b.id));
+    const noun = result.imported === 1 ? 'booking' : 'bookings';
+    toast.success(`${result.imported} ${noun} imported`, added.length
+      ? { action: undoAction(() => undoImport(added.map((b) => b.id))) }
+      : undefined);
   } catch (e) {
     importError.value = e instanceof ApiError ? Object.values(e.fields)[0] ?? e.message : 'Could not import the file.';
   } finally {
     importBusy.value = false;
+  }
+}
+
+/**
+ * Takes an import back by voiding what it added. Imported bookings hold no seats, so nothing
+ * else moves; they stay in the history, out of every total, like any voided booking.
+ */
+async function undoImport(codes: string[]) {
+  let undone = 0;
+  const failed: string[] = [];
+  for (const code of codes) {
+    const now = bookings.value.find((b) => b.id === code);
+    if (!now || now.voided) continue;
+    try {
+      await api.voidBooking(code, 'Import undone straight after it was made', now.revision);
+      undone += 1;
+    } catch {
+      failed.push(code);
+    }
+  }
+  invalidateForecast();
+  await load(false);
+  historyVersion.value += 1;
+  if (undone > 0) {
+    toast.success(`Import undone: ${undone} ${undone === 1 ? 'booking' : 'bookings'} voided, kept in the history and out of every total`);
+  }
+  if (failed.length > 0) {
+    toast.error(`${failed.length} imported ${failed.length === 1 ? 'booking' : 'bookings'} could not be voided (${failed.slice(0, 3).join(', ')}${failed.length > 3 ? '…' : ''}). Void them from the list.`);
   }
 }
 
@@ -1617,7 +1651,7 @@ function applyCreatedBookingRecovery(payload: BookingInput): boolean {
   serverUnusual.value = '';
   if (sameBooking(saved, payload)) {
     showForm.value = false;
-    toast.success('Booking ' + saved.id + ' saved');
+    toast.success('Booking ' + saved.id + ' added');
     return true;
   }
 
@@ -1746,7 +1780,7 @@ async function save() {
         action: undoAction(() => runUndo(`Booking ${saved.id}`, () => api.updateBooking(saved.id, bookingInput(before, saved.revision)), `Booking ${saved.id} is back as it was`)),
       });
     } else {
-      toast.success('Booking ' + saved.id + ' saved', {
+      toast.success('Booking ' + saved.id + ' added', {
         action: { label: 'Open', run: () => openDetail(saved) },
       });
     }

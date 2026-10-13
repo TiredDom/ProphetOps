@@ -301,8 +301,9 @@ function initials(name: string): string {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '?';
 }
 
-const signInFormat = new Intl.DateTimeFormat('en-GB', {
-  day: '2-digit',
+// Dates read the same way on every page: Oct 13, 2026.
+const signInFormat = new Intl.DateTimeFormat('en-US', {
+  day: 'numeric',
   month: 'short',
   year: 'numeric',
 });
@@ -537,13 +538,13 @@ async function save() {
     if (wasEdit && before) {
       // A new password cannot be taken back, so an edit that set one offers no undo.
       const snapshot = { ...before };
-      toast.success(`${savedName}'s account updated`, changedPassword
+      toast.success(`${savedName}'s account saved`, changedPassword
         ? undefined
         : { action: undoAction(() => undoTo(snapshot, saved, `${snapshot.name}'s account is back as it was`)) });
       detailEmail.value = saved.email;
       if (returnToDetail.value) detailOpen.value = true;
     } else {
-      toast.success(`Account created for ${savedName}`, {
+      toast.success(`Account added for ${savedName}`, {
         action: {
           label: 'Open',
           run: () => {

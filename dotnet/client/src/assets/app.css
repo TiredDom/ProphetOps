@@ -2111,7 +2111,8 @@ input[readonly]:hover {
 }
 
 .form-grid label > span,
-.account-field > span {
+.account-field > span,
+.account-field > label {
     color: var(--color-text-secondary);
     font-size: var(--text-sm);
     font-weight: 500;

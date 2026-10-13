@@ -211,4 +211,70 @@ test('Search, help and keyboard shortcuts', async (t) => {
     await page.waitForURL('**/packages');
     await page.close();
   });
+
+  await t.test('5. Sign-in names each problem beside its field, and returns to the page asked for', async () => {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    await route(page);
+    let signedIn = false;
+    let attempts = 0;
+    await page.route('**/api/auth/me', (r) =>
+      signedIn
+        ? r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(owner) })
+        : r.fulfill({ status: 401, body: '' }));
+    await page.route('**/api/auth/login', (r) => {
+      attempts += 1;
+      if (attempts === 1) {
+        return r.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ message: 'Use an authorized internal account.' }) });
+      }
+      signedIn = true;
+      return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(owner) });
+    });
+
+    await page.goto(`${BASE_URL}/packages?stock=low`);
+    await page.waitForURL('**/login?next=**');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    assert.equal(await page.locator('#email').getAttribute('aria-invalid'), 'true');
+    assert.ok((await page.locator('#email-error').innerText()).includes('full email address'));
+    assert.equal(await page.evaluate(() => document.activeElement?.id), 'email', 'Focus goes to the field to fix');
+
+    await page.locator('#email').fill('owner@prophetops.com');
+    await page.locator('#password').fill('not-the-password');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    const alert = page.locator('.login-error');
+    await alert.waitFor();
+    assert.ok((await alert.innerText()).includes('do not match an active account'), 'Plain words, not the server code');
+    assert.equal(await page.locator('#email').inputValue(), 'owner@prophetops.com', 'The email is kept');
+
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await page.waitForURL('**/packages?stock=low');
+    await page.close();
+  });
+
+  await t.test('6. Reports shows the top five of each breakdown, with the rest a click away', async () => {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    await route(page);
+    const line = (label, value) => ({ label, value, count: 1 });
+    await page.route('**/api/reports**', (r) => r.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        totalsScope: 'period', excludesVoided: true,
+        period: { from: '2026-01-01', to: '2026-12-31', through: '2026-10-13' },
+        revenue: 700000, costs: 0, profit: 700000,
+        counts: { bookings: 7, passengers: 14, packages: 7, expenses: 0, users: 1 },
+        previous: null, monthly: [],
+        bookingsByStatus: [], bookingsByPayment: [], expensesByCategory: [],
+        revenueByPackage: ['A', 'B', 'C', 'D', 'E', 'F', 'G'].map((name, i) => line(`Package ${name}`, 700000 - i * 10000)),
+        revenueByDestination: [],
+        generatedAt: 'Oct 13, 2026',
+      }),
+    }));
+    await page.goto(`${BASE_URL}/reports`);
+    const panel = page.getByRole('region', { name: 'Revenue by package' });
+    await panel.waitFor();
+    assert.equal(await panel.locator('.report-bar-row:visible').count(), 5);
+    await panel.getByRole('button', { name: 'Show all 7' }).click();
+    assert.equal(await panel.locator('.report-bar-row:visible').count(), 7);
+    await page.close();
+  });
 });

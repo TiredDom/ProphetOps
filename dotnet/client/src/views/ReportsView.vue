@@ -167,8 +167,13 @@
               </div>
               <span class="panel-meta">{{ panel.meta }}</span>
             </div>
-            <ul v-if="panel.rows.length" class="report-bars" :class="panel.tone">
-              <li v-for="row in panel.rows" :key="row.label" class="report-bar-row">
+            <ul v-if="panel.rows.length" :id="panelId(panel.title)" class="report-bars" :class="panel.tone">
+              <li
+                v-for="(row, rowIndex) in panel.rows"
+                :key="row.label"
+                class="report-bar-row"
+                :class="{ 'is-extra': rowIndex >= TOP_ROWS, 'is-hidden': rowIndex >= TOP_ROWS && !expanded.has(panel.title) }"
+              >
                 <span class="report-bar-label" :title="row.label">{{ row.label }}</span>
                 <span class="report-bar-track"><i :style="{ width: row.width }"></i></span>
                 <span class="report-bar-value">
@@ -178,6 +183,16 @@
               </li>
             </ul>
             <p v-else class="report-empty">{{ panel.empty }}</p>
+            <button
+              v-if="panel.rows.length > TOP_ROWS"
+              type="button"
+              class="report-more"
+              :aria-expanded="expanded.has(panel.title)"
+              :aria-controls="panelId(panel.title)"
+              @click="toggleRows(panel.title)"
+            >
+              {{ expanded.has(panel.title) ? 'Show the top five' : `Show all ${panel.rows.length}` }}
+            </button>
           </section>
           </div>
         </div>
@@ -193,7 +208,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import AppShell from '../components/AppShell.vue';
 import PeriodSelect from '../components/PeriodSelect.vue';
 import Skeleton from '../components/Skeleton.vue';
@@ -202,7 +217,7 @@ import { useBusinessDate } from '../composables/useBusinessDate';
 import { useContentWidth } from '../composables/useContentWidth';
 import { useQueryState } from '../composables/useQueryState';
 import { openHelp } from '../composables/useHelp';
-import { api, type ReportLine, type ReportsData } from '../api';
+import { api, describeError, type ReportLine, type ReportsData } from '../api';
 import { count, peso, pesoCompact, stateLabel } from '../format';
 import { describeRange, isIsoDate, isPeriodKey, resolvePeriod, type PeriodKey } from '../periods';
 
@@ -373,6 +388,19 @@ function widths(rows: ReportLine[], pick: (row: ReportLine) => number) {
   return (row: ReportLine) => `${Math.max(1.5, Math.min(100, (pick(row) / max) * 100))}%`;
 }
 
+// Each breakdown shows its top five; the rest are a click away on screen, and always printed.
+const TOP_ROWS = 5;
+const expanded = reactive(new Set<string>());
+
+function toggleRows(title: string) {
+  if (expanded.has(title)) expanded.delete(title);
+  else expanded.add(title);
+}
+
+function panelId(title: string): string {
+  return 'breakdown-' + title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+}
+
 const breakdowns = computed(() => {
   const d = data.value;
   if (!d) return [];
@@ -436,7 +464,7 @@ async function load() {
     const r = range.value;
     data.value = await api.reports(r?.from ?? '', r?.to ?? '');
   } catch (err: unknown) {
-    error.value = err instanceof Error ? err.message : 'Please check your connection and try again.';
+    error.value = describeError(err, 'Check the connection, then try again.');
   } finally {
     loading.value = false;
     await nextTick();
@@ -651,6 +679,29 @@ onMounted(load);
   gap: 12px;
 }
 
+.report-bar-row.is-hidden {
+  display: none;
+}
+
+.report-more {
+  justify-self: start;
+  min-height: 32px;
+  margin-top: 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-primary);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.report-more:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .report-bar-label {
   overflow: hidden;
   color: var(--color-text-primary);
@@ -809,6 +860,25 @@ onMounted(load);
   .month-chart rect {
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
+  }
+
+  /* An A4 page is narrower than the screen breakpoint; the breakdowns keep their two columns
+     there, so the report prints on fewer pages, and no panel splits across a page break. */
+  .report-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .report-column > .content-panel {
+    break-inside: avoid;
+  }
+
+  .report-bar-row.is-hidden {
+    display: grid;
+  }
+
+  .report-more {
+    display: none;
   }
 }
 </style>

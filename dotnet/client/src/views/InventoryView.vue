@@ -305,8 +305,8 @@
       <Drawer :open="showImport" title="Import packages from a file" @close="showImport = false">
         <p class="import-hint">
           Export the sheet as a CSV file with the columns package, destination, and price.
-          ID, duration, inclusions, slots, and status are optional, and extra columns
-          are ignored.
+          The columns code (the package ID), duration, inclusions, slots, and status are
+          optional, and extra columns are ignored.
         </p>
 
         <p v-if="importError" class="drawer-form-error" role="alert">{{ importError }}</p>
@@ -1186,7 +1186,7 @@ async function save() {
     historyVersion.value += 1;
     showForm.value = false;
     if (wasEditing && before) {
-      toast.success(`${name} updated`, { action: undoAction(() => undoEdit(before, saved)) });
+      toast.success(`Package ${name} saved`, { action: undoAction(() => undoEdit(before, saved)) });
       detailCode.value = saved.id;
       if (returnToDetail.value) detailOpen.value = true;
     } else {

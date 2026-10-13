@@ -132,7 +132,8 @@ const initials = computed(() =>
   (props.user?.name ?? '?').split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '?',
 );
 
-const signInFormat = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+// Dates read the same way on every page: Oct 13, 2026, 2:27 PM.
+const signInFormat = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' });
 
 const lastSignIn = computed(() => {
   const value = props.user?.lastLoginAt;

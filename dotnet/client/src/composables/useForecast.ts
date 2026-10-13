@@ -1,5 +1,5 @@
 import { computed, reactive } from 'vue';
-import { api, type ForecastData, type ForecastMeasure } from '../api';
+import { api, describeError, type ForecastData, type ForecastMeasure } from '../api';
 import { canSeeForecast } from '../nav';
 import { useAuth } from '../stores/auth';
 
@@ -64,7 +64,7 @@ export function useForecast(measure: ForecastMeasure = 'revenue') {
         return data;
       })
       .catch((err: unknown) => {
-        state.error = err instanceof Error ? err.message : 'The forecast could not be loaded.';
+        state.error = describeError(err, 'The forecast could not be loaded. Try again in a moment.');
         return null;
       })
       .finally(() => {

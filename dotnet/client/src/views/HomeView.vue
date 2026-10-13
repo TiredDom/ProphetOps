@@ -167,7 +167,7 @@ import UiIcon from '../components/UiIcon.vue';
 import ActivityFeed from '../components/home/ActivityFeed.vue';
 import AttentionInbox from '../components/home/AttentionInbox.vue';
 import MonthScoreboard from '../components/home/MonthScoreboard.vue';
-import { api, type DashboardData } from '../api';
+import { api, describeError, type DashboardData } from '../api';
 import { pesoCompact } from '../format';
 import { formatConcisePeso, type DecisionRecommendation } from '../forecastChart';
 import {
@@ -308,7 +308,7 @@ async function load() {
     const [dashboard] = await Promise.all([api.dashboard(), loadForecast()]);
     data.value = dashboard;
   } catch (err: unknown) {
-    error.value = err instanceof Error ? err.message : 'Please check your connection and try again.';
+    error.value = describeError(err, 'Check the connection, then try again.');
   } finally {
     loading.value = false;
   }

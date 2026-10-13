@@ -995,7 +995,7 @@ async function save() {
       detailCode.value = saved.id;
       if (returnToDetail.value) detailOpen.value = true;
     } else {
-      toast.success(`Expense ${saved.id} saved`, {
+      toast.success(`Expense ${saved.id} added`, {
         action: {
           label: 'Open',
           run: () => {

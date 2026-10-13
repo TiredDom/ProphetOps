@@ -147,7 +147,7 @@ test('3. Small and large revenue values format dynamically without clipping or N
 
   assert.equal(formatConcisePeso(0), '₱0');
   assert.equal(formatConcisePeso(500), '₱500');
-  assert.equal(formatConcisePeso(75000), '₱75K');
+  assert.equal(formatConcisePeso(75000), '₱75k');
   assert.equal(formatConcisePeso(2096918.21), '₱2.10M');
   assert.equal(formatConcisePeso(150000000), '₱150.00M');
 
