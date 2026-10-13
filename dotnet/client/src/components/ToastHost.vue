@@ -94,12 +94,22 @@ const { toasts, dismiss } = useToastList();
   line-height: 1.45;
 }
 
+/* Narrow screens carry the tab bar along the bottom edge; notices sit just above it. */
+@media (max-width: 1024px) {
+  .toast-host {
+    right: var(--space-4);
+    left: var(--space-4);
+    bottom: calc(var(--tab-bar-height) + env(safe-area-inset-bottom, 0px) + var(--space-3));
+    width: auto;
+  }
+}
+
 .toast-close {
   flex: none;
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   border: none;
   background: none;

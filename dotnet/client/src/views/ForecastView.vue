@@ -1,5 +1,5 @@
 <template>
-  <AppShell title="Forecast" description="Monthly revenue estimates and model results.">
+  <AppShell title="Forecast">
     <section class="dss-page">
       <!-- Loading Skeleton State -->
       <div v-if="loading" class="forecast-loading-grid" aria-busy="true" aria-label="Loading forecast data">
@@ -30,13 +30,6 @@
       <template v-else-if="data">
         <!-- Active Forecast View (Rendered strictly when data.ok is true) -->
         <template v-if="data.ok">
-          <!-- Back to Dashboard Navigation Link -->
-          <div class="forecast-page-nav">
-            <RouterLink to="/dashboard" class="compact-action-link">
-              <span aria-hidden="true">←</span> Back to dashboard
-            </RouterLink>
-          </div>
-
           <!-- 1. Detailed Revenue Forecast Chart Tool (Shared Component, Recommendations Omitted) -->
           <ForecastOverviewCard
             :data="data"
@@ -330,10 +323,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.forecast-page-nav {
-  margin-bottom: 12px;
-}
-
 .compact-action-link {
   display: inline-flex;
   align-items: center;

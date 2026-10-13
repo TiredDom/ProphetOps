@@ -1,5 +1,5 @@
 <template>
-  <AppShell title="Reports" description="A one-page summary of the money and the records behind it.">
+  <AppShell title="Reports">
     <section class="dss-page">
       <div v-if="loading" class="content-panel">
         <Skeleton :rows="6" />
@@ -242,10 +242,8 @@ onMounted(async () => {
 
 .report-money-label {
   color: var(--color-text-muted);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
+  font-size: var(--text-xs);
+  font-weight: 600;
 }
 
 .report-money-value {

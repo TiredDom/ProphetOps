@@ -1,5 +1,5 @@
 <template>
-  <AppShell title="Package Catalog" description="Travel packages and available slots.">
+  <AppShell title="Packages">
     <template #actions>
       <a class="secondary-button" href="/api/export/packages.csv">Export CSV</a>
       <button class="secondary-button" type="button" @click="openImport">Import from file</button>

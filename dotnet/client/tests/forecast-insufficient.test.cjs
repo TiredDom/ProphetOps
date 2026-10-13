@@ -13,7 +13,7 @@ const mockUser = {
   name: 'Renan & Tina',
   email: 'owner@prophetops.com',
   role: 'Owner / Management',
-  defaultPath: '/dashboard'
+  defaultPath: '/home'
 };
 
 const mockInsufficientForecastWithStaleNotes = {
@@ -227,7 +227,7 @@ test('Forecast & Dashboard Insufficient Data & Mobile UX Test Suite', async (t) 
     await page.route('**/api/dashboard', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockInsufficientDashboard) }));
     await page.route('**/api/forecast', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockInsufficientForecastWithStaleNotes) }));
 
-    await page.goto(`${BASE_URL}/dashboard`);
+    await page.goto(`${BASE_URL}/home`);
     await page.waitForSelector('.revenue-unavailable-panel');
 
     // 1. Must render flat .revenue-unavailable-panel
@@ -263,7 +263,7 @@ test('Forecast & Dashboard Insufficient Data & Mobile UX Test Suite', async (t) 
     await page.route('**/api/expenses', route => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
 
     // 1. Dashboard: overview tool is the main highlight and leads on mobile
-    await page.goto(`${BASE_URL}/dashboard`);
+    await page.goto(`${BASE_URL}/home`);
     await page.waitForSelector('.overview-tool');
     await page.waitForSelector('.forecast-chart');
 
@@ -317,18 +317,24 @@ test('Forecast & Dashboard Insufficient Data & Mobile UX Test Suite', async (t) 
     if (screenshotDir) await fs.mkdir(screenshotDir, { recursive: true });
     for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }, { width: 320, height: 568 }]) {
       await page.setViewportSize(viewport);
-      await page.goto(`${BASE_URL}/dashboard`);
+      await page.goto(`${BASE_URL}/home`);
       await page.waitForSelector('.overview-tool');
       const narrow = viewport.width <= 1024;
-      if (narrow) await page.getByRole('button', { name: 'Toggle navigation' }).click();
-      if (narrow) await page.waitForFunction(() => document.querySelector('.sidebar-account').getBoundingClientRect().x >= 0);
+      // Narrow screens move navigation to the tab bar and keep the account in a sheet opened from the header.
+      assert.equal(await page.locator('.tab-bar').isVisible(), narrow, `Tab bar visibility at ${viewport.width}px`);
+      if (narrow) await page.getByRole('button', { name: 'Account' }).click();
+      if (narrow) await page.waitForFunction(() => {
+        const box = document.querySelector('.sidebar-account').getBoundingClientRect();
+        return box.top >= 0 && box.bottom <= window.innerHeight + 1;
+      });
       const footer = page.locator('.sidebar-account');
       const footerBox = await footer.boundingBox();
       assert.ok(footerBox && footerBox.x >= 0 && footerBox.y >= 0 && footerBox.y + footerBox.height <= viewport.height + 1, `Footer outside ${viewport.width}px viewport: ${JSON.stringify(footerBox)}`);
       assert.equal(await footer.locator('.sidebar-account-name').innerText(), mockUser.name);
       assert.equal(await footer.locator('.sidebar-account-role').innerText(), 'Owner');
-      assert.equal(await page.locator('.topbar .profile-button, .topbar .topbar-logout').count(), 0);
+      assert.equal(await page.locator('.page-header').getByRole('button', { name: 'Log out' }).count(), 0);
       assert.ok(await footer.getByRole('button', { name: 'Log out', exact: true }).isVisible());
+      assert.ok(await footer.getByRole('link', { name: 'Team & access' }).isVisible(), 'Owner must reach Team & access from the account area');
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'Page must not overflow horizontally');
       assert.ok(await page.locator('.dashboard-totals .stat-value').evaluateAll(values => values.every(value => {
         const range = document.createRange();
@@ -354,7 +360,7 @@ test('Forecast & Dashboard Insufficient Data & Mobile UX Test Suite', async (t) 
     await page.goto(`${BASE_URL}/forecast`);
     await page.waitForSelector('.step-panel');
     if (screenshotDir) await page.screenshot({ path: path.join(screenshotDir, 'forecast-390.png'), fullPage: true });
-    await page.getByRole('button', { name: 'Toggle navigation' }).click();
+    await page.getByRole('button', { name: 'Account' }).click();
     await page.locator('.sidebar-logout').click();
     await page.waitForSelector('.sidebar-account-error');
     assert.equal(await page.locator('.sidebar-account-error').innerText(), 'Unable to log out. Please try again.');

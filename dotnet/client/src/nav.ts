@@ -1,60 +1,47 @@
+export type NavIconName = 'home' | 'bookings' | 'packages' | 'expenses' | 'reports' | 'team';
+
 export interface NavItem {
   label: string;
   path: string;
+  icon: NavIconName;
 }
 
-export interface NavGroup {
-  label: string;
-  items: NavItem[];
-}
-
-const groups: NavGroup[] = [
-  {
-    label: 'Decision Support',
-    items: [
-      { label: 'Dashboard', path: '/dashboard' },
-      { label: 'Forecast', path: '/forecast' },
-      { label: 'Analytics', path: '/analytics' },
-    ],
-  },
-  {
-    label: 'Business Records',
-    items: [
-      { label: 'Bookings', path: '/bookings' },
-      { label: 'Package Catalog', path: '/inventory' },
-      { label: 'Expenses', path: '/expenses' },
-    ],
-  },
-  {
-    label: 'Reports',
-    items: [{ label: 'Reports', path: '/reports' }],
-  },
-  {
-    label: 'Administration',
-    items: [{ label: 'Users', path: '/users' }],
-  },
+const sections: NavItem[] = [
+  { label: 'Home', path: '/home', icon: 'home' },
+  { label: 'Bookings', path: '/bookings', icon: 'bookings' },
+  { label: 'Packages', path: '/packages', icon: 'packages' },
+  { label: 'Expenses', path: '/expenses', icon: 'expenses' },
+  { label: 'Reports', path: '/reports', icon: 'reports' },
 ];
 
-const permissions: Record<string, string[]> = {
-  'Owner / Management': ['Dashboard', 'Bookings', 'Package Catalog', 'Expenses', 'Analytics', 'Forecast', 'Reports', 'Users'],
-  Admin: ['Dashboard', 'Bookings', 'Package Catalog', 'Expenses', 'Analytics', 'Forecast', 'Reports'],
-  Staff: ['Bookings', 'Package Catalog'],
+// Account utilities sit with the signed-in user rather than in the operational navigation.
+const accountLinks: NavItem[] = [{ label: 'Team & access', path: '/team', icon: 'team' }];
+
+// Forecast and Analytics are being folded into Home and Reports. Until then they stay reachable
+// by link for the roles that could open them before, but they are no longer navigation sections.
+const allowedPaths: Record<string, string[]> = {
+  'Owner / Management': ['/home', '/bookings', '/packages', '/expenses', '/reports', '/team', '/forecast', '/analytics'],
+  Admin: ['/home', '/bookings', '/packages', '/expenses', '/reports', '/forecast', '/analytics'],
+  Staff: ['/bookings', '/packages'],
 };
 
-const labelByPath: Record<string, string> = Object.fromEntries(
-  groups.flatMap((group) => group.items.map((item) => [item.path, item.label])),
-);
+const knownPaths = new Set(Object.values(allowedPaths).flat());
 
-export function navFor(role: string | undefined): NavGroup[] {
-  const allowed = role ? permissions[role] ?? [] : [];
-  return groups
-    .map((group) => ({ ...group, items: group.items.filter((item) => allowed.includes(item.label)) }))
-    .filter((group) => group.items.length > 0);
+function allowed(role: string | undefined): string[] {
+  return role ? allowedPaths[role] ?? [] : [];
+}
+
+export function navFor(role: string | undefined): NavItem[] {
+  const paths = allowed(role);
+  return sections.filter((item) => paths.includes(item.path));
+}
+
+export function accountLinksFor(role: string | undefined): NavItem[] {
+  const paths = allowed(role);
+  return accountLinks.filter((item) => paths.includes(item.path));
 }
 
 export function canAccess(role: string | undefined, path: string): boolean {
-  const label = labelByPath[path];
-  if (!label) return true;
-  const allowed = role ? permissions[role] ?? [] : [];
-  return allowed.includes(label);
+  if (!knownPaths.has(path)) return true;
+  return allowed(role).includes(path);
 }

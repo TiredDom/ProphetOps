@@ -1,87 +1,45 @@
 <template>
-  <div class="dashboard-shell" :class="{ 'sidebar-open': open }" @keydown="onShellKeydown">
+  <div class="app-shell" :class="{ 'account-open': accountOpen }" @keydown="onShellKeydown">
     <a class="skip-link" href="#main-content">Skip to content</a>
 
-    <div class="sidebar-overlay" aria-hidden="true" @click="open = false"></div>
+    <div class="account-scrim" aria-hidden="true" @click="closeAccount"></div>
 
-    <aside id="app-sidebar" ref="sidebar" class="sidebar" :class="{ open }" tabindex="-1">
+    <!-- On wide screens this is the navigation sidebar. On narrow screens the navigation moves
+         to the tab bar and this element becomes the account sheet opened from the header. -->
+    <aside
+      id="app-sidebar"
+      ref="sidebar"
+      class="sidebar"
+      :class="{ open: accountOpen }"
+      tabindex="-1"
+      :role="sheetMode ? 'dialog' : undefined"
+      :aria-modal="sheetMode && accountOpen ? 'true' : undefined"
+      :aria-labelledby="sheetMode ? 'account-sheet-title' : undefined"
+    >
       <div class="brand">
         <p class="brand-name">ProphetOps</p>
         <p class="brand-subtitle">Renan-Tina Travels &amp; Tours</p>
       </div>
 
       <nav class="sidebar-nav" aria-label="Main navigation">
-        <div v-for="group in groups" :key="group.label" class="nav-group">
-          <p class="nav-group-label">{{ group.label }}</p>
-          <RouterLink
-            v-for="item in group.items"
-            :key="item.label"
-            :to="item.path"
-            class="nav-item"
-            active-class="active"
-            @click="open = false"
-          >
-            <svg
-              class="nav-item-icon"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.6"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <template v-if="item.label === 'Dashboard'">
-                <rect x="3.5" y="3.5" width="7" height="7" rx="1.4" />
-                <rect x="13.5" y="3.5" width="7" height="7" rx="1.4" />
-                <rect x="3.5" y="13.5" width="7" height="7" rx="1.4" />
-                <rect x="13.5" y="13.5" width="7" height="7" rx="1.4" />
-              </template>
-              <template v-else-if="item.label === 'Forecast'">
-                <polyline points="3 16.5 9 10.5 13 14.5 21 6.5" />
-                <polyline points="15.5 6.5 21 6.5 21 12" />
-              </template>
-              <template v-else-if="item.label === 'Analytics'">
-                <line x1="4" y1="19" x2="20" y2="19" />
-                <line x1="7.5" y1="19" x2="7.5" y2="12" />
-                <line x1="12" y1="19" x2="12" y2="8" />
-                <line x1="16.5" y1="19" x2="16.5" y2="14" />
-              </template>
-              <template v-else-if="item.label === 'Bookings'">
-                <rect x="4" y="5" width="16" height="15" rx="2" />
-                <line x1="4" y1="9.5" x2="20" y2="9.5" />
-                <line x1="8.5" y1="3" x2="8.5" y2="6.5" />
-                <line x1="15.5" y1="3" x2="15.5" y2="6.5" />
-              </template>
-              <template v-else-if="item.label === 'Package Catalog'">
-                <path d="M12 3 3.5 7.5v9L12 21l8.5-4.5v-9L12 3Z" />
-                <polyline points="3.5 7.5 12 12 20.5 7.5" />
-                <line x1="12" y1="12" x2="12" y2="21" />
-              </template>
-              <template v-else-if="item.label === 'Expenses'">
-                <path d="M6.5 3.5h11v17l-2.2-1.5-2.2 1.5-2.2-1.5-2.2 1.5-2.2-1.5Z" />
-                <line x1="9.5" y1="8.5" x2="14.5" y2="8.5" />
-                <line x1="9.5" y1="12" x2="14.5" y2="12" />
-              </template>
-              <template v-else-if="item.label === 'Reports'">
-                <path d="M6.5 3.5H13L17.5 8V20.5H6.5Z" />
-                <polyline points="13 3.5 13 8 17.5 8" />
-                <line x1="9" y1="13" x2="15" y2="13" />
-                <line x1="9" y1="16.5" x2="15" y2="16.5" />
-              </template>
-              <template v-else-if="item.label === 'Users'">
-                <circle cx="9" cy="8.5" r="3.3" />
-                <path d="M3.5 20c0-3.2 2.5-5.3 5.5-5.3s5.5 2.1 5.5 5.3" />
-                <path d="M15.5 5.7a3.3 3.3 0 0 1 0 5.6" />
-                <path d="M16.8 15c2.1.5 3.7 2.3 3.7 5" />
-              </template>
-            </svg>
-            <span>{{ item.label }}</span>
-          </RouterLink>
-        </div>
+        <RouterLink
+          v-for="item in items"
+          :key="item.path"
+          :to="item.path"
+          class="nav-item"
+          active-class="active"
+        >
+          <NavIcon :name="item.icon" class="nav-item-icon" />
+          <span>{{ item.label }}</span>
+        </RouterLink>
       </nav>
 
       <footer class="sidebar-account">
+        <div class="sheet-heading">
+          <h2 id="account-sheet-title">Account</h2>
+          <button class="sheet-close" type="button" @click="closeAccount">Close</button>
+        </div>
+
         <div class="sidebar-account-identity">
           <span class="sidebar-account-avatar" aria-hidden="true">{{ initials }}</span>
           <div class="sidebar-account-details">
@@ -89,83 +47,112 @@
             <p class="sidebar-account-role">{{ displayRole }}</p>
           </div>
         </div>
+
+        <RouterLink
+          v-for="link in accountLinks"
+          :key="link.path"
+          :to="link.path"
+          class="sidebar-account-link"
+          active-class="active"
+          @click="closeAccount"
+        >
+          <NavIcon :name="link.icon" class="nav-item-icon" />
+          <span>{{ link.label }}</span>
+        </RouterLink>
+
         <button class="sidebar-logout" type="button" :disabled="signingOut" @click="signOut">
-          {{ signingOut ? 'Logging out...' : 'Log out' }}
+          {{ signingOut ? 'Logging out…' : 'Log out' }}
         </button>
         <p v-if="signOutError" class="sidebar-account-error" role="alert">{{ signOutError }}</p>
       </footer>
     </aside>
 
     <main id="main-content" class="main-panel" tabindex="-1">
-      <header class="topbar">
-        <div class="topbar-row">
-          <div class="topbar-heading">
-            <button
-              class="menu-button"
-              type="button"
-              :aria-expanded="open ? 'true' : 'false'"
-              aria-controls="app-sidebar"
-              aria-label="Toggle navigation"
-              @click="open = !open"
-            >
-              <span></span><span></span><span></span>
-            </button>
-            <div>
-              <h1>{{ title }}</h1>
-              <p v-if="description" class="topbar-description">{{ description }}</p>
-            </div>
-          </div>
+      <header class="page-header">
+        <h1 class="page-title">{{ title }}</h1>
 
-          <div class="topbar-tools">
-            <div v-if="$slots.actions" class="topbar-page-actions">
-              <slot name="actions" />
-            </div>
-
-            <div class="topbar-utilities">
-              <span class="date-pill">{{ today }}</span>
-            </div>
-          </div>
+        <div v-if="$slots.actions" class="page-actions">
+          <slot name="actions" />
         </div>
+
+        <button
+          class="account-button"
+          type="button"
+          aria-label="Account"
+          aria-haspopup="dialog"
+          aria-controls="app-sidebar"
+          :aria-expanded="accountOpen ? 'true' : 'false'"
+          @click="accountOpen = !accountOpen"
+        >
+          <span class="account-button-avatar" aria-hidden="true">{{ initials }}</span>
+        </button>
       </header>
 
       <slot />
     </main>
+
+    <nav class="tab-bar" aria-label="Main navigation" :style="{ '--tab-count': items.length }">
+      <RouterLink
+        v-for="item in items"
+        :key="item.path"
+        :to="item.path"
+        class="tab-bar-item"
+        active-class="active"
+      >
+        <span class="tab-bar-icon">
+          <NavIcon :name="item.icon" />
+        </span>
+        <span class="tab-bar-label">{{ item.label }}</span>
+      </RouterLink>
+    </nav>
 
     <ToastHost />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useAuth } from '../stores/auth';
-import { navFor } from '../nav';
+import { accountLinksFor, navFor } from '../nav';
+import { useMediaQuery } from '../composables/useMediaQuery';
 import { useModalFocus } from '../composables/useModalFocus';
+import NavIcon from './NavIcon.vue';
 import ToastHost from './ToastHost.vue';
 
-defineProps<{ title: string; description?: string }>();
+defineProps<{ title: string }>();
 
+const route = useRoute();
 const router = useRouter();
 const { state, logout } = useAuth();
-const open = ref(false);
+const accountOpen = ref(false);
 const sidebar = ref<HTMLElement | null>(null);
 const signingOut = ref(false);
 const signOutError = ref('');
 
-// Only ever true on the narrow layout, where the sidebar covers the page as a drawer.
-useModalFocus(sidebar, () => open.value);
+// Matches the stylesheet breakpoint where the sidebar turns into the account sheet.
+const sheetMode = useMediaQuery('(max-width: 1024px)');
 
-function onShellKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape' && open.value) open.value = false;
+useModalFocus(sidebar, () => accountOpen.value && sheetMode.value);
+
+watch(sheetMode, (narrow) => {
+  if (!narrow) accountOpen.value = false;
+});
+
+watch(() => route.fullPath, () => {
+  accountOpen.value = false;
+});
+
+function closeAccount() {
+  accountOpen.value = false;
 }
 
-const groups = computed(() => navFor(state.user?.role));
+function onShellKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && accountOpen.value) closeAccount();
+}
 
-const today = new Intl.DateTimeFormat('en-US', {
-  month: 'short',
-  day: 'numeric',
-  year: 'numeric',
-}).format(new Date());
+const items = computed(() => navFor(state.user?.role));
+const accountLinks = computed(() => accountLinksFor(state.user?.role));
 
 const initials = computed(() =>
   (state.user?.name ?? 'PO')
@@ -185,7 +172,7 @@ async function signOut() {
   signOutError.value = '';
   try {
     await logout();
-    open.value = false;
+    accountOpen.value = false;
     await router.replace('/login');
   } catch {
     signOutError.value = 'Unable to log out. Please try again.';

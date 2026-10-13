@@ -1,5 +1,5 @@
 <template>
-  <AppShell title="Expenses" description="Recorded operating costs.">
+  <AppShell title="Expenses">
     <template #actions>
       <button class="primary-button" type="button" @click="openForm">Add expense</button>
     </template>

@@ -3,8 +3,8 @@
     <aside class="login-aside">
       <div class="login-aside-brand">
         <p class="brand-name">ProphetOps</p>
+        <p class="brand-subtitle">Renan-Tina Travels &amp; Tours</p>
       </div>
-      <p class="login-aside-mark" aria-hidden="true">P</p>
       <p class="login-aside-foot">Authorized access only</p>
     </aside>
 
@@ -115,7 +115,7 @@ async function submit() {
 <style scoped>
 .login-error {
   margin: 0;
-  color: #B42318;
-  font-size: 0.85rem;
+  color: var(--color-danger-ink);
+  font-size: var(--text-sm);
 }
 </style>

@@ -1,5 +1,5 @@
 <template>
-  <AppShell title="Dashboard" description="Business overview and revenue outlook.">
+  <AppShell title="Home">
     <section class="dss-page">
       <!-- Loading Skeleton State -->
       <div v-if="loading" class="dash-loading-grid" aria-busy="true" aria-label="Loading dashboard data">
@@ -138,7 +138,7 @@
                     <span class="package-slots">({{ p.availableSlots }} left)</span>
                   </li>
                 </ul>
-                <RouterLink to="/inventory" class="compact-action-link">
+                <RouterLink to="/packages" class="compact-action-link">
                   Review package capacity <span aria-hidden="true">→</span>
                 </RouterLink>
               </div>

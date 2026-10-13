@@ -1,5 +1,5 @@
 <template>
-  <AppShell title="Sales Analytics" description="Revenue trends and booking mix.">
+  <AppShell title="Analytics">
     <section class="dss-page">
       <p v-if="loading" class="analytics-note">Loading live data…</p>
       <p v-else-if="error" class="analytics-note analytics-error" role="alert">{{ error }}</p>

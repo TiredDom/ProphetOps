@@ -1,5 +1,5 @@
 <template>
-  <AppShell title="Users" description="Create and manage sign-in accounts for your team.">
+  <AppShell title="Team &amp; access">
     <template #actions>
       <button class="primary-button" type="button" @click="openCreate">Add account</button>
     </template>
@@ -342,10 +342,8 @@ onMounted(async () => {
 
 .access-label > span {
   color: var(--color-text-muted);
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 .account-field .form-helper {

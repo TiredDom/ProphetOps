@@ -15,15 +15,19 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/login', component: LoginView, meta: { public: true } },
-    { path: '/dashboard', component: DashboardView },
+    { path: '/home', component: DashboardView },
     { path: '/bookings', component: BookingsView },
-    { path: '/inventory', component: InventoryView },
+    { path: '/packages', component: InventoryView },
     { path: '/expenses', component: ExpensesView },
-    { path: '/analytics', component: AnalyticsView },
-    { path: '/forecast', component: ForecastView },
     { path: '/reports', component: ReportsView },
-    { path: '/users', component: UsersView },
-    { path: '/:pathMatch(.*)*', redirect: '/dashboard' },
+    { path: '/team', component: UsersView },
+    { path: '/forecast', component: ForecastView },
+    { path: '/analytics', component: AnalyticsView },
+    // Earlier addresses, kept so bookmarks and old links still land somewhere sensible.
+    { path: '/dashboard', redirect: '/home' },
+    { path: '/inventory', redirect: '/packages' },
+    { path: '/users', redirect: '/team' },
+    { path: '/:pathMatch(.*)*', redirect: '/home' },
   ],
 });
 
