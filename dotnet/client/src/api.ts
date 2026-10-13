@@ -235,38 +235,6 @@ export interface ExpenseInput {
   notes: string | null;
 }
 
-export interface AnalyticsPoint {
-  label: string;
-  value: number;
-}
-
-export interface MonthlyActualPoint extends AnalyticsPoint {
-  month: string;
-  bookingCount: number;
-  passengerCount: number;
-}
-
-export interface ActualsChartWindow {
-  fromMonth: string;
-  throughMonth: string;
-  revenuePhp: number;
-  bookingCount: number;
-  passengerCount: number;
-}
-
-export interface AnalyticsData {
-  totalsScope: 'lifetime';
-  excludesVoided: true;
-  chartWindow: ActualsChartWindow;
-  salesHistory: MonthlyActualPoint[];
-  packageMix: AnalyticsPoint[];
-  paymentBreakdown: AnalyticsPoint[];
-  revenueByDestination: AnalyticsPoint[];
-  totalRevenue: number;
-  totalBookings: number;
-  averageBooking: number;
-}
-
 export interface ForecastParams {
   alpha: number;
   beta: number;
@@ -346,28 +314,60 @@ export interface ForecastData {
   steps: ForecastStepView[];
 }
 
-export interface ReportBreakdown {
+export interface ReportLine {
   label: string;
+  /** Pesos for revenue and spending lines; a count for booking stages and payment states. */
   value: number;
+  count?: number;
+  /** Booked value, on payment lines. */
+  revenue?: number;
+}
+
+export interface ReportMonth {
+  month: string;
+  label: string;
+  revenue: number;
+  costs: number;
+  afterCosts: number;
+  bookings: number;
+  passengers: number;
+}
+
+export interface ReportComparison {
+  from: string | null;
+  to: string | null;
+  revenue: number;
+  costs: number;
+  profit: number;
+  bookings: number;
+  passengers: number;
 }
 
 export interface ReportCounts {
   bookings: number;
+  passengers: number;
   packages: number;
   expenses: number;
   users: number;
 }
 
 export interface ReportsData {
-  totalsScope: 'lifetime';
+  totalsScope: 'lifetime' | 'period';
   excludesVoided: true;
+  /** `through` is where the figures stop: today, when the period runs past it. */
+  period: { from: string | null; to: string | null; through: string | null };
   revenue: number;
   costs: number;
+  /** Gross booking revenue less recorded expenses, not accounting profit. */
   profit: number;
   counts: ReportCounts;
-  bookingsByStatus: ReportBreakdown[];
-  expensesByCategory: ReportBreakdown[];
-  revenueByPackage: ReportBreakdown[];
+  previous: ReportComparison | null;
+  monthly: ReportMonth[];
+  bookingsByStatus: ReportLine[];
+  bookingsByPayment: ReportLine[];
+  expensesByCategory: ReportLine[];
+  revenueByPackage: ReportLine[];
+  revenueByDestination: ReportLine[];
   generatedAt: string;
 }
 
@@ -517,10 +517,15 @@ export const api = {
   createExpense: (input: ExpenseInput) => request<ExpenseRow>('POST', '/api/expenses', input),
   updateExpense: (code: string, input: ExpenseInput) =>
     request<ExpenseRow>('PUT', `/api/expenses/${code}`, input),
-  analytics: () => request<AnalyticsData>('GET', '/api/analytics'),
   forecast: (measure: ForecastMeasure = 'revenue') =>
     request<ForecastData>('GET', measure === 'revenue' ? '/api/forecast' : `/api/forecast?measure=${measure}`),
-  reports: () => request<ReportsData>('GET', '/api/reports'),
+  reports: (from = '', to = '') => {
+    const params = new URLSearchParams();
+    if (from) params.set('from', from);
+    if (to) params.set('to', to);
+    const query = params.toString();
+    return request<ReportsData>('GET', '/api/reports' + (query ? '?' + query : ''));
+  },
   users: () => request<UserRow[]>('GET', '/api/users'),
   userRoles: () => request<RoleOption[]>('GET', '/api/users/roles'),
   createUser: (input: UserInput) => request<UserRow>('POST', '/api/users', input),

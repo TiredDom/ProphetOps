@@ -104,6 +104,11 @@
       <line x1="12" y1="10" x2="12" y2="13.8" />
       <circle cx="12" cy="16.4" r="0.9" fill="currentColor" stroke="none" />
     </template>
+    <template v-else-if="name === 'printer'">
+      <path d="M7 9V4.5h10V9" />
+      <rect x="3.5" y="9" width="17" height="7.5" rx="1.5" />
+      <path d="M7 13.5h10V20H7Z" />
+    </template>
     <template v-else-if="name === 'close'">
       <line x1="6.5" y1="6.5" x2="17.5" y2="17.5" />
       <line x1="17.5" y1="6.5" x2="6.5" y2="17.5" />
@@ -140,6 +145,7 @@ export type UiIconName =
   | 'download'
   | 'image'
   | 'close'
+  | 'printer'
   | 'forecast'
   | 'alert'
   | 'up'

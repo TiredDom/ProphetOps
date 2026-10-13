@@ -3679,6 +3679,54 @@ input[type='checkbox']:focus-visible {
 }
 
 /* ============================================================
+   Print — the page's content on paper, without the app around it
+   ============================================================ */
+
+@media print {
+    @page {
+        margin: 14mm;
+    }
+
+    body,
+    .app-shell {
+        background: #FFFFFF;
+    }
+
+    .app-shell {
+        display: block;
+    }
+
+    .sidebar,
+    .tab-bar,
+    .page-actions,
+    .account-button,
+    .account-scrim,
+    .skip-link,
+    .toast-host {
+        display: none !important;
+    }
+
+    .main-panel {
+        max-width: none;
+        padding: 0;
+    }
+
+    .page-header {
+        padding: 0 0 8px;
+    }
+
+    .content-panel {
+        break-inside: avoid;
+        border-color: #C9CFD9;
+    }
+
+    .table-scroll {
+        overflow: visible;
+        background: none;
+    }
+}
+
+/* ============================================================
    Reduced motion (WCAG)
    ============================================================ */
 

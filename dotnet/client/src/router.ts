@@ -4,7 +4,6 @@ import HomeView from './views/HomeView.vue';
 import BookingsView from './views/BookingsView.vue';
 import InventoryView from './views/InventoryView.vue';
 import ExpensesView from './views/ExpensesView.vue';
-import AnalyticsView from './views/AnalyticsView.vue';
 import ReportsView from './views/ReportsView.vue';
 import UsersView from './views/UsersView.vue';
 import { useAuth } from './stores/auth';
@@ -20,12 +19,12 @@ const router = createRouter({
     { path: '/expenses', component: ExpensesView },
     { path: '/reports', component: ReportsView },
     { path: '/team', component: UsersView },
-    { path: '/analytics', component: AnalyticsView },
     // Earlier addresses, kept so bookmarks and old links still land somewhere sensible.
     { path: '/dashboard', redirect: '/home' },
     { path: '/forecast', redirect: { path: '/home', hash: '#forecast-details' } },
     { path: '/inventory', redirect: '/packages' },
     { path: '/users', redirect: '/team' },
+    { path: '/analytics', redirect: '/reports' },
     { path: '/:pathMatch(.*)*', redirect: '/home' },
   ],
 });

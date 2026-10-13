@@ -14,8 +14,13 @@ namespace ProphetOps.Api.Controllers;
 public class ExportController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly IBusinessClock _clock;
 
-    public ExportController(AppDbContext db) => _db = db;
+    public ExportController(AppDbContext db, IBusinessClock clock)
+    {
+        _db = db;
+        _clock = clock;
+    }
 
     [HttpGet("bookings.csv")]
     [Authorize(Policy = "Bookings")]
@@ -117,6 +122,47 @@ public class ExportController : ControllerBase
             range);
     }
 
+    /// The Reports page as a spreadsheet: one row per month of the period and a total, the same
+    /// figures the page shows. Revenue after costs is gross booking revenue less recorded expenses.
+    [HttpGet("report.csv")]
+    [Authorize(Policy = "Reports")]
+    public IActionResult Report([FromQuery] string? from, [FromQuery] string? to)
+    {
+        if (!ReportBuilder.TryReadPeriod(from, to, out var start, out var end, out var errors))
+            return BadRequest(errors);
+
+        var report = ReportBuilder.Build(_db, _clock.Today, start, end);
+        var rows = report.Months
+            .Select(m => new[]
+            {
+                m.Start.ToString("yyyy-MM", CultureInfo.InvariantCulture),
+                Whole(m.Bookings),
+                Whole(m.Passengers),
+                Whole(m.Revenue),
+                Whole(m.Costs),
+                Whole(m.AfterCosts),
+            })
+            .Append(new[]
+            {
+                "total",
+                Whole(report.Current.Bookings),
+                Whole(report.Current.Passengers),
+                Whole(report.Current.Revenue),
+                Whole(report.Current.Costs),
+                Whole(report.Current.AfterCosts),
+            });
+
+        var name = report.From is null && report.Through is null
+            ? null
+            : $"prophetops-report-{report.From?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "start"}"
+              + $"-to-{report.Through?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "latest"}.csv";
+
+        return Download("report",
+            "month,bookings,passengers,revenue,costs,revenue_after_costs",
+            rows,
+            name);
+    }
+
     private static DateOnly? ReadDate(string? value, string field, Dictionary<string, string> errors)
     {
         if (string.IsNullOrWhiteSpace(value)) return null;
@@ -144,10 +190,15 @@ public class ExportController : ControllerBase
 
     private static readonly char[] Reserved = { ',', '"', '\r', '\n' };
 
+    private static readonly System.Text.RegularExpressions.Regex PlainNumber = new(@"^-?\d+$");
+
     /// The apostrophe is how spreadsheets themselves write a value that must not be evaluated,
     /// so it survives a round trip through them and through our own importer.
     private static string Field(string value)
     {
+        // A plain whole number, such as a month that lost money, is data rather than a formula.
+        if (PlainNumber.IsMatch(value)) return value;
+
         var guarded = value.Length > 0 && value[0] is '=' or '+' or '-' or '@' or '\t'
             ? "'" + value
             : value;
@@ -158,4 +209,6 @@ public class ExportController : ControllerBase
     }
 
     private static string Whole(int value) => value.ToString(CultureInfo.InvariantCulture);
+
+    private static string Whole(long value) => value.ToString(CultureInfo.InvariantCulture);
 }
