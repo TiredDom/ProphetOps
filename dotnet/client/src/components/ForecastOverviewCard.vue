@@ -161,13 +161,15 @@
           </g>
 
           <!-- Prediction Interval Band -->
-          <path :d="chartModel.bandPath" fill="#c6e0d6" fill-opacity="0.55" />
+          <g class="forecast-reveal">
+            <path :d="chartModel.bandPath" fill="#c6e0d6" fill-opacity="0.55" />
 
           <!-- Recorded Series Line (Navy) -->
           <path :d="chartModel.historyPath" fill="none" stroke="#233e69" stroke-width="2.5" stroke-linejoin="round" />
 
           <!-- Forecast Series Line (Teal Dashed) -->
-          <path :d="chartModel.forecastPath" fill="none" stroke="#13796c" stroke-width="2.5" stroke-dasharray="6 4" stroke-linejoin="round" />
+            <path :d="chartModel.forecastPath" fill="none" stroke="#13796c" stroke-width="2.5" stroke-dasharray="6 4" stroke-linejoin="round" />
+          </g>
 
           <!-- Entry circle markers -->
           <g class="overview-markers" aria-hidden="true">
@@ -180,6 +182,7 @@
               :fill="e.isForecast ? '#ffffff' : '#233e69'"
               :stroke="e.isForecast ? '#13796c' : '#ffffff'"
               :stroke-width="e.isForecast ? 2 : 1"
+              :class="{ 'forecast-point': e.isForecast }"
             />
           </g>
 
@@ -1006,6 +1009,43 @@ onMounted(async () => {
 
 .month-target:focus-visible .month-hit-rect {
   fill: rgba(35, 62, 105, 0.08);
+}
+
+/* The forecast region opens from the divider outward, then its points settle in. Without
+   motion (or before the animation runs) everything is simply shown. */
+.forecast-reveal {
+  animation: forecast-reveal 900ms var(--ease-out) 120ms both;
+}
+
+.forecast-point {
+  animation: forecast-point 300ms var(--ease-out) 760ms both;
+}
+
+@keyframes forecast-reveal {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes forecast-point {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .forecast-reveal,
+  .forecast-point {
+    animation: none;
+  }
 }
 
 /* Footer Provenance Meta */

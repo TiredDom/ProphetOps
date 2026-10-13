@@ -13,11 +13,11 @@
         <dl class="detail-states">
           <div>
             <dt>Payment</dt>
-            <dd><span class="record-badge" :class="badge(booking.paymentStatus)">{{ booking.paymentStatus }}</span></dd>
+            <dd><span class="record-badge" :class="badge(booking.paymentStatus)">{{ stateLabel(booking.paymentStatus) }}</span></dd>
           </div>
           <div>
             <dt>Booking</dt>
-            <dd><span class="record-badge" :class="badge(booking.bookingStatus)">{{ booking.bookingStatus }}</span></dd>
+            <dd><span class="record-badge" :class="badge(booking.bookingStatus)">{{ stateLabel(booking.bookingStatus) }}</span></dd>
           </div>
         </dl>
       </header>
@@ -134,7 +134,7 @@ export type BookingBusy = '' | 'paid' | 'confirm' | 'void' | 'restore';
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 import type { Booking } from '../api';
-import { peso } from '../format';
+import { peso, stateLabel } from '../format';
 import { formatDate } from '../periods';
 import Drawer from './Drawer.vue';
 import RecordHistory from './RecordHistory.vue';

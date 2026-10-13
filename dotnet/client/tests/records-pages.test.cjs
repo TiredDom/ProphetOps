@@ -313,7 +313,29 @@ test('Bookings, Packages and Expenses lists', async (t) => {
     await page.close();
   });
 
-  await t.test('8. Packages list compactly, filter to low slots from the address, and sort by slots left', async () => {
+  await t.test('8. A list that fails to load says so and offers to try again', async () => {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    await routeRecords(page);
+    let failing = true;
+    await page.route('**/api/bookings', (route) =>
+      failing
+        ? route.fulfill({ status: 500, contentType: 'application/json', body: '{}' })
+        : route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ bookings, packages: [] }) }),
+    );
+    await page.goto(`${BASE_URL}/bookings`);
+    const alert = page.locator('.load-error');
+    await alert.waitFor();
+    assert.ok((await alert.innerText()).includes('The bookings could not be loaded'));
+    assert.equal(await page.getByText('No bookings yet').count(), 0, 'A failed load is not an empty list');
+
+    failing = false;
+    await alert.getByRole('button', { name: 'Try again' }).click();
+    await page.waitForSelector('.records-table');
+    assert.equal(await page.locator('.records-table .record-row').count(), 4);
+    await page.close();
+  });
+
+  await t.test('9. Packages list compactly, filter to low slots from the address, and sort by slots left', async () => {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     await routeRecords(page);
     await page.goto(`${BASE_URL}/packages?stock=low`);

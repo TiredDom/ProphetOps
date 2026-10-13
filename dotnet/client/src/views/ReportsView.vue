@@ -201,7 +201,7 @@ import { useBusinessDate } from '../composables/useBusinessDate';
 import { useContentWidth } from '../composables/useContentWidth';
 import { useQueryState } from '../composables/useQueryState';
 import { api, type ReportLine, type ReportsData } from '../api';
-import { count, peso, pesoCompact } from '../format';
+import { count, peso, pesoCompact, stateLabel } from '../format';
 import { describeRange, isIsoDate, isPeriodKey, resolvePeriod, type PeriodKey } from '../periods';
 
 const data = ref<ReportsData | null>(null);
@@ -407,14 +407,14 @@ const breakdowns = computed(() => {
       meta: 'Count and booked value',
       tone: 'tone-data',
       empty: 'No bookings in this period.',
-      rows: d.bookingsByPayment.map((r) => ({ label: r.label, value: count(r.value), detail: peso(r.revenue ?? 0), width: paymentWidth(r) })),
+      rows: d.bookingsByPayment.map((r) => ({ label: stateLabel(r.label), value: count(r.value), detail: peso(r.revenue ?? 0), width: paymentWidth(r) })),
     },
     {
       title: 'Bookings by stage',
       meta: 'How far each booking has gone',
       tone: 'tone-data',
       empty: 'No bookings in this period.',
-      rows: d.bookingsByStatus.map((r) => ({ label: r.label, value: count(r.value), detail: '', width: stageWidth(r) })),
+      rows: d.bookingsByStatus.map((r) => ({ label: stateLabel(r.label), value: count(r.value), detail: '', width: stageWidth(r) })),
     },
   ];
 });
@@ -488,8 +488,12 @@ onMounted(load);
   font-weight: 400;
 }
 
-.statement-table tbody th {
+/* Row labels are header cells; they share the rows' light rule and the body text size. */
+.statement-table tbody th,
+.month-table tbody th {
+  border-bottom-color: var(--color-border-subtle);
   color: var(--color-text-primary);
+  font-size: var(--text-base);
   font-weight: 500;
   text-align: left;
 }
@@ -595,10 +599,13 @@ onMounted(load);
 
 .month-table tbody th,
 .month-table tfoot th {
-  color: var(--color-text-primary);
-  font-weight: 500;
-  text-align: left;
   white-space: nowrap;
+}
+
+.month-table tfoot th {
+  color: var(--color-text-primary);
+  font-size: var(--text-base);
+  text-align: left;
 }
 
 .month-table tfoot th,

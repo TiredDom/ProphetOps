@@ -232,6 +232,11 @@
         <Skeleton :rows="8" />
       </div>
 
+      <div v-else-if="loadError" class="content-panel load-error" role="alert">
+        <p class="load-error-title">The bookings could not be loaded</p>
+        <p class="load-error-text">Check the connection, then try again. Nothing has been changed.</p>
+        <button class="secondary-button" type="button" @click="retryLoad">Try again</button>
+      </div>
       <EmptyState
         v-else-if="!bookings.length"
         title="No bookings yet"
@@ -317,7 +322,7 @@
                   <span class="record-item-sub">{{ tripLabel(b) }}</span>
                   <span class="record-item-meta">
                     <span>{{ dateLabel(b.ds) }} · {{ b.id }} · {{ b.y }} pax<template v-if="b.voided"> · Voided</template></span>
-                    <span class="record-badge" :class="badge(b.paymentStatus)">{{ b.paymentStatus }}</span>
+                    <span class="record-badge" :class="badge(b.paymentStatus)">{{ stateLabel(b.paymentStatus) }}</span>
                   </span>
                 </button>
               </li>
@@ -369,8 +374,8 @@
                   </td>
                   <td class="num">{{ b.y }}</td>
                   <td class="num"><strong>{{ peso(b.grossRevenue) }}</strong></td>
-                  <td><span class="record-badge" :class="badge(b.paymentStatus)">{{ b.paymentStatus }}</span></td>
-                  <td><span class="record-badge" :class="badge(b.bookingStatus)">{{ b.bookingStatus }}</span></td>
+                  <td><span class="record-badge" :class="badge(b.paymentStatus)">{{ stateLabel(b.paymentStatus) }}</span></td>
+                  <td><span class="record-badge" :class="badge(b.bookingStatus)">{{ stateLabel(b.bookingStatus) }}</span></td>
                 </tr>
               </tbody>
             </table>
@@ -420,7 +425,7 @@ import { useQueryState } from '../composables/useQueryState';
 import { useAuth } from '../stores/auth';
 import { canAccess } from '../nav';
 import { api, ApiError, type Booking, type BookingInput, type ImportPreview, type PackageOption } from '../api';
-import { count, peso } from '../format';
+import { count, peso, stateLabel } from '../format';
 import { describeRange, formatDate, formatDay, inRange, isIsoDate, isPeriodKey, resolvePeriod, type PeriodKey } from '../periods';
 import { compareText, monthSections, nextSort, singleSection, sortParts, type SortDirection } from '../listing';
 
@@ -1116,8 +1121,20 @@ async function save() {
   }
 }
 
+const loadError = ref(false);
+
+/** The first load failed: say so, rather than showing an empty list as if there were no records. */
+async function retryLoad() {
+  loadError.value = false;
+  loading.value = true;
+  if (!(await load())) loadError.value = true;
+}
+
 onMounted(async () => {
-  await load();
+  if (!(await load())) {
+    loadError.value = true;
+    return;
+  }
   // Home's "Record a booking" arrives with ?new=1; open the form once the data it needs is in.
   if (route.query.new === '1') {
     openForm();

@@ -132,6 +132,11 @@
         <Skeleton :rows="8" />
       </div>
 
+      <div v-else-if="loadError" class="content-panel load-error" role="alert">
+        <p class="load-error-title">The expenses could not be loaded</p>
+        <p class="load-error-text">Check the connection, then try again. Nothing has been changed.</p>
+        <button class="secondary-button" type="button" @click="retryLoad">Try again</button>
+      </div>
       <EmptyState
         v-else-if="expenses.length === 0"
         title="No expenses yet"
@@ -239,7 +244,7 @@
                   <span v-if="e.relatedPackage || e.notes" class="record-item-sub">{{ e.relatedPackage || e.notes }}</span>
                   <span class="record-item-meta">
                     <span>{{ dateLabel(e.date) }} · {{ e.id }}<template v-if="e.voided"> · Voided</template></span>
-                    <span class="record-badge" :class="badge(e.paymentStatus)">{{ e.paymentStatus }}</span>
+                    <span class="record-badge" :class="badge(e.paymentStatus)">{{ stateLabel(e.paymentStatus) }}</span>
                   </span>
                 </button>
               </li>
@@ -286,7 +291,7 @@
                   <td class="related-cell">{{ e.relatedPackage || '—' }}</td>
                   <td class="notes-cell" :title="e.notes ?? ''">{{ e.notes || '—' }}</td>
                   <td class="num"><strong>{{ peso(e.amount) }}</strong></td>
-                  <td><span class="record-badge" :class="badge(e.paymentStatus)">{{ e.paymentStatus }}</span></td>
+                  <td><span class="record-badge" :class="badge(e.paymentStatus)">{{ stateLabel(e.paymentStatus) }}</span></td>
                 </tr>
               </tbody>
             </table>
@@ -334,7 +339,7 @@ import { useQueryState } from '../composables/useQueryState';
 import { useAuth } from '../stores/auth';
 import { canAccess } from '../nav';
 import { api, ApiError, type ExpenseRow, type ExpenseInput } from '../api';
-import { count, peso, pesoCompact } from '../format';
+import { count, peso, pesoCompact, stateLabel } from '../format';
 import { describeRange, formatDate, formatDay, inRange, isIsoDate, isPeriodKey, resolvePeriod, type PeriodKey } from '../periods';
 import { monthSections, nextSort, singleSection, sortParts, type SortDirection } from '../listing';
 
@@ -709,8 +714,20 @@ async function save() {
   }
 }
 
+const loadError = ref(false);
+
+/** The first load failed: say so, rather than showing an empty list as if there were no records. */
+async function retryLoad() {
+  loadError.value = false;
+  loading.value = true;
+  if (!(await load())) loadError.value = true;
+}
+
 onMounted(async () => {
-  await load();
+  if (!(await load())) {
+    loadError.value = true;
+    return;
+  }
   // Home's "Add an expense" arrives with ?new=1; open the form once the business date is known.
   if (route.query.new === '1') {
     openForm();

@@ -231,6 +231,11 @@
         <Skeleton :rows="8" />
       </div>
 
+      <div v-else-if="loadError" class="content-panel load-error" role="alert">
+        <p class="load-error-title">The packages could not be loaded</p>
+        <p class="load-error-text">Check the connection, then try again. Nothing has been changed.</p>
+        <button class="secondary-button" type="button" @click="retryLoad">Try again</button>
+      </div>
       <EmptyState
         v-else-if="packages.length === 0"
         title="No packages yet"
@@ -289,7 +294,7 @@
                     <span class="slots-left" :class="tone(p)">{{ slotsLeft(p) }}</span>
                     · {{ count(p.soldCount) }} sold · {{ p.id }}
                   </span>
-                  <span class="record-badge" :class="badge(p.status)">{{ p.status }}</span>
+                  <span class="record-badge" :class="badge(p.status)">{{ stateLabel(p.status) }}</span>
                 </span>
               </button>
             </li>
@@ -341,7 +346,7 @@
                       <span class="slot-detail">{{ slotDetail(p) }}</span>
                     </span>
                   </td>
-                  <td><span class="record-badge" :class="badge(p.status)">{{ p.status }}</span></td>
+                  <td><span class="record-badge" :class="badge(p.status)">{{ stateLabel(p.status) }}</span></td>
                 </tr>
               </tbody>
             </table>
@@ -391,7 +396,7 @@ import { useQueryState } from '../composables/useQueryState';
 import { useAuth } from '../stores/auth';
 import { canAccess } from '../nav';
 import { api, ApiError, type PackageImportPreview, type PackageRow, type PackageInput } from '../api';
-import { count, peso } from '../format';
+import { count, peso, stateLabel } from '../format';
 import { compareText, nextSort, sortParts, type SortDirection } from '../listing';
 
 type PackageRecovery =
@@ -888,7 +893,18 @@ async function continuePendingRecovery(): Promise<boolean> {
   return true;
 }
 
-onMounted(load);
+const loadError = ref(false);
+
+/** The first load failed: say so, rather than showing an empty list as if there were no records. */
+async function retryLoad() {
+  loadError.value = false;
+  loading.value = true;
+  if (!(await load())) loadError.value = true;
+}
+
+onMounted(async () => {
+  if (!(await load())) loadError.value = true;
+});
 </script>
 
 <style scoped>

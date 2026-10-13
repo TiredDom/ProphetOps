@@ -21,6 +21,14 @@ export function count(value: number): string {
   return Math.round(value).toLocaleString(LOCALE);
 }
 
+/** Stored states such as "Partially Paid" read as "Partially paid", like every other label. */
+export function stateLabel(value: string | null | undefined): string {
+  const text = (value ?? '').trim();
+  if (!text) return '';
+  const [first, ...rest] = text.split(/\s+/);
+  return [first, ...rest.map((word) => (/^[A-Z][a-z]+$/.test(word) ? word.toLowerCase() : word))].join(' ');
+}
+
 export function digitsOnly(text: string): number {
   const digits = text.replace(/[^\d]/g, '');
   return digits ? Number(digits) : 0;

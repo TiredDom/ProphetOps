@@ -1,28 +1,13 @@
 <template>
   <AppShell title="Team &amp; access">
     <template #actions>
-      <button class="primary-button" type="button" @click="openCreate">Add account</button>
+      <button class="primary-button" type="button" @click="openCreate">
+        <UiIcon name="plus" />
+        Add account
+      </button>
     </template>
 
     <section class="dss-page">
-      <section class="stat-band" aria-label="Account totals">
-        <div class="stat-cell">
-          <span class="stat-label">Accounts</span>
-          <strong class="stat-value">{{ users.length }}</strong>
-          <span class="stat-note">People with an account</span>
-        </div>
-        <div class="stat-cell">
-          <span class="stat-label">Active</span>
-          <strong class="stat-value">{{ activeCount }}</strong>
-          <span class="stat-note">Able to sign in</span>
-        </div>
-        <div class="stat-cell">
-          <span class="stat-label">Access levels</span>
-          <strong class="stat-value">{{ roleCount }}</strong>
-          <span class="stat-note">Different permission sets in use</span>
-        </div>
-      </section>
-
       <Drawer :open="showForm" :title="drawerTitle" @close="showForm = false">
         <p v-if="formError" class="drawer-form-error" role="alert">{{ formError }}</p>
 
@@ -81,6 +66,8 @@
           </label>
         </div>
 
+        <RecordHistory v-if="isEdit" class="form-history" entity-type="User" :code="originalEmail" :version="historyVersion" />
+
         <template #footer>
           <button class="secondary-button" type="button" :disabled="saving" @click="showForm = false">Cancel</button>
           <button class="primary-button" type="button" :disabled="saving" @click="save">
@@ -98,6 +85,11 @@
         <Skeleton :rows="5" />
       </div>
 
+      <div v-else-if="loadError" class="content-panel load-error" role="alert">
+        <p class="load-error-title">The team accounts could not be loaded</p>
+        <p class="load-error-text">Check the connection, then try again. Nothing has been changed.</p>
+        <button class="secondary-button" type="button" @click="retryLoad">Try again</button>
+      </div>
       <EmptyState
         v-else-if="!users.length"
         title="No accounts yet"
@@ -108,67 +100,52 @@
         </template>
       </EmptyState>
 
-      <div v-else class="users-stack">
-        <section class="content-panel">
-          <div class="panel-header accounts-header">
-            <div class="panel-title-group">
-              <h2>Team accounts</h2>
-              <span class="panel-meta">{{ tableMeta }}</span>
-            </div>
-            <SearchField v-model="query" placeholder="Search by name, email, or access" />
-          </div>
+      <section v-else class="content-panel records-panel" aria-label="Team accounts">
+        <div class="records-tools">
+          <SearchField v-model="query" placeholder="Search name, email or access level" />
+        </div>
 
-          <div class="table-scroll">
-            <table class="dss-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Access level</th>
-                  <th>Status</th>
-                  <th>Last sign-in</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-if="!filteredUsers.length">
-                  <td colspan="6" class="table-empty-cell">No accounts match “{{ query }}”.</td>
-                </tr>
-                <tr v-for="user in filteredUsers" :key="user.email">
-                  <td><strong>{{ user.name }}</strong></td>
-                  <td>{{ user.email }}</td>
-                  <td><span class="record-badge" :class="badge(user.role)">{{ user.role }}</span></td>
-                  <td><span class="record-badge" :class="badge(user.status)">{{ user.status }}</span></td>
-                  <td>{{ lastSignIn(user.lastLoginAt) }}</td>
-                  <td>
-                    <button class="table-link" type="button" @click="openEdit(user)">Edit</button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+        <p class="records-summary">
+          <span class="summary-figure"><strong>{{ users.length }}</strong> {{ users.length === 1 ? 'account' : 'accounts' }}</span>
+          <span class="summary-figure"><strong>{{ activeCount }}</strong> can sign in</span>
+          <span v-if="suspendedCount" class="summary-figure tone-warning"><strong>{{ suspendedCount }}</strong> suspended</span>
+          <span v-if="query.trim()" class="summary-scope">{{ tableMeta }}</span>
+        </p>
+
+        <!-- People grouped by what they can do -->
+        <section v-for="group in groups" :key="group.name" class="access-group" :aria-labelledby="groupId(group.name)">
+          <header class="access-group-head">
+            <h2 :id="groupId(group.name)" class="access-group-title">
+              {{ group.name }}
+              <span class="access-group-count">{{ group.people.length }}</span>
+            </h2>
+            <p v-if="group.access" class="access-group-desc">{{ group.access }}</p>
+          </header>
+
+          <ul v-if="group.people.length" class="people">
+            <li v-for="user in group.people" :key="user.email">
+              <button class="person" :class="{ suspended: user.status !== 'Active' }" type="button" @click="openEdit(user)">
+                <span class="person-avatar" aria-hidden="true">{{ initials(user.name) }}</span>
+                <span class="person-main">
+                  <span class="person-name">
+                    {{ user.name }}
+                    <span v-if="user.email === me" class="person-you">You</span>
+                  </span>
+                  <span class="person-email">{{ user.email }}</span>
+                </span>
+                <span class="person-meta">
+                  <span class="record-badge" :class="badge(user.status)">{{ stateLabel(user.status) }}</span>
+                  <span class="person-last">Last sign-in {{ lastSignIn(user.lastLoginAt) }}</span>
+                </span>
+                <UiIcon name="chevron-right" class="person-chevron" />
+              </button>
+            </li>
+          </ul>
+          <p v-else class="access-group-empty">
+            {{ query.trim() ? 'No one at this level matches the search.' : 'No one has this access yet.' }}
+          </p>
         </section>
-
-        <aside class="content-panel access-panel" aria-label="Access levels">
-          <div class="panel-header">
-            <div class="panel-title-group">
-              <h2>Access levels</h2>
-            </div>
-          </div>
-
-          <p class="access-intro">What each permission set can do, and how many accounts use it.</p>
-
-          <div class="access-list">
-            <div v-for="role in roleUsage" :key="role.name" class="access-item">
-              <div class="access-item-head">
-                <span class="access-item-name">{{ role.name }}</span>
-                <span class="access-item-count">{{ usageLabel(role.count) }}</span>
-              </div>
-              <p v-if="role.access" class="access-item-desc">{{ role.access }}</p>
-            </div>
-          </div>
-        </aside>
-      </div>
+      </section>
     </section>
   </AppShell>
 </template>
@@ -180,7 +157,11 @@ import Drawer from '../components/Drawer.vue';
 import Skeleton from '../components/Skeleton.vue';
 import EmptyState from '../components/EmptyState.vue';
 import SearchField from '../components/SearchField.vue';
+import RecordHistory from '../components/RecordHistory.vue';
+import UiIcon from '../components/UiIcon.vue';
 import { useToast } from '../composables/useToast';
+import { stateLabel } from '../format';
+import { useAuth } from '../stores/auth';
 import { api, ApiError, type UserRow, type UserInput, type RoleOption } from '../api';
 
 const toast = useToast();
@@ -197,8 +178,12 @@ const originalEmail = ref('');
 
 const form = reactive<UserInput>(blank());
 
+const { state: auth } = useAuth();
+const me = computed(() => auth.user?.email ?? '');
+const historyVersion = ref(0);
+
 const activeCount = computed(() => users.value.filter((u) => u.status === 'Active').length);
-const roleCount = computed(() => new Set(users.value.map((u) => u.role)).size);
+const suspendedCount = computed(() => users.value.length - activeCount.value);
 const drawerTitle = computed(() => (isEdit.value ? 'Edit account' : 'New account'));
 const selectedAccess = computed(() => roles.value.find((r) => r.name === form.role)?.access ?? '');
 
@@ -220,22 +205,27 @@ const tableMeta = computed(() => {
   return total === 1 ? '1 account' : `${total} accounts`;
 });
 
-const roleUsage = computed(() => {
-  const counts = new Map<string, number>();
-  for (const u of users.value) counts.set(u.role, (counts.get(u.role) ?? 0) + 1);
-  return roles.value.map((r) => ({ ...r, count: counts.get(r.name) ?? 0 }));
-});
+// Every access level, in the order the server lists them, with the people who have it.
+const groups = computed(() =>
+  roles.value.map((role) => ({
+    ...role,
+    people: filteredUsers.value.filter((u) => u.role === role.name),
+  })),
+);
+
+function groupId(name: string): string {
+  return 'access-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+}
+
+function initials(name: string): string {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '?';
+}
 
 const signInFormat = new Intl.DateTimeFormat('en-GB', {
   day: '2-digit',
   month: 'short',
   year: 'numeric',
 });
-
-function usageLabel(count: number): string {
-  if (count === 0) return 'Not assigned';
-  return count === 1 ? '1 account' : `${count} accounts`;
-}
 
 function badge(value: string): string {
   return 'status-' + value.toLowerCase().replace(/[^a-z0-9]+/g, '-');
@@ -281,10 +271,17 @@ function openEdit(user: UserRow) {
   showForm.value = true;
 }
 
-async function load() {
-  const [userList, roleList] = await Promise.all([api.users(), api.userRoles()]);
-  users.value = userList;
-  roles.value = roleList;
+async function load(): Promise<boolean> {
+  try {
+    const [userList, roleList] = await Promise.all([api.users(), api.userRoles()]);
+    users.value = userList;
+    roles.value = roleList;
+    return true;
+  } catch {
+    return false;
+  } finally {
+    loading.value = false;
+  }
 }
 
 async function save() {
@@ -300,6 +297,7 @@ async function save() {
       await api.createUser({ ...form });
     }
     await load();
+    historyVersion.value += 1;
     showForm.value = false;
     toast.success(wasEdit ? `${savedName}'s account updated` : `Account created for ${savedName}`);
   } catch (e) {
@@ -312,24 +310,21 @@ async function save() {
   }
 }
 
+const loadError = ref(false);
+
+/** The first load failed: say so, rather than showing an empty list as if there were no records. */
+async function retryLoad() {
+  loadError.value = false;
+  loading.value = true;
+  if (!(await load())) loadError.value = true;
+}
+
 onMounted(async () => {
-  try {
-    await load();
-  } catch {
-    toast.error('Could not load the team accounts.');
-  } finally {
-    loading.value = false;
-  }
+  if (!(await load())) loadError.value = true;
 });
 </script>
 
 <style scoped>
-.drawer-form-error {
-  margin-bottom: var(--space-4);
-  color: var(--color-danger-ink);
-  font-size: 13px;
-}
-
 .drawer-intro {
   margin-bottom: var(--space-4);
 }
@@ -341,70 +336,201 @@ onMounted(async () => {
 }
 
 .access-label > span {
-  color: var(--color-text-muted);
-  font-size: var(--text-xs);
-  font-weight: 600;
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 500;
 }
 
 .account-field .form-helper {
   margin-top: 6px;
 }
 
-.accounts-header {
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-3) var(--space-4);
+.form-history {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-border-subtle);
 }
 
-.users-stack {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-6);
-}
-
-.access-intro {
-  margin-bottom: var(--space-2);
-  color: var(--color-text-muted);
-  font-size: 12.5px;
-  line-height: 1.5;
-}
-
-.access-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-  gap: var(--space-5);
-  margin-top: var(--space-3);
-}
-
-.access-item {
+/* Each access level is a heading with what it allows, then the people who have it. */
+.access-group {
   display: grid;
   gap: 4px;
-  align-content: start;
+  padding-top: 8px;
 }
 
-.access-item-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
+.access-group + .access-group {
+  margin-top: 8px;
 }
 
-.access-item-name {
+.access-group-head {
+  display: grid;
+  gap: 2px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-border-strong);
+}
+
+.access-group-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   color: var(--color-text-primary);
-  font-size: 13.5px;
+  font-size: var(--text-md);
   font-weight: 600;
 }
 
-.access-item-count {
-  color: var(--color-text-muted);
-  font-size: 12px;
-  white-space: nowrap;
+.access-group-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: var(--radius-pill);
+  background: var(--tone-neutral-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 600;
   font-variant-numeric: lining-nums tabular-nums;
 }
 
-.access-item-desc {
+.access-group-desc {
   color: var(--color-text-muted);
-  font-size: 12.5px;
-  line-height: 1.5;
+  font-size: var(--text-sm);
+}
+
+.access-group-empty {
+  padding: 12px 0 4px;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.people {
+  margin: 0 -12px;
+  padding: 0;
+  list-style: none;
+}
+
+.people li + li {
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.person {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto 18px;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 56px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.person:hover {
+  background: var(--color-surface-hover);
+}
+
+.person:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: -2px;
+}
+
+.person-avatar {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--color-shell);
+  color: #FFFFFF;
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.person.suspended .person-avatar {
+  background: var(--color-text-faint);
+}
+
+.person-main {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.person-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.person.suspended .person-name {
+  color: var(--color-text-secondary);
+}
+
+.person-you {
+  padding: 0 7px;
+  border-radius: var(--radius-pill);
+  background: var(--tone-primary-surface);
+  color: var(--tone-primary-ink);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.person-email {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.person-meta {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  text-align: right;
+}
+
+.person-last {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.person-chevron {
+  color: var(--color-text-faint);
+  font-size: 18px;
+}
+
+.person:hover .person-chevron {
+  color: var(--color-primary);
+}
+
+@media (max-width: 640px) {
+  .person {
+    grid-template-columns: 36px minmax(0, 1fr) 18px;
+  }
+
+  .person-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 12px;
+    grid-column: 2;
+    grid-row: 2;
+    text-align: left;
+  }
+
+  .person-chevron {
+    grid-column: 3;
+    grid-row: 1;
+  }
 }
 </style>

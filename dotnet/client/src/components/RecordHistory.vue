@@ -49,7 +49,7 @@ const entries = ref<ActivityEntry[]>([]);
 const loading = ref(true);
 const error = ref('');
 
-const nouns: Record<string, string> = { Booking: 'booking', Expense: 'expense', TravelPackage: 'package' };
+const nouns: Record<string, string> = { Booking: 'booking', Expense: 'expense', TravelPackage: 'package', User: 'account' };
 const noun = computed(() => nouns[props.entityType] ?? 'record');
 
 type Kind = 'created' | 'updated' | 'voided' | 'restored' | 'imported';
@@ -66,7 +66,7 @@ const kinds: Record<string, { kind: Kind; icon: UiIconName; verb: string }> = {
 // is not read as a field called "Related".
 const fields = [
   'Related package', 'Passengers', 'Destination', 'Inclusions', 'Available', 'Category', 'Duration',
-  'Reserved', 'Revenue', 'Payment', 'Amount', 'Client', 'Status', 'Notes', 'Price', 'Name', 'Sold', 'Date',
+  'Reserved', 'Revenue', 'Payment', 'Amount', 'Client', 'Status', 'Notes', 'Price', 'Name', 'Role', 'Sold', 'Date',
 ];
 const moneyFields = new Set(['Revenue', 'Amount', 'Price']);
 
