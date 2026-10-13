@@ -48,6 +48,34 @@ const forecast = {
   ],
 };
 
+// The same months as counts. Passengers dip in September and November, so the January peak is a
+// peak, not a steady climb; bookings fall after a December peak.
+function countForecast(measure, values) {
+  const counting = measure === 'bookings';
+  return {
+    ...forecast,
+    measure,
+    unit: measure,
+    insight: { ...forecast.insight, notes: [] },
+    metrics: { mae: counting ? 1.33 : 20.2, rmse: counting ? 1.8 : 26.4, mape: counting ? 31.8 : 35.2, sampleSize: 25 },
+    baselines: { seasonalNaiveMae: counting ? 1.6 : 24.1, naiveMae: 2 },
+    history: [
+      { label: 'M-2', month: 'May', value: counting ? 9 : 139 },
+      { label: 'M-1', month: 'Jun', value: counting ? 4 : 38 },
+      { label: 'M0', month: 'Jul', value: counting ? 2 : 21 },
+    ],
+    steps: forecast.steps.map((s, i) => ({
+      ...s,
+      value: values[i],
+      lower: Math.max(0, values[i] * 0.45),
+      upper: values[i] * 1.6,
+    })),
+  };
+}
+
+const passengerForecast = countForecast('passengers', [77, 67, 100, 82, 97, 105]);
+const bookingForecast = countForecast('bookings', [4.4, 3.9, 5.4, 4.2, 7.6, 6.1]);
+
 const dashboard = {
   totalsScope: 'lifetime',
   excludesVoided: true,
@@ -91,9 +119,12 @@ async function route(page, user = owner) {
   await page.route('**/api/auth/me', (r) => r.fulfill(json(user)));
   await page.route('**/api/app/config', (r) => r.fulfill(json({ today: '2026-10-13', timeZone: 'Asia/Manila' })));
   await page.route('**/api/dashboard', (r) => r.fulfill(json(dashboard)));
-  await page.route('**/api/forecast', (r) => {
-    forecastRequests.push(r.request().url());
-    r.fulfill(user.role === 'Staff' ? { status: 403, body: '' } : json(forecast));
+  await page.route('**/api/forecast**', (r) => {
+    const url = r.request().url();
+    forecastRequests.push(url);
+    if (user.role === 'Staff') return r.fulfill({ status: 403, body: '' });
+    const measure = new URL(url).searchParams.get('measure') ?? 'revenue';
+    return r.fulfill(json(measure === 'passengers' ? passengerForecast : measure === 'bookings' ? bookingForecast : forecast));
   });
   await page.route('**/api/activity**', (r) => r.fulfill(json([])));
   await page.route('**/api/bookings', (r) => r.fulfill(json({ bookings, packages })));
@@ -216,6 +247,8 @@ test('The forecast leads Home and follows into the record pages', async (t) => {
     assert.ok(text.includes('October 2026 against the forecast'), text);
     assert.ok(text.includes('₱12,000 recorded so far'), 'Only the active October booking counts: ' + text);
     assert.ok(text.includes('₱1.31M forecast for October'), text);
+    assert.ok(text.includes('1 booking so far'), "Counts this month's active bookings: " + text);
+    assert.ok(text.includes('about 5 forecast, likely 2 to 9'), text);
     assert.ok(text.includes('No bookings are recorded for August–September 2026'), text);
     await page.close();
   });
@@ -239,10 +272,15 @@ test('The forecast leads Home and follows into the record pages', async (t) => {
     await page.goto(`${BASE_URL}/packages`);
     const band = page.locator('.forecast-band');
     await band.waitFor();
+    const text = squash(await band.innerText());
+    assert.ok(text.includes('Demand outlook'), text);
+    assert.ok(text.includes('Passenger numbers are forecast to peak in January 2027 at about 105'), text);
+    assert.ok(text.includes('32 slots are open across the catalog now'), 'Open slots across every package: ' + text);
+    assert.ok(text.includes("fewer than the peak month's forecast"), 'Says when the open slots fall short of the peak: ' + text);
+    assert.ok(text.includes('not each package'), 'Says the forecast is not per package');
     assert.equal(await band.locator('.outlook-month').count(), 6);
-    assert.equal(squash(await band.locator('.outlook-month.peak .outlook-label').innerText()), 'Dec');
+    assert.equal(squash(await band.locator('.outlook-month.peak .outlook-label').innerText()), 'Jan 27');
     assert.equal(squash(await band.locator('.outlook-month.current .outlook-label').innerText()), 'Oct');
-    assert.ok(squash(await band.innerText()).includes('not each package'), 'Says the forecast is not per package');
 
     await band.getByRole('button', { name: 'Show it' }).click();
     await page.waitForURL(/stock=low/);
@@ -267,7 +305,66 @@ test('The forecast leads Home and follows into the record pages', async (t) => {
     await page.close();
   });
 
-  await t.test('8. On phones the bands fold to one line and open on request', async () => {
+  await t.test('9. Home switches between revenue, bookings and passengers, and words each one', async () => {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    await route(page);
+    await page.goto(`${BASE_URL}/home`);
+    await page.waitForSelector('.forecast-headline');
+
+    await page.getByRole('button', { name: 'Passengers', exact: true }).click();
+    await page.waitForURL(/measure=passengers/);
+    await page.waitForSelector('.overview-title:has-text("Passenger forecast")');
+    assert.equal(
+      squash(await page.locator('.forecast-headline').innerText()),
+      'Passenger numbers are forecast to peak in January 2027 at about 105.',
+      'A dip on the way means a peak, not a steady climb',
+    );
+    assert.ok((await page.locator('.overview-subtitle').innerText()).includes('passengers by booking date'));
+    assert.ok(squash(await page.locator('.forecast-subline').innerText()).includes('About 528 passengers'));
+    assert.equal(await page.getByRole('button', { name: 'Passengers', exact: true }).getAttribute('aria-pressed'), 'true');
+
+    // Demand decisions open the bookings of the same month last year, never spending.
+    const links = await page.locator('.rec-next').evaluateAll((els) => els.map((el) => [el.textContent.trim(), el.getAttribute('href')]));
+    assert.ok(links.length > 0, 'Decisions have next steps');
+    for (const [label, href] of links) {
+      assert.ok(!href.startsWith('/expenses'), `A passenger decision should not open spending: ${label}`);
+    }
+    assert.ok(
+      links.some(([label, href]) => label.startsWith('See bookings in') && href.startsWith('/bookings?period=custom')),
+      JSON.stringify(links),
+    );
+
+    await page.getByRole('button', { name: 'Bookings', exact: true }).click();
+    await page.waitForURL(/measure=bookings/);
+    await page.waitForSelector('.overview-title:has-text("Bookings forecast")');
+    assert.equal(
+      squash(await page.locator('.forecast-headline').innerText()),
+      'Bookings are forecast to climb to a December peak of about 8, then fall 19.7% in January 2027.',
+    );
+    const peakLink = page.locator('.rec-next').first();
+    assert.equal(squash(await peakLink.innerText()), 'See packages low on slots');
+    assert.equal(await peakLink.getAttribute('href'), '/packages?stock=low');
+
+    await page.reload();
+    await page.waitForSelector('.overview-title:has-text("Bookings forecast")');
+    await page.close();
+  });
+
+  await t.test('10. The monthly figures and model details speak in the chosen unit', async () => {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    await route(page);
+    await page.goto(`${BASE_URL}/home?measure=bookings#forecast-details`);
+    await page.waitForSelector('#forecast-details[open] .step-panel');
+    const details = squash(await page.locator('#forecast-details').innerText());
+    assert.ok(details.includes('Forecast bookings'), 'The table names its unit');
+    assert.ok(details.includes('Bookings per month, by booking date'), 'The measure is described');
+    assert.ok(details.includes('Average miss (MAE) 1.3 bookings'), 'Misses are counted, not in pesos: ' + details);
+    assert.ok(!details.includes('Average miss in pesos'), 'No peso wording for counts');
+    assert.ok(details.includes('not by travel date'), 'Says what a booking-date count is');
+    await page.close();
+  });
+
+  await t.test('11. On phones the bands fold to one line and open on request', async () => {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await route(page);
     await page.goto(`${BASE_URL}/expenses`);

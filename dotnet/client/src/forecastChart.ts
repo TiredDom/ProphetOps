@@ -409,6 +409,8 @@ export interface BuildOverviewChartParams {
   historyMonths?: 6 | 12;
   selectedRecStepNumbers?: number[];
   recKind?: RecommendationKind | null;
+  /** Axis labels; pesos unless the forecast counts bookings or passengers. */
+  formatTick?: (value: number) => string;
 }
 
 function extractMonthName(step: { monthLabel?: string; month?: string; step?: number }): string {
@@ -430,11 +432,35 @@ function toSvgPath(points: [number, number][]): string {
     .join(' ');
 }
 
+/**
+ * The wording of each decision. Revenue decisions are about spending, as they always were;
+ * booking and passenger decisions are about preparing for the people coming, and never about
+ * money the counts cannot speak for.
+ */
+function decisionWords(measure: 'revenue' | 'bookings' | 'passengers' = 'revenue') {
+  if (measure === 'revenue') {
+    return {
+      peak: () => 'Review expenses before approving new spending',
+      range: (month: string) => `Keep ${month} commitments flexible`,
+      drop: (month: string) => `Review expense categories before ${month}`,
+      steady: 'Maintain baseline budget reviews',
+    };
+  }
+  return {
+    peak: (month: string) => `Check slots and staff before the ${month} peak`,
+    range: (month: string) => `Keep ${month} plans flexible`,
+    drop: (month: string) => `Plan for fewer ${measure} in ${month}`,
+    steady: 'Keep current plans while demand holds steady',
+  };
+}
+
 export function buildForecastDecisions(params: {
   steps: ForecastStepPoint[];
   history?: ForecastHistoryPoint[];
+  measure?: 'revenue' | 'bookings' | 'passengers';
 }): DecisionRecommendation[] {
   const { steps, history } = params;
+  const words = decisionWords(params.measure);
   if (!Array.isArray(steps) || steps.length === 0) return [];
 
   const validSteps = steps.filter(
@@ -483,7 +509,7 @@ export function buildForecastDecisions(params: {
         const diffStr = `+${diffPercent.toFixed(1)}%`;
         results.push({
           id: 'peak',
-          action: 'Review expenses before approving new spending',
+          action: words.peak(peakMonth),
           finding: `${peakMonth} peak / ${diffStr} versus ${prior.label}`,
           kind: 'increase',
           stepNumbers: prior.step !== undefined ? [prior.step, peakStep.step] : [peakStep.step],
@@ -525,7 +551,7 @@ export function buildForecastDecisions(params: {
 
     results.push({
       id: 'range',
-      action: `Keep ${month} commitments flexible`,
+      action: words.range(month),
       finding: `${month} uncertainty / approx. 80% range`,
       kind: 'uncertainty',
       stepNumbers: [rangeCandidate.step],
@@ -577,7 +603,7 @@ export function buildForecastDecisions(params: {
 
     results.push({
       id: 'drop',
-      action: `Review expense categories before ${targetMonth}`,
+      action: words.drop(targetMonth),
       finding: `${targetMonth} decrease / ${dropStr} versus ${priorMonth}`,
       kind: 'decrease',
       stepNumbers: [dropPrior.step, dropTarget.step],
@@ -596,7 +622,7 @@ export function buildForecastDecisions(params: {
     const rawUpper = Number.isFinite(s1.upper) ? s1.upper : s1.value;
     results.push({
       id: 'steady',
-      action: 'Maintain baseline budget reviews',
+      action: words.steady,
       finding: 'Steady horizon / minimal projected variation',
       kind: 'uncertainty',
       stepNumbers: [s1.step],
@@ -657,7 +683,7 @@ export function buildOverviewChartModel(params: BuildOverviewChartParams): Overv
 
   const yTicks: { value: number; y: number; label: string }[] = [];
   for (let val = niceMin; val <= niceMax + tickStep / 2; val += tickStep) {
-    yTicks.push({ value: val, y: y(val), label: formatCompactPeso(val) });
+    yTicks.push({ value: val, y: y(val), label: (params.formatTick ?? formatCompactPeso)(val) });
   }
 
   const entries: OverviewChartEntry[] = timeline.map((point, index) => {

@@ -130,14 +130,20 @@ function percentText(value: number): string {
 export function forecastHeadline(data: ForecastData | null | undefined): HeadlinePart[] {
   const steps = usableSteps(data);
   if (steps.length === 0) return [];
+  const measure = data?.measure ?? 'revenue';
+  const subject = measure === 'bookings' ? 'Bookings are' : measure === 'passengers' ? 'Passenger numbers are' : 'Revenue is';
+  // Counts are forecast as averages such as 4.4, which reads better as "about 4".
+  const figure = (value: number) =>
+    measure === 'revenue' ? formatConcisePeso(value) : `about ${Math.round(value).toLocaleString('en-PH')}`;
+
   const first = steps[0];
   const last = steps[steps.length - 1];
   const peak = peakStep(data);
 
   if (!peak) {
     return [
-      { text: 'Revenue is forecast to hold near ' },
-      { text: formatConcisePeso(first.value), strong: true },
+      { text: `${subject} forecast to hold near ` },
+      { text: figure(first.value), strong: true },
       { text: ` a month through ${last.monthLabel}.` },
     ];
   }
@@ -151,35 +157,37 @@ export function forecastHeadline(data: ForecastData | null | undefined): Headlin
 
   if (peak.step === first.step) {
     return [
-      { text: 'Revenue is forecast to be highest in ' },
-      { text: `${peak.monthLabel} at ${formatConcisePeso(peak.value)}`, strong: true },
+      { text: `${subject} forecast to be highest in ` },
+      { text: `${peak.monthLabel} at ${figure(peak.value)}`, strong: true },
       { text: ', then ease to ' },
-      { text: formatConcisePeso(last.value), strong: true },
+      { text: figure(last.value), strong: true },
       { text: ` by ${last.monthLabel}.` },
     ];
   }
 
   if (fall) {
     return [
-      { text: 'Revenue is forecast to climb to a ' },
-      { text: `${monthName(peak)} peak of ${formatConcisePeso(peak.value)}`, strong: true },
+      { text: `${subject} forecast to climb to a ` },
+      { text: `${monthName(peak)} peak of ${figure(peak.value)}`, strong: true },
       { text: ', then fall ' },
       { text: percentText(fall.percent), strong: true },
       { text: ` in ${fallMonth}.` },
     ];
   }
 
-  if (peak.step === last.step) {
+  // "Keep rising" only when every month is at least the one before; a dip on the way is a peak.
+  const rising = steps.every((s, i) => i === 0 || s.value >= steps[i - 1].value);
+  if (peak.step === last.step && rising) {
     return [
-      { text: 'Revenue is forecast to keep rising, reaching ' },
-      { text: formatConcisePeso(peak.value), strong: true },
+      { text: `${subject} forecast to keep rising, reaching ` },
+      { text: figure(peak.value), strong: true },
       { text: ` in ${peak.monthLabel}.` },
     ];
   }
 
   return [
-    { text: 'Revenue is forecast to peak in ' },
-    { text: `${peak.monthLabel} at ${formatConcisePeso(peak.value)}`, strong: true },
+    { text: `${subject} forecast to peak in ` },
+    { text: `${peak.monthLabel} at ${figure(peak.value)}`, strong: true },
     { text: '.' },
   ];
 }

@@ -26,19 +26,41 @@
         <!-- 1. The forecast and the actions it suggests -->
         <ForecastOverviewCard
           v-if="forecast?.ok"
+          :key="measure"
           :data="forecast"
+          :measure="measure"
           :show-recommendations="true"
           details-target="forecast-details"
-          title="Revenue forecast"
+          :title="forecastTitle(measure)"
           :subtitle="forecastBasis"
           :decision-link="decisionLink"
           @details="openDetails"
         >
+          <template #controls>
+            <div class="measure-switch" role="group" aria-label="What to forecast">
+              <button
+                v-for="option in measures"
+                :key="option.key"
+                type="button"
+                class="measure-option"
+                :aria-pressed="measure === option.key"
+                @click="chooseMeasure(option.key)"
+              >
+                {{ option.label }}
+              </button>
+            </div>
+          </template>
           <template #lead>
             <p class="forecast-headline"><template v-for="(part, index) in headline" :key="index"><strong v-if="part.strong">{{ part.text }}</strong><template v-else>{{ part.text }}</template></template></p>
             <p class="forecast-subline">
-              About <strong>{{ formatConcisePeso(sixMonthTotal) }}</strong> in booking revenue across {{ forecastMonths }},
-              each month with an 80% range.
+              <template v-if="measure === 'revenue'">
+                About <strong>{{ formatConcisePeso(sixMonthTotal) }}</strong> in booking revenue across {{ forecastMonths }},
+                each month with an 80% range.
+              </template>
+              <template v-else>
+                About <strong>{{ withUnit(sixMonthTotal, measure) }}</strong> across {{ forecastMonths }}, counted by
+                booking date, each month with an 80% range.
+              </template>
             </p>
           </template>
           <template v-if="gap" #notice>
@@ -70,7 +92,14 @@
             </template>
           </p>
           <p class="unavailable-note">The forecast covers booking revenue in pesos, not passenger numbers, profit or cash received.</p>
+          <button v-if="measure !== 'revenue'" type="button" class="secondary-button" @click="chooseMeasure('revenue')">
+            Show the revenue forecast
+          </button>
           <RouterLink to="/bookings" class="text-link">View booking records <UiIcon name="arrow-right" /></RouterLink>
+        </section>
+
+        <section v-else-if="forecastLoading" class="content-panel" aria-busy="true" aria-label="Loading the forecast">
+          <div class="placeholder-block chart-placeholder"></div>
         </section>
 
         <section v-else-if="forecastError" class="content-panel forecast-unavailable" aria-labelledby="forecast-error-title">
@@ -100,7 +129,8 @@
             </span>
             <span class="details-preview">
               <span v-if="peak" class="details-chip">
-                <span class="details-chip-label">Highest</span> {{ peak.month }} · {{ pesoCompact(peak.value) }}
+                <span class="details-chip-label">Highest</span> {{ peak.month }} ·
+                {{ measure === 'revenue' ? pesoCompact(peak.value) : withUnit(peak.value, measure) }}
               </span>
               <span v-if="forecast.metrics?.mape != null" class="details-chip">
                 <span class="details-chip-label">Average miss</span> {{ forecast.metrics.mape.toFixed(1) }}%
@@ -150,6 +180,9 @@ import {
   unrecordedMonths,
 } from '../forecastFacts';
 import { useForecast } from '../composables/useForecast';
+import { useQueryState } from '../composables/useQueryState';
+import type { ForecastMeasure } from '../api';
+import { forecastTitle, isMeasure, measureNoun, measureOf, measures, withUnit } from '../forecastUnits';
 
 const DETAILS_HASH = '#forecast-details';
 
@@ -157,8 +190,18 @@ const route = useRoute();
 const router = useRouter();
 
 const data = ref<DashboardData | null>(null);
-const forecastStore = useForecast();
-const forecast = computed(() => forecastStore.state.data);
+
+// Revenue is the study's main forecast; bookings and passengers use the same method on counts.
+const view = useQueryState({ measure: 'revenue' }, { measure: isMeasure });
+const measure = computed<ForecastMeasure>(() => measureOf(view.measure));
+const stores = {
+  revenue: useForecast('revenue'),
+  bookings: useForecast('bookings'),
+  passengers: useForecast('passengers'),
+};
+const forecastStore = computed(() => stores[measure.value]);
+const forecast = computed(() => forecastStore.value.state.data);
+const forecastLoading = computed(() => forecastStore.value.state.loading && !forecast.value);
 const loading = ref(true);
 const error = ref('');
 const forecastError = ref('');
@@ -188,21 +231,36 @@ const forecastBasis = computed(() => {
   if (!source) return '';
   if (source.usingSample) return 'Holt-Winters · 6 months ahead · sample series, not recorded bookings';
   const until = source.lastRecordedMonth ? ` to ${source.lastRecordedMonth}` : '';
-  return `Holt-Winters · 6 months ahead · learned from ${source.liveMonthsAvailable} months of bookings${until}`;
+  const what = measure.value === 'revenue' ? '' : ` · ${measureNoun(measure.value)} by booking date`;
+  return `Holt-Winters${what} · 6 months ahead · learned from ${source.liveMonthsAvailable} months of bookings${until}`;
 });
 
-/** Each decision opens the spending for the same month last year, the season the forecast leans on. */
+/**
+ * Each decision opens the records for the same month last year, the season the forecast leans on:
+ * spending for revenue, bookings for the counts. A demand peak opens the packages low on slots.
+ */
 function decisionLink(rec: DecisionRecommendation) {
   const steps = forecast.value?.steps ?? [];
   const stepNumber = rec.stepNumbers[rec.stepNumbers.length - 1];
   const step = steps.find((s) => s.step === stepNumber);
   const key = step ? monthKeyOfLabel(step.monthLabel) : null;
-  if (!key) return { to: '/expenses', label: 'Review spending' };
+  const counting = measure.value !== 'revenue';
+  if (counting && rec.id === 'peak') {
+    return { to: { path: '/packages', query: { stock: 'low' } }, label: 'See packages low on slots' };
+  }
+  if (!key) return counting ? { to: '/bookings', label: 'Review bookings' } : { to: '/expenses', label: 'Review spending' };
   const last = sameMonthLastYear(key);
-  return {
-    to: { path: '/expenses', query: { period: 'custom', from: last.from, to: last.to } },
-    label: `See spending in ${last.label}`,
-  };
+  const query = { period: 'custom', from: last.from, to: last.to };
+  return counting
+    ? { to: { path: '/bookings', query }, label: `See bookings in ${last.label}` }
+    : { to: { path: '/expenses', query }, label: `See spending in ${last.label}` };
+}
+
+async function chooseMeasure(next: ForecastMeasure) {
+  view.measure = next;
+  forecastError.value = '';
+  const result = await stores[next].load();
+  if (!result) forecastError.value = stores[next].state.error || 'The forecast could not be loaded.';
 }
 
 const peak = computed(() => {
@@ -230,8 +288,8 @@ async function openDetails() {
 async function loadForecast() {
   forecastError.value = '';
   // Home always asks for a fresh forecast; the other pages reuse it.
-  const result = await forecastStore.load(true);
-  if (!result) forecastError.value = forecastStore.state.error || 'The forecast could not be loaded.';
+  const result = await forecastStore.value.load(true);
+  if (!result) forecastError.value = forecastStore.value.state.error || 'The forecast could not be loaded.';
 }
 
 /** A change came through the activity feed; bring the counts up to date without a loading state. */
@@ -274,6 +332,44 @@ onMounted(load);
   color: var(--color-text-primary);
   font-size: var(--text-md);
   font-weight: 600;
+}
+
+/* The measure switch sits on the navy band, beside the title. */
+.measure-switch {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: var(--radius-pill);
+}
+
+.measure-option {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: #DCE5F3;
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.measure-option:hover {
+  color: #FFFFFF;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.measure-option[aria-pressed='true'] {
+  background: var(--color-model-on-shell);
+  color: var(--color-shell);
+}
+
+.measure-option:focus-visible {
+  outline: 2px solid var(--color-model-on-shell);
+  outline-offset: 2px;
 }
 
 /* What the forecast says, in a sentence, on the navy band: the figures carry the model's teal. */
@@ -343,6 +439,17 @@ onMounted(load);
 @media (max-width: 760px) {
   .forecast-headline {
     font-size: 20px;
+  }
+
+  .measure-switch {
+    display: flex;
+    width: 100%;
+  }
+
+  .measure-option {
+    flex: 1 1 0;
+    min-height: 40px;
+    padding: 0 8px;
   }
 
   .forecast-subline {

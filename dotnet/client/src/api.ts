@@ -325,8 +325,14 @@ export interface ForecastDataSource {
   lastRecordedMonth: string | null;
 }
 
+/** What a forecast adds up each month. Counts are by booking date, not travel date. */
+export type ForecastMeasure = 'revenue' | 'bookings' | 'passengers';
+
 export interface ForecastData {
   method: string;
+  /** Present on every forecast since the measure was added; revenue when absent. */
+  measure?: ForecastMeasure;
+  unit?: string;
   seasonLength: number;
   horizon: number;
   ok: boolean;
@@ -512,7 +518,8 @@ export const api = {
   updateExpense: (code: string, input: ExpenseInput) =>
     request<ExpenseRow>('PUT', `/api/expenses/${code}`, input),
   analytics: () => request<AnalyticsData>('GET', '/api/analytics'),
-  forecast: () => request<ForecastData>('GET', '/api/forecast'),
+  forecast: (measure: ForecastMeasure = 'revenue') =>
+    request<ForecastData>('GET', measure === 'revenue' ? '/api/forecast' : `/api/forecast?measure=${measure}`),
   reports: () => request<ReportsData>('GET', '/api/reports'),
   users: () => request<UserRow[]>('GET', '/api/users'),
   userRoles: () => request<RoleOption[]>('GET', '/api/users/roles'),

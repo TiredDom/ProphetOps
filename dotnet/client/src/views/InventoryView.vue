@@ -223,6 +223,7 @@
         v-if="!loading && packages.length"
         :low-count="lowPackages.length"
         :low-active="lowOnly"
+        :open-slots="allOpenSlots"
         @show-low="filters.stock = 'low'"
       />
 
@@ -494,6 +495,7 @@ const sorted = computed(() => {
 const { visible: visiblePackages, total, shown, loadMore, showAll } = usePaged(sorted, PAGE);
 
 const openSlots = computed(() => filtered.value.reduce((sum, p) => sum + p.availableSlots, 0));
+const allOpenSlots = computed(() => packages.value.reduce((sum, p) => sum + p.availableSlots, 0));
 const soldSlots = computed(() => filtered.value.reduce((sum, p) => sum + p.soldCount, 0));
 const anyPhotos = computed(() => visiblePackages.value.some((p) => p.imageUrl));
 

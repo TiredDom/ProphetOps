@@ -1,30 +1,42 @@
 import { computed, reactive } from 'vue';
-import { api, type ForecastData } from '../api';
+import { api, type ForecastData, type ForecastMeasure } from '../api';
 import { canSeeForecast } from '../nav';
 import { useAuth } from '../stores/auth';
 
-// One forecast for the whole session. Home, the sidebar and the record pages all read it, so it
-// is fetched once and reused for a few minutes instead of being recalculated on every page.
+// One forecast per measure for the whole session. Home, the sidebar and the record pages all read
+// them, so each is fetched once and reused for a few minutes instead of being recalculated on
+// every page.
 const FRESH_FOR_MS = 5 * 60_000;
 
-const state = reactive({
-  data: null as ForecastData | null,
-  error: '',
-  loading: false,
-  loadedAt: 0,
-  owner: '',
-});
-
-let pending: Promise<ForecastData | null> | null = null;
-
-/** Booking changes can move the forecast, so the next read fetches it again. */
-export function invalidateForecast() {
-  state.loadedAt = 0;
+interface Entry {
+  data: ForecastData | null;
+  error: string;
+  loading: boolean;
+  loadedAt: number;
+  owner: string;
 }
 
-export function useForecast() {
+function entry(): Entry {
+  return { data: null, error: '', loading: false, loadedAt: 0, owner: '' };
+}
+
+const entries = reactive<Record<ForecastMeasure, Entry>>({
+  revenue: entry(),
+  bookings: entry(),
+  passengers: entry(),
+});
+
+const pending: Partial<Record<ForecastMeasure, Promise<ForecastData | null>>> = {};
+
+/** Booking changes can move every forecast, so the next read fetches them again. */
+export function invalidateForecast() {
+  for (const key of Object.keys(entries) as ForecastMeasure[]) entries[key].loadedAt = 0;
+}
+
+export function useForecast(measure: ForecastMeasure = 'revenue') {
   const { state: auth } = useAuth();
   const allowed = computed(() => canSeeForecast(auth.user?.role));
+  const state = entries[measure];
 
   async function load(force = false): Promise<ForecastData | null> {
     if (!allowed.value) return null;
@@ -39,11 +51,12 @@ export function useForecast() {
 
     const fresh = state.data !== null && Date.now() - state.loadedAt < FRESH_FOR_MS;
     if (!force && fresh) return state.data;
-    if (pending) return pending;
+    const inFlight = pending[measure];
+    if (inFlight) return inFlight;
 
     state.loading = true;
-    pending = api
-      .forecast()
+    const request = api
+      .forecast(measure)
       .then((data) => {
         state.data = data;
         state.error = '';
@@ -56,9 +69,10 @@ export function useForecast() {
       })
       .finally(() => {
         state.loading = false;
-        pending = null;
+        delete pending[measure];
       });
-    return pending;
+    pending[measure] = request;
+    return request;
   }
 
   return { state, allowed, load };

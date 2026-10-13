@@ -8,7 +8,7 @@
           <thead>
             <tr>
               <th scope="col">Month</th>
-              <th scope="col" class="num">Forecast revenue</th>
+              <th scope="col" class="num">Forecast {{ noun }}</th>
               <th scope="col" class="num wide-only">Lower estimate</th>
               <th scope="col" class="num wide-only">Upper estimate</th>
               <th scope="col" class="num">Change</th>
@@ -24,11 +24,11 @@
                 <span v-if="row.isPeak" class="month-note">Highest forecast</span>
               </td>
               <td class="num">
-                <strong>{{ peso(row.value) }}</strong>
-                <span class="narrow-range">{{ formatCompactPeso(row.lower) }} – {{ formatCompactPeso(row.upper) }}</span>
+                <strong>{{ full(row.value) }}</strong>
+                <span class="narrow-range">{{ short(row.lower) }} – {{ short(row.upper) }}</span>
               </td>
-              <td class="num wide-only">{{ peso(row.lower) }}</td>
-              <td class="num wide-only">{{ peso(row.upper) }}</td>
+              <td class="num wide-only">{{ full(row.lower) }}</td>
+              <td class="num wide-only">{{ full(row.upper) }}</td>
               <td class="num change" :class="row.changeDirection">
                 <span v-if="row.changePercent != null" class="change-value">
                   <UiIcon
@@ -70,7 +70,7 @@
           </div>
           <div class="model-row">
             <dt>Measure</dt>
-            <dd>Booking revenue (₱)</dd>
+            <dd>{{ measureDescription(measure) }}</dd>
           </div>
           <div v-if="data.params" class="model-row">
             <dt>Smoothing settings</dt>
@@ -86,12 +86,12 @@
               <dd>{{ data.metrics?.mape != null ? data.metrics.mape.toFixed(1) + '%' : 'Not available' }}</dd>
             </div>
             <div class="model-row">
-              <dt>Average miss in pesos (MAE)</dt>
-              <dd>{{ peso(data.metrics?.mae ?? 0) }}</dd>
+              <dt>{{ measure === 'revenue' ? 'Average miss in pesos (MAE)' : 'Average miss (MAE)' }}</dt>
+              <dd>{{ miss(data.metrics?.mae ?? 0) }}</dd>
             </div>
             <div class="model-row">
               <dt>Root mean squared error (RMSE)</dt>
-              <dd>{{ peso(data.metrics?.rmse ?? 0) }}</dd>
+              <dd>{{ miss(data.metrics?.rmse ?? 0) }}</dd>
             </div>
             <div class="model-row">
               <dt>Months compared</dt>
@@ -99,7 +99,7 @@
             </div>
             <div v-if="data.baselines?.seasonalNaiveMae" class="model-row">
               <dt>Same month last year, for comparison (MAE)</dt>
-              <dd>{{ peso(data.baselines.seasonalNaiveMae) }}</dd>
+              <dd>{{ miss(data.baselines.seasonalNaiveMae) }}</dd>
             </div>
           </dl>
           <p class="details-note">
@@ -109,10 +109,15 @@
         </div>
       </div>
 
-      <p class="details-note method-note">
+      <p v-if="measure === 'revenue'" class="details-note method-note">
         Holt-Winters combines the revenue level, trend and seasonal pattern. The prediction range expresses
         uncertainty; it does not guarantee the amount will be earned. The measure is recorded booking revenue, not
         profit, cash received or passenger numbers, and expenses are not forecast.
+      </p>
+      <p v-else class="details-note method-note">
+        Holt-Winters combines the level, trend and seasonal pattern of the monthly {{ noun }}. The prediction range
+        expresses uncertainty; it does not promise the number will be reached. The {{ noun }} are counted by booking
+        date, not by travel date, and they are agency-wide, not per package.
       </p>
     </section>
   </div>
@@ -121,11 +126,25 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { ForecastData } from '../api';
-import { formatCompactPeso } from '../forecastChart';
-import { peso } from '../format';
+import { formatFull, formatMiss, formatShort, measureDescription, measureNoun, measureOf } from '../forecastUnits';
 import UiIcon from './UiIcon.vue';
 
 const props = defineProps<{ data: ForecastData }>();
+
+const measure = computed(() => measureOf(props.data.measure));
+const noun = computed(() => measureNoun(measure.value));
+
+function full(value: number): string {
+  return formatFull(value, measure.value);
+}
+
+function short(value: number): string {
+  return formatShort(value, measure.value);
+}
+
+function miss(value: number): string {
+  return formatMiss(value, measure.value);
+}
 
 interface BreakdownRow {
   step: number;

@@ -18,6 +18,16 @@
         </span>
         <span class="band-muted">Day {{ day }} of {{ daysInMonth }}</span>
       </p>
+      <p v-if="bookingStep" class="pace-figures pace-counts">
+        <span>
+          <strong class="band-figure">{{ count(recordedBookings) }}</strong>
+          {{ recordedBookings === 1 ? 'booking' : 'bookings' }} so far
+        </span>
+        <span>
+          <strong class="band-model">about {{ count(bookingStep.value) }}</strong> forecast,
+          <span class="band-muted">likely {{ count(bookingStep.lower) }} to {{ count(bookingStep.upper) }}</span>
+        </span>
+      </p>
 
       <div class="pace-track" role="img" :aria-label="trackLabel">
         <span class="pace-range" :style="{ left: percent(step.lower), width: span(step.lower, step.upper) }"></span>
@@ -57,19 +67,24 @@ import {
   stepForMonth,
   unrecordedMonths,
 } from '../../forecastFacts';
-import { peso } from '../../format';
+import { count, peso } from '../../format';
 import UiIcon from '../UiIcon.vue';
 import ForecastBand from './ForecastBand.vue';
 
-// `recorded` is this month's booking revenue so far, voided bookings left out.
-const props = defineProps<{ recorded: number; today: string }>();
+// `recorded` is this month's booking revenue so far and `recordedBookings` the number of bookings,
+// voided bookings left out of both.
+const props = withDefaults(defineProps<{ recorded: number; today: string; recordedBookings?: number }>(), {
+  recordedBookings: 0,
+});
 
 const { state, allowed, load } = useForecast();
+const bookingForecast = useForecast('bookings');
 const forecast = computed(() => state.data);
 
 const monthKey = computed(() => props.today.slice(0, 7));
 const monthLabel = computed(() => (monthKey.value ? labelOfMonthKey(monthKey.value) : 'This month'));
 const step = computed(() => stepForMonth(forecast.value, monthKey.value));
+const bookingStep = computed(() => stepForMonth(bookingForecast.state.data, monthKey.value));
 const gap = computed(() => unrecordedMonths(forecast.value, props.today));
 const visible = computed(() => allowed.value && !!forecast.value?.ok && !!props.today);
 
@@ -91,7 +106,8 @@ function span(from: number, to: number): string {
 
 const summary = computed(() => {
   if (!step.value) return 'The forecast does not cover this month yet.';
-  const recorded = `${peso(props.recorded)} recorded, ${formatConcisePeso(step.value.value)} forecast`;
+  const counted = bookingStep.value ? ` · ${count(props.recordedBookings)} of about ${count(bookingStep.value.value)} bookings` : '';
+  const recorded = `${peso(props.recorded)} of ${formatConcisePeso(step.value.value)} forecast${counted}`;
   return gap.value ? `${recorded} · recent months unrecorded` : recorded;
 });
 
@@ -103,6 +119,7 @@ const trackLabel = computed(() => {
 
 onMounted(() => {
   void load();
+  void bookingForecast.load();
 });
 </script>
 
@@ -119,6 +136,14 @@ onMounted(() => {
 .pace-figures strong {
   font-size: var(--text-lg);
   letter-spacing: -0.01em;
+}
+
+.pace-counts {
+  margin-top: -4px;
+}
+
+.pace-counts strong {
+  font-size: var(--text-md);
 }
 
 /* Recorded revenue fills from the left in white; the likely range is a teal band with the

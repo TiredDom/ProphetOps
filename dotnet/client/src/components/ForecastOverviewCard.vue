@@ -2,11 +2,16 @@
   <section class="overview-tool" aria-label="Forecast overview">
     <!-- The model's summary: what made it, and what it says -->
     <div class="overview-brief">
-      <div class="overview-title-group">
-        <span class="overview-mark" aria-hidden="true"><UiIcon name="forecast" :stroke-width="2" /></span>
-        <div class="overview-title-text">
-          <h2 class="overview-title">{{ title }}</h2>
-          <p v-if="subtitle" class="overview-subtitle">{{ subtitle }}</p>
+      <div class="overview-brief-head">
+        <div class="overview-title-group">
+          <span class="overview-mark" aria-hidden="true"><UiIcon name="forecast" :stroke-width="2" /></span>
+          <div class="overview-title-text">
+            <h2 class="overview-title">{{ title }}</h2>
+            <p v-if="subtitle" class="overview-subtitle">{{ subtitle }}</p>
+          </div>
+        </div>
+        <div v-if="$slots.controls" class="overview-controls">
+          <slot name="controls" />
         </div>
       </div>
       <div v-if="$slots.lead" class="overview-lead">
@@ -28,14 +33,14 @@
               <line x1="0" y1="7" x2="24" y2="7" stroke="#233e69" stroke-width="2.5" />
               <circle cx="12" cy="7" r="2.5" fill="#233e69" />
             </svg>
-            <span>{{ isNarrow ? 'Recorded' : 'Recorded revenue' }}</span>
+            <span>{{ isNarrow ? 'Recorded' : `Recorded ${noun}` }}</span>
           </div>
           <div class="legend-item">
             <svg class="legend-swatch-line" width="24" height="14" aria-hidden="true">
               <line x1="0" y1="7" x2="24" y2="7" stroke="#13796c" stroke-width="2.5" stroke-dasharray="5 4" />
               <circle cx="12" cy="7" r="2.5" fill="#ffffff" stroke="#13796c" stroke-width="1.5" />
             </svg>
-            <span>{{ isNarrow ? 'Forecast' : 'Forecast revenue' }}</span>
+            <span>{{ isNarrow ? 'Forecast' : `Forecast ${noun}` }}</span>
           </div>
           <div class="legend-item">
             <span class="legend-swatch-band" aria-hidden="true"></span>
@@ -81,11 +86,11 @@
           :viewBox="`0 0 ${chartModel.width} ${chartModel.height}`"
           class="overview-svg"
           role="group"
-          aria-label="Recorded booking revenue and 6-month forecast chart"
+          :aria-label="`Recorded ${noun} and 6-month forecast chart`"
         >
           <!-- Labels above plot -->
           <text :x="chartModel.plotLeft" :y="chartModel.plotTop - 12" font-size="13" fill="#57616d">
-            Revenue (PHP)
+            {{ axisTitle }}
           </text>
           <text :x="chartModel.plotRight" :y="chartModel.plotTop - 12" font-size="13" fill="#18675e" text-anchor="end">
             Next 6 months
@@ -312,21 +317,21 @@
 
             <!-- Forecast Month Tooltip Content -->
             <template v-if="activeEntry.isForecast">
-              <text x="14" y="55" font-size="13" fill="#57616d">Forecast revenue</text>
+              <text x="14" y="55" font-size="13" fill="#57616d">Forecast {{ noun }}</text>
               <text :x="tooltipWidth - 14" y="55" font-size="14" font-weight="600" fill="#26323d" text-anchor="end">
-                {{ peso(activeEntry.value) }}
+                {{ tip(activeEntry.value) }}
               </text>
               <text x="14" y="81" font-size="13" fill="#57616d">Range (approx. 80%)</text>
               <text x="14" y="102" font-size="13" fill="#26323d">
-                {{ peso(activeEntry.lower ?? activeEntry.value) }} – {{ peso(activeEntry.upper ?? activeEntry.value) }}
+                {{ tip(activeEntry.lower ?? activeEntry.value) }} – {{ tip(activeEntry.upper ?? activeEntry.value) }}
               </text>
             </template>
 
             <!-- Recorded Month Tooltip Content -->
             <template v-else>
-              <text x="14" y="55" font-size="13" fill="#57616d">Recorded revenue</text>
+              <text x="14" y="55" font-size="13" fill="#57616d">Recorded {{ noun }}</text>
               <text :x="tooltipWidth - 14" y="55" font-size="14" font-weight="600" fill="#26323d" text-anchor="end">
-                {{ peso(activeEntry.value) }}
+                {{ tip(activeEntry.value) }}
               </text>
 
               <!-- If matched recorded expenses available -->
@@ -426,7 +431,7 @@
                   :style="{ width: comparisonBarWidth(rec.evidence.prior.value, rec.evidence) }"
                 ></div>
               </div>
-              <span class="mini-bar-value">{{ formatConcisePeso(rec.evidence.prior.value) }}</span>
+              <span class="mini-bar-value">{{ short(rec.evidence.prior.value) }}</span>
             </div>
             <div class="mini-bar-row">
               <span class="mini-bar-label">{{ rec.evidence.current.label }}</span>
@@ -437,7 +442,7 @@
                   :style="{ width: comparisonBarWidth(rec.evidence.current.value, rec.evidence) }"
                 ></div>
               </div>
-              <span class="mini-bar-value current-val">{{ formatConcisePeso(rec.evidence.current.value) }}</span>
+              <span class="mini-bar-value current-val">{{ short(rec.evidence.current.value) }}</span>
             </div>
           </div>
 
@@ -450,11 +455,11 @@
               <div class="range-dot" :style="{ left: rangeDotPosition(rec.evidence) }"></div>
             </div>
             <div class="range-labels-row">
-              <span class="range-lbl-lower">{{ formatConcisePeso(rec.evidence.lower) }}</span>
+              <span class="range-lbl-lower">{{ short(rec.evidence.lower) }}</span>
               <span class="range-lbl-current" :style="{ left: rangeDotPosition(rec.evidence) }">
-                {{ formatConcisePeso(rec.evidence.value) }}
+                {{ short(rec.evidence.value) }}
               </span>
-              <span class="range-lbl-upper">{{ formatConcisePeso(rec.evidence.upper) }}</span>
+              <span class="range-lbl-upper">{{ short(rec.evidence.upper) }}</span>
             </div>
           </div>
         </div>
@@ -466,16 +471,16 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue';
 import type { RouteLocationRaw } from 'vue-router';
-import { api, type ForecastData } from '../api';
+import { api, type ForecastData, type ForecastMeasure } from '../api';
 import { useContentWidth } from '../composables/useContentWidth';
 import {
   buildOverviewChartModel,
   buildForecastDecisions,
-  formatConcisePeso,
   type ComparisonEvidence,
   type DecisionRecommendation,
   type RangeEvidence,
 } from '../forecastChart';
+import { formatAxis, formatFull, formatShort, measureNoun } from '../forecastUnits';
 import { peso } from '../format';
 import UiIcon from './UiIcon.vue';
 
@@ -490,6 +495,8 @@ export interface ForecastOverviewCardProps {
   idPrefix?: string;
   /** Where to act on a decision: a page that holds its evidence. */
   decisionLink?: (rec: DecisionRecommendation) => { to: RouteLocationRaw; label: string } | null;
+  /** What the forecast counts; revenue unless bookings or passengers are shown. */
+  measure?: ForecastMeasure;
 }
 
 const props = withDefaults(defineProps<ForecastOverviewCardProps>(), {
@@ -499,7 +506,24 @@ const props = withDefaults(defineProps<ForecastOverviewCardProps>(), {
   subtitle: '',
   idPrefix: 'foc',
   decisionLink: undefined,
+  measure: 'revenue',
 });
+
+const noun = computed(() => measureNoun(props.measure));
+const axisTitle = computed(() => {
+  if (props.measure === 'bookings') return 'Bookings per month';
+  if (props.measure === 'passengers') return 'Passengers per month';
+  return 'Revenue (PHP)';
+});
+
+/** Tooltip figures: full pesos, or a bare count since the label already names the unit. */
+function tip(value: number): string {
+  return props.measure === 'revenue' ? formatFull(value, props.measure) : formatShort(value, props.measure);
+}
+
+function short(value: number): string {
+  return formatShort(value, props.measure);
+}
 
 const emit = defineEmits<{ details: [] }>();
 
@@ -540,7 +564,7 @@ function toggleRec(recId: string) {
 const recommendations = computed(() => {
   const d = props.data;
   if (!d?.ok || !d.steps?.length) return [];
-  return buildForecastDecisions({ steps: d.steps, history: d.history });
+  return buildForecastDecisions({ steps: d.steps, history: d.history, measure: props.measure });
 });
 
 const selectedRec = computed(() => {
@@ -558,6 +582,7 @@ const chartModel = computed(() => {
     dataSource: d.dataSource,
     historyMonths: historyMonths.value,
     selectedRecStepNumbers: selectedRec.value?.stepNumbers,
+    formatTick: (value: number) => formatAxis(value, props.measure),
     recKind: selectedRec.value?.kind,
   });
 });
@@ -568,7 +593,7 @@ const activeEntry = computed(() => {
 });
 
 const activeEntryExpenses = computed(() => {
-  if (!activeEntry.value || activeEntry.value.isForecast) return null;
+  if (!activeEntry.value || activeEntry.value.isForecast || props.measure !== 'revenue') return null;
   const parsedMonth = activeEntry.value.label.match(/^([A-Za-z]+)\s+(\d{4})$/);
   if (!parsedMonth) return null;
   const monthNames = [
@@ -624,7 +649,7 @@ function handleMonthKeydown(event: KeyboardEvent, currentIndex: number) {
 }
 
 function monthAriaLabel(entry: { fullDate: string; isForecast: boolean }) {
-  return `${entry.fullDate}, ${entry.isForecast ? 'forecast' : 'recorded'} revenue, show monthly details`;
+  return `${entry.fullDate}, ${entry.isForecast ? 'forecast' : 'recorded'} ${noun.value}, show monthly details`;
 }
 
 function hitBounds(idx: number) {
@@ -706,12 +731,13 @@ const sourceNote = computed(() => {
     const gaps = s.filledMonths > 0
       ? ` (${s.filledMonths} month${s.filledMonths === 1 ? '' : 's'} had no bookings and counted as zero)`
       : '';
-    return `Based on recorded booking revenue — ${s.liveMonthsAvailable} months recorded${gaps}.`;
+    const basis = props.measure === 'revenue' ? 'booking revenue' : props.measure === 'bookings' ? 'bookings' : 'passenger numbers';
+    return `Based on recorded ${basis}, by booking date — ${s.liveMonthsAvailable} months recorded${gaps}.`;
   }
   if (s.usingSample) {
     return 'Demonstration data, not a live forecast.';
   }
-  return 'Live booking revenue forecast.';
+  return `Live ${noun.value} forecast.`;
 });
 
 async function loadSafeExpenses() {
@@ -749,7 +775,7 @@ async function loadSafeExpenses() {
 onMounted(async () => {
   await nextTick();
   attachChart();
-  if (props.data?.ok && props.data.dataSource?.usingLiveRecords) {
+  if (props.data?.ok && props.data.dataSource?.usingLiveRecords && props.measure === 'revenue') {
     loadSafeExpenses();
   }
 });
@@ -775,6 +801,20 @@ onMounted(async () => {
   padding: 24px 28px 26px;
   background: var(--color-shell);
   color: #FFFFFF;
+}
+
+.overview-brief-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px 20px;
+  min-width: 0;
+}
+
+.overview-controls {
+  flex: none;
+  max-width: 100%;
 }
 
 .overview-brief .overview-mark {
@@ -1283,6 +1323,10 @@ onMounted(async () => {
   .overview-brief {
     gap: 14px;
     padding: 18px 16px 20px;
+  }
+
+  .overview-controls {
+    flex: 1 1 100%;
   }
 
   .overview-notice {

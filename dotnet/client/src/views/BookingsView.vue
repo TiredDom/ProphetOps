@@ -221,7 +221,12 @@
         @restore="restoreFromDetail"
       />
 
-      <MonthAgainstForecast v-if="!loading && businessToday" :recorded="monthToDate" :today="businessToday" />
+      <MonthAgainstForecast
+        v-if="!loading && businessToday"
+        :recorded="monthToDate"
+        :recorded-bookings="bookingsThisMonth"
+        :today="businessToday"
+      />
 
       <div v-if="loading" class="content-panel">
         <Skeleton :rows="8" />
@@ -593,14 +598,13 @@ const activeRevenue = computed(() => active.value.reduce((sum, b) => sum + b.gro
 const unpaidInView = computed(() => active.value.filter(isUnpaid));
 const unpaidValue = computed(() => unpaidInView.value.reduce((sum, b) => sum + b.grossRevenue, 0));
 
-// Booking revenue recorded so far this month, voided bookings left out, for the forecast band.
-const monthToDate = computed(() => {
+// This month's bookings so far, voided ones left out, for the forecast band.
+const activeThisMonth = computed(() => {
   const month = businessToday.value.slice(0, 7);
-  if (!month) return 0;
-  return bookings.value
-    .filter((b) => !b.voided && b.ds.startsWith(month))
-    .reduce((sum, b) => sum + b.grossRevenue, 0);
+  return month ? bookings.value.filter((b) => !b.voided && b.ds.startsWith(month)) : [];
 });
+const monthToDate = computed(() => activeThisMonth.value.reduce((sum, b) => sum + b.grossRevenue, 0));
+const bookingsThisMonth = computed(() => activeThisMonth.value.length);
 
 const sorted = computed(() => {
   const { field, direction } = sortParts(filters.sort);

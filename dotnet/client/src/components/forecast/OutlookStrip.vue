@@ -1,22 +1,28 @@
 <template>
   <ForecastBand
     v-if="visible"
-    title="Revenue outlook"
-    :subtitle="`Holt-Winters forecast for ${forecastSpan(forecast)}`"
+    title="Demand outlook"
+    :subtitle="`Holt-Winters forecast of passengers, by booking date, for ${forecastSpan(forecast)}`"
     :summary="summary"
   >
     <template #action>
-      <RouterLink to="/home" class="band-link">See the forecast <UiIcon name="arrow-right" /></RouterLink>
+      <RouterLink :to="{ path: '/home', query: { measure: 'passengers' } }" class="band-link">
+        See the forecast <UiIcon name="arrow-right" />
+      </RouterLink>
     </template>
 
     <div class="outlook">
       <div class="outlook-text">
         <p class="outlook-line">
           <template v-if="peak">
-            Revenue is forecast to peak in <strong class="band-model">{{ peak.monthLabel }}</strong>
-            at <strong class="band-model">{{ formatConcisePeso(peak.value) }}</strong>.
+            Passenger numbers are forecast to peak in <strong class="band-model">{{ peak.monthLabel }}</strong>
+            at <strong class="band-model">about {{ count(peak.value) }}</strong>.
           </template>
-          <template v-else>Revenue is forecast to stay level over the next six months.</template>
+          <template v-else>Passenger numbers are forecast to stay level over the next six months.</template>
+        </p>
+        <p class="outlook-line">
+          <strong class="band-figure">{{ count(openSlots) }}</strong> {{ openSlots === 1 ? 'slot is' : 'slots are' }} open across
+          the catalog now<template v-if="peak && peak.value > openSlots">, fewer than the peak month's forecast</template>.
         </p>
         <p class="outlook-line">
           <template v-if="lowCount > 0">
@@ -33,17 +39,20 @@
             Show {{ lowCount === 1 ? 'it' : 'them' }}
           </button>
         </p>
-        <p class="outlook-note band-muted">The forecast covers total booking revenue, not each package.</p>
+        <p class="outlook-note band-muted">
+          Open slots are today's total for every package. The forecast is for the whole agency, not each package,
+          and counts passengers in the month they book.
+        </p>
       </div>
 
-      <ol class="outlook-months" :aria-label="`Forecast revenue by month, ${forecastSpan(forecast)}`">
+      <ol class="outlook-months" :aria-label="`Forecast passengers by month, ${forecastSpan(forecast)}`">
         <li
           v-for="s in steps"
           :key="s.step"
           class="outlook-month"
           :class="{ peak: peak?.step === s.step, current: currentKey === monthKeyOfLabel(s.monthLabel) }"
         >
-          <span class="outlook-value">{{ formatConcisePeso(s.value) }}</span>
+          <span class="outlook-value">{{ count(s.value) }}</span>
           <span class="outlook-bar-wrap" aria-hidden="true">
             <span class="outlook-bar" :style="{ height: barHeight(s.value) }"></span>
           </span>
@@ -58,15 +67,16 @@
 import { computed, onMounted } from 'vue';
 import { useBusinessDate } from '../../composables/useBusinessDate';
 import { useForecast } from '../../composables/useForecast';
-import { formatConcisePeso } from '../../forecastChart';
 import { forecastSpan, monthKeyOfLabel, peakStep, usableSteps } from '../../forecastFacts';
+import { count } from '../../format';
 import UiIcon from '../UiIcon.vue';
 import ForecastBand from './ForecastBand.vue';
 
-const props = defineProps<{ lowCount: number; lowActive: boolean }>();
+const props = defineProps<{ lowCount: number; lowActive: boolean; openSlots: number }>();
 const emit = defineEmits<{ 'show-low': [] }>();
 
-const { state, allowed, load } = useForecast();
+// Packages are about people and seats, so this band reads the passenger forecast.
+const { state, allowed, load } = useForecast('passengers');
 const { today, load: loadToday } = useBusinessDate();
 
 const forecast = computed(() => state.data);
@@ -77,8 +87,8 @@ const currentKey = computed(() => today.value.slice(0, 7));
 const top = computed(() => Math.max(...steps.value.map((s) => s.value), 1));
 
 const summary = computed(() => {
-  const low = `${props.lowCount} low on slots`;
-  return peak.value ? `Peak ${peak.value.monthLabel}, ${formatConcisePeso(peak.value.value)} · ${low}` : low;
+  const open = `${count(props.openSlots)} slots open`;
+  return peak.value ? `Peak ${peak.value.monthLabel}, about ${count(peak.value.value)} passengers · ${open}` : open;
 });
 
 function barHeight(value: number): string {
@@ -143,7 +153,9 @@ onMounted(() => {
 }
 
 .outlook-note {
+  max-width: 62ch;
   font-size: var(--text-xs);
+  line-height: 1.5;
 }
 
 /* Six forecast months as columns; the peak is solid teal, this month is outlined. */
@@ -168,7 +180,7 @@ onMounted(() => {
 
 .outlook-value {
   color: #B9C7DE;
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-variant-numeric: lining-nums tabular-nums;
   white-space: nowrap;
 }
@@ -223,10 +235,6 @@ onMounted(() => {
 
   .outlook-bar-wrap {
     height: 48px;
-  }
-
-  .outlook-value {
-    font-size: 10px;
   }
 }
 </style>
