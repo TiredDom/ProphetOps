@@ -200,7 +200,7 @@ watch(() => [props.entityType, props.code, props.version], load, { immediate: tr
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  color: #FFFFFF;
+  color: var(--color-on-shell);
   font-size: 12px;
 }
 

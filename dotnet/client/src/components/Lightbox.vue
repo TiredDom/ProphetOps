@@ -79,7 +79,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown, true));
 
 .lightbox-caption {
   margin-top: 10px;
-  color: #EAF0FB;
+  color: var(--color-shell-text);
   font-size: 13.5px;
   text-align: center;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
@@ -96,7 +96,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown, true));
   border: none;
   border-radius: var(--radius-pill);
   background: rgba(255, 255, 255, 0.12);
-  color: #FFFFFF;
+  color: var(--color-on-shell);
   cursor: pointer;
   transition: background var(--transition-fast);
 }

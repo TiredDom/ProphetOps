@@ -401,12 +401,13 @@ import { count, peso, pesoCompact, stateLabel } from '../format';
 import { describeRange, formatDate, formatDay, inRange, isIsoDate, isPeriodKey, resolvePeriod, type PeriodKey } from '../periods';
 import { monthSections, nextSort, singleSection, sortParts, type SortDirection } from '../listing';
 import { isAfter, nextCode, suggestions } from '../records';
+import { rememberRecent } from '../recents';
 
 const PAGE = 50;
 const CATEGORIES = ['Tour operations', 'Marketing', 'Seasonal cost', 'Overhead'];
 // One navy family, darkest for the first category, so the split reads as shares of one whole.
-const CATEGORY_COLORS = ['#16346B', '#3D68A8', '#7A9DD0', '#B3C6E4'];
-const OTHER_COLOR = '#8A96AC';
+const CATEGORY_COLORS = ['var(--color-series-1)', 'var(--color-series-2)', 'var(--color-series-3)', 'var(--color-series-4)'];
+const OTHER_COLOR = 'var(--color-series-other)';
 
 const toast = useToast();
 const route = useRoute();
@@ -745,6 +746,7 @@ function openDetail(e: ExpenseRow) {
   detailVoidError.value = '';
   detailActionError.value = '';
   detailOpen.value = true;
+  rememberRecent({ kind: 'expense', code: e.id, label: `${e.category} · ${peso(e.amount)}`, detail: `${e.id} · ${formatDate(e.date)}` });
 }
 
 function editFromDetail() {

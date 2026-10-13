@@ -30,15 +30,15 @@
         <div class="overview-legend-row" aria-label="Chart legend">
           <div class="legend-item">
             <svg class="legend-swatch-line" width="24" height="14" aria-hidden="true">
-              <line x1="0" y1="7" x2="24" y2="7" stroke="#233e69" stroke-width="2.5" />
-              <circle cx="12" cy="7" r="2.5" fill="#233e69" />
+              <line x1="0" y1="7" x2="24" y2="7" stroke="var(--color-primary)" stroke-width="2.5" />
+              <circle cx="12" cy="7" r="2.5" fill="var(--color-primary)" />
             </svg>
             <span>{{ isNarrow ? 'Recorded' : `Recorded ${noun}` }}</span>
           </div>
           <div class="legend-item">
             <svg class="legend-swatch-line" width="24" height="14" aria-hidden="true">
-              <line x1="0" y1="7" x2="24" y2="7" stroke="#13796c" stroke-width="2.5" stroke-dasharray="5 4" />
-              <circle cx="12" cy="7" r="2.5" fill="#ffffff" stroke="#13796c" stroke-width="1.5" />
+              <line x1="0" y1="7" x2="24" y2="7" stroke="var(--color-model)" stroke-width="2.5" stroke-dasharray="5 4" />
+              <circle cx="12" cy="7" r="2.5" fill="var(--color-surface)" stroke="var(--color-model)" stroke-width="1.5" />
             </svg>
             <span>{{ isNarrow ? 'Forecast' : `Forecast ${noun}` }}</span>
           </div>
@@ -48,6 +48,9 @@
           </div>
         </div>
         <div class="overview-header-actions">
+          <button type="button" class="compact-action-link view-full-link read-help-link" @click="openHelp('read-forecast')">
+            <UiIcon name="help" /> How to read this
+          </button>
           <a
             v-if="detailsTarget"
             :href="`#${detailsTarget}`"
@@ -89,10 +92,10 @@
           :aria-label="`Recorded ${noun} and 6-month forecast chart`"
         >
           <!-- Labels above plot -->
-          <text :x="chartModel.plotLeft" :y="chartModel.plotTop - 12" font-size="13" fill="#57616d">
+          <text :x="chartModel.plotLeft" :y="chartModel.plotTop - 12" font-size="13" fill="var(--color-text-muted)">
             {{ axisTitle }}
           </text>
-          <text :x="chartModel.plotRight" :y="chartModel.plotTop - 12" font-size="13" fill="#18675e" text-anchor="end">
+          <text :x="chartModel.plotRight" :y="chartModel.plotTop - 12" font-size="13" fill="var(--color-model-ink)" text-anchor="end">
             Next 6 months
           </text>
 
@@ -102,7 +105,7 @@
             :y="chartModel.plotTop"
             :width="chartModel.plotRight - chartModel.dividerX"
             :height="chartModel.plotHeight"
-            fill="#f5f9f7"
+            fill="var(--color-model-wash)"
           />
 
           <!-- Shaded highlight region (when a recommendation is selected) -->
@@ -126,7 +129,7 @@
               :x2="chartModel.plotRight"
               :y1="t.y"
               :y2="t.y"
-              stroke="#cbd5df"
+              stroke="var(--color-border)"
               stroke-width="1"
             />
           </g>
@@ -139,7 +142,7 @@
               :x="chartModel.plotLeft - 10"
               :y="t.y + 4"
               font-size="12"
-              fill="#485664"
+              fill="var(--color-text-secondary)"
               text-anchor="end"
             >
               {{ t.label }}
@@ -155,20 +158,20 @@
               :x2="e.x"
               :y1="chartModel.plotTop"
               :y2="chartModel.plotBottom"
-              stroke="#dce3e9"
+              stroke="var(--color-border)"
               stroke-width="1"
             />
           </g>
 
           <!-- Prediction Interval Band -->
           <g class="forecast-reveal">
-            <path :d="chartModel.bandPath" fill="#c6e0d6" fill-opacity="0.55" />
+            <path :d="chartModel.bandPath" fill="var(--color-model-band)" fill-opacity="0.55" />
 
           <!-- Recorded Series Line (Navy) -->
-          <path :d="chartModel.historyPath" fill="none" stroke="#233e69" stroke-width="2.5" stroke-linejoin="round" />
+          <path :d="chartModel.historyPath" fill="none" stroke="var(--color-primary)" stroke-width="2.5" stroke-linejoin="round" />
 
           <!-- Forecast Series Line (Teal Dashed) -->
-            <path :d="chartModel.forecastPath" fill="none" stroke="#13796c" stroke-width="2.5" stroke-dasharray="6 4" stroke-linejoin="round" />
+            <path :d="chartModel.forecastPath" fill="none" stroke="var(--color-model)" stroke-width="2.5" stroke-dasharray="6 4" stroke-linejoin="round" />
           </g>
 
           <!-- Entry circle markers -->
@@ -179,8 +182,8 @@
               :cx="e.x"
               :cy="e.y"
               :r="activeMonthIndex === e.index ? 5.5 : 3.5"
-              :fill="e.isForecast ? '#ffffff' : '#233e69'"
-              :stroke="e.isForecast ? '#13796c' : '#ffffff'"
+              :fill="e.isForecast ? 'var(--color-surface)' : 'var(--color-primary)'"
+              :stroke="e.isForecast ? 'var(--color-model)' : 'var(--color-surface)'"
               :stroke-width="e.isForecast ? 2 : 1"
               :class="{ 'forecast-point': e.isForecast }"
             />
@@ -194,7 +197,7 @@
               :cx="pt.x"
               :cy="pt.y"
               r="6"
-              fill="#ffffff"
+              fill="var(--color-surface)"
               :stroke="chartModel.highlightRegion.color"
               stroke-width="2.5"
               pointer-events="none"
@@ -208,7 +211,7 @@
             :y1="chartModel.plotTop"
             :x2="activeEntry.x"
             :y2="chartModel.plotBottom"
-            stroke="#13796c"
+            stroke="var(--color-model)"
             stroke-width="1.5"
             stroke-dasharray="4 3"
             pointer-events="none"
@@ -223,7 +226,7 @@
               :y="chartModel.plotBottom + 18"
               text-anchor="middle"
               font-size="12"
-              fill="#26323d"
+              fill="var(--color-text-primary)"
               font-weight="600"
             >
               {{ lbl.shortMonth }}
@@ -236,7 +239,7 @@
               :y="chartModel.plotBottom + 32"
               text-anchor="middle"
               font-size="12"
-              fill="#57616d"
+              fill="var(--color-text-muted)"
             >
               {{ tickIdx === 0 || lbl.year !== chartModel.xTicks[tickIdx - 1].year ? (lbl.year ?? '') : '' }}
             </text>
@@ -248,7 +251,7 @@
             :y1="chartModel.plotTop"
             :x2="chartModel.dividerX"
             :y2="chartModel.plotBottom"
-            stroke="#5c7a6e"
+            stroke="var(--color-model)"
             stroke-width="1.5"
             stroke-dasharray="4 4"
           />
@@ -260,7 +263,7 @@
             :width="chartModel.plotRight - chartModel.plotLeft"
             :height="chartModel.plotHeight"
             fill="none"
-            stroke="#8094a6"
+            stroke="var(--color-text-faint)"
             stroke-width="1.5"
             pointer-events="none"
           />
@@ -310,43 +313,43 @@
               :width="tooltipWidth"
               :height="tooltipHeight"
               rx="5"
-              fill="#ffffff"
-              stroke="#aab9c8"
+              fill="var(--color-surface)"
+              stroke="var(--color-border-strong)"
               stroke-width="1.5"
             />
-            <text x="14" y="27" font-size="15" font-weight="600" fill="#26323d">
+            <text x="14" y="27" font-size="15" font-weight="600" fill="var(--color-text-primary)">
               {{ activeEntry.fullDate }}
             </text>
 
             <!-- Forecast Month Tooltip Content -->
             <template v-if="activeEntry.isForecast">
-              <text x="14" y="55" font-size="13" fill="#57616d">Forecast {{ noun }}</text>
-              <text :x="tooltipWidth - 14" y="55" font-size="14" font-weight="600" fill="#26323d" text-anchor="end">
+              <text x="14" y="55" font-size="13" fill="var(--color-text-muted)">Forecast {{ noun }}</text>
+              <text :x="tooltipWidth - 14" y="55" font-size="14" font-weight="600" fill="var(--color-text-primary)" text-anchor="end">
                 {{ tip(activeEntry.value) }}
               </text>
-              <text x="14" y="81" font-size="13" fill="#57616d">Range (approx. 80%)</text>
-              <text x="14" y="102" font-size="13" fill="#26323d">
+              <text x="14" y="81" font-size="13" fill="var(--color-text-muted)">Range (approx. 80%)</text>
+              <text x="14" y="102" font-size="13" fill="var(--color-text-primary)">
                 {{ tip(activeEntry.lower ?? activeEntry.value) }} – {{ tip(activeEntry.upper ?? activeEntry.value) }}
               </text>
             </template>
 
             <!-- Recorded Month Tooltip Content -->
             <template v-else>
-              <text x="14" y="55" font-size="13" fill="#57616d">Recorded {{ noun }}</text>
-              <text :x="tooltipWidth - 14" y="55" font-size="14" font-weight="600" fill="#26323d" text-anchor="end">
+              <text x="14" y="55" font-size="13" fill="var(--color-text-muted)">Recorded {{ noun }}</text>
+              <text :x="tooltipWidth - 14" y="55" font-size="14" font-weight="600" fill="var(--color-text-primary)" text-anchor="end">
                 {{ tip(activeEntry.value) }}
               </text>
 
               <!-- If matched recorded expenses available -->
               <template v-if="activeEntryExpenses">
-                <text x="14" y="81" font-size="13" fill="#57616d">Recorded expenses</text>
-                <text :x="tooltipWidth - 14" y="81" font-size="14" font-weight="600" fill="#26323d" text-anchor="end">
+                <text x="14" y="81" font-size="13" fill="var(--color-text-muted)">Recorded expenses</text>
+                <text :x="tooltipWidth - 14" y="81" font-size="14" font-weight="600" fill="var(--color-text-primary)" text-anchor="end">
                   {{ peso(activeEntryExpenses.total) }}
                 </text>
-                <line x1="14" :x2="tooltipWidth - 14" y1="96" y2="96" stroke="#dce3e9" stroke-width="1" />
+                <line x1="14" :x2="tooltipWidth - 14" y1="96" y2="96" stroke="var(--color-border)" stroke-width="1" />
                 <template v-for="(cat, cIdx) in activeEntryExpenses.categories" :key="`cat-${cIdx}`">
-                  <text x="14" :y="117 + cIdx * 23" font-size="12.5" fill="#57616d">{{ cat.name }}</text>
-                  <text :x="tooltipWidth - 14" :y="117 + cIdx * 23" font-size="12.5" fill="#26323d" text-anchor="end">
+                  <text x="14" :y="117 + cIdx * 23" font-size="12.5" fill="var(--color-text-muted)">{{ cat.name }}</text>
+                  <text :x="tooltipWidth - 14" :y="117 + cIdx * 23" font-size="12.5" fill="var(--color-text-primary)" text-anchor="end">
                     {{ peso(cat.amount) }}
                   </text>
                 </template>
@@ -399,14 +402,14 @@
           <div class="rec-finding-line">
             <svg class="rec-triangle-svg" width="16" height="14" viewBox="0 0 16 14" aria-hidden="true">
               <!-- Increase: Green Up Triangle -->
-              <polygon v-if="rec.kind === 'increase'" points="0,14 8,0 16,14" fill="#126c5f" />
+              <polygon v-if="rec.kind === 'increase'" points="0,14 8,0 16,14" fill="var(--color-model-ink)" />
               <!-- Decrease: Red Down Triangle -->
-              <polygon v-else-if="rec.kind === 'decrease'" points="0,0 16,0 8,14" fill="#a33d41" />
+              <polygon v-else-if="rec.kind === 'decrease'" points="0,0 16,0 8,14" fill="var(--color-danger)" />
               <!-- Uncertainty: Amber Warning Triangle with Exclamation Mark -->
               <g v-else>
-                <polygon points="0,14 8,0 16,14" fill="#8c5b0a" />
-                <line x1="8" y1="4" x2="8" y2="8" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" />
-                <circle cx="8" cy="11" r="0.9" fill="#ffffff" />
+                <polygon points="0,14 8,0 16,14" fill="var(--color-warning-ink)" />
+                <line x1="8" y1="4" x2="8" y2="8" stroke="var(--color-surface)" stroke-width="1.8" stroke-linecap="round" />
+                <circle cx="8" cy="11" r="0.9" fill="var(--color-surface)" />
               </g>
             </svg>
             <span :id="`${idPrefix}-finding-${rec.id}`" class="rec-finding-text" :class="`finding-kind-${rec.kind}`">{{ rec.finding }}</span>
@@ -486,6 +489,7 @@ import {
 import { formatAxis, formatFull, formatShort, measureNoun } from '../forecastUnits';
 import { peso } from '../format';
 import UiIcon from './UiIcon.vue';
+import { openHelp } from '../composables/useHelp';
 
 export interface ForecastOverviewCardProps {
   data: ForecastData;
@@ -789,12 +793,12 @@ onMounted(async () => {
    Overview Tool (Genuinely framed tool, radius 8px)
    ============================================================ */
 .overview-tool {
-  background: #ffffff;
-  border: 1px solid #aab9c8;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
   border-radius: 8px;
   overflow: hidden;
   margin-bottom: 24px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--shadow-md);
 }
 
 /* Navy, like the sidebar, so the model's summary reads as its own voice; its figures are teal. */
@@ -803,7 +807,7 @@ onMounted(async () => {
   gap: 18px;
   padding: 24px 28px 26px;
   background: var(--color-shell);
-  color: #FFFFFF;
+  color: var(--color-on-shell);
 }
 
 .overview-brief-head {
@@ -821,12 +825,12 @@ onMounted(async () => {
 }
 
 .overview-brief .overview-mark {
-  background: rgba(134, 217, 197, 0.14);
+  background: var(--tint-model-on-shell);
   color: var(--color-model-on-shell);
 }
 
 .overview-brief .overview-title {
-  color: #FFFFFF;
+  color: var(--color-on-shell);
 }
 
 .overview-brief .overview-subtitle {
@@ -839,7 +843,7 @@ onMounted(async () => {
 
 .overview-chart-section {
   padding: 20px 24px 16px;
-  background: #ffffff;
+  background: var(--color-surface);
 }
 
 .overview-header-row {
@@ -880,7 +884,7 @@ onMounted(async () => {
   margin: 0;
   font-size: 22px;
   font-weight: 600;
-  color: #26323d;
+  color: var(--color-text-primary);
   letter-spacing: -0.01em;
   line-height: 1.2;
 }
@@ -904,7 +908,7 @@ onMounted(async () => {
 .view-full-link {
   font-size: 13.5px;
   font-weight: 600;
-  color: #13796c;
+  color: var(--color-model);
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -913,15 +917,27 @@ onMounted(async () => {
 
 .view-full-link:hover {
   text-decoration: underline;
-  color: #0e5b52;
+  color: var(--color-model-ink);
+}
+
+.read-help-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.read-help-link .ui-icon {
+  font-size: 15px;
 }
 
 /* History Segmented Toggle Controls */
 .history-toggle-group {
   display: inline-flex;
-  border: 1px solid #d9dfe5;
+  border: 1px solid var(--color-border);
   border-radius: 6px;
-  background: #ffffff;
+  background: var(--color-surface);
   padding: 2px;
   gap: 2px;
 }
@@ -933,7 +949,7 @@ onMounted(async () => {
   background: transparent;
   font-size: 14px;
   font-weight: 400;
-  color: #57616d;
+  color: var(--color-text-muted);
   cursor: pointer;
   border-radius: 4px;
   display: inline-flex;
@@ -944,17 +960,17 @@ onMounted(async () => {
 }
 
 .history-toggle-btn:hover {
-  background: #f0f4f8;
+  background: var(--color-surface-hover);
 }
 
 .history-toggle-btn.active {
-  background: #eaf0f7;
-  color: #233e69;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
   font-weight: 600;
 }
 
 .history-toggle-btn:focus-visible {
-  outline: 2px solid #233e69;
+  outline: 2px solid var(--color-primary);
   outline-offset: 1px;
 }
 
@@ -965,7 +981,7 @@ onMounted(async () => {
   gap: 10px 24px;
   flex-wrap: wrap;
   font-size: 13.5px;
-  color: #26323d;
+  color: var(--color-text-primary);
   letter-spacing: 0;
 }
 
@@ -983,8 +999,8 @@ onMounted(async () => {
   display: inline-block;
   width: 22px;
   height: 14px;
-  background: #dcece7;
-  border: 1px solid #a9c9be;
+  background: var(--color-model-soft);
+  border: 1px solid var(--color-model-border);
   border-radius: 2px;
 }
 
@@ -1008,7 +1024,7 @@ onMounted(async () => {
 }
 
 .month-target:focus-visible .month-hit-rect {
-  fill: rgba(35, 62, 105, 0.08);
+  fill: var(--tint-primary);
 }
 
 /* The forecast region opens from the divider outward, then its points settle in. Without
@@ -1057,18 +1073,18 @@ onMounted(async () => {
   flex-wrap: wrap;
   margin-top: 14px;
   padding-top: 10px;
-  border-top: 1px solid #eef2f5;
+  border-top: 1px solid var(--color-border-subtle);
   font-size: 12.5px;
-  color: #57616d;
+  color: var(--color-text-muted);
   letter-spacing: 0;
 }
 
 /* ============================================================
-   Recommendations Area (Lightly tinted green #edf3ef)
+   Recommendations area, on the model's soft teal
    ============================================================ */
 .overview-recommendations-section {
-  background: #edf3ef;
-  border-top: 1px solid #c7d4ce;
+  background: var(--color-model-soft);
+  border-top: 1px solid var(--color-model-border);
   padding: 0 0 4px;
 }
 
@@ -1079,7 +1095,7 @@ onMounted(async () => {
   justify-content: space-between;
   gap: 4px 20px;
   padding: 18px 24px 12px 28px;
-  border-bottom: 1px solid #c7d4ce;
+  border-bottom: 1px solid var(--color-model-border);
 }
 
 .rec-section-title {
@@ -1100,14 +1116,14 @@ onMounted(async () => {
   padding: 0 7px;
   border-radius: var(--radius-pill);
   background: var(--color-model);
-  color: #FFFFFF;
+  color: var(--color-on-shell);
   font-size: var(--text-xs);
   font-weight: 650;
   font-variant-numeric: lining-nums tabular-nums;
 }
 
 .rec-section-note {
-  color: #3f5a52;
+  color: var(--color-model-ink);
   font-size: var(--text-sm);
 }
 
@@ -1161,7 +1177,7 @@ onMounted(async () => {
   padding: 20px 24px 20px 28px;
   cursor: pointer;
   transition: background 0.15s ease, box-shadow 0.15s ease;
-  border-bottom: 1px solid #c7d4ce;
+  border-bottom: 1px solid var(--color-model-border);
   min-height: 44px;
   letter-spacing: 0;
 }
@@ -1171,13 +1187,13 @@ onMounted(async () => {
 }
 
 .rec-row:hover {
-  background: #e1ece5;
+  background: var(--color-model-hover);
 }
 
 /* Selection outlines the whole row rather than marking one edge. */
 .rec-row.selected {
-  background: #dce9e2;
-  box-shadow: inset 0 0 0 2px #13796c;
+  background: var(--color-model-hover);
+  box-shadow: inset 0 0 0 2px var(--color-model);
 }
 
 
@@ -1193,7 +1209,7 @@ onMounted(async () => {
   margin: 0;
   font-size: 20px;
   font-weight: 600;
-  color: #26323d;
+  color: var(--color-text-primary);
   line-height: 1.3;
   letter-spacing: 0;
 }
@@ -1213,15 +1229,15 @@ onMounted(async () => {
 }
 
 .finding-kind-increase {
-  color: #126c5f;
+  color: var(--color-model-ink);
 }
 
 .finding-kind-uncertainty {
-  color: #8c5b0a;
+  color: var(--color-warning-ink);
 }
 
 .finding-kind-decrease {
-  color: #a33d41;
+  color: var(--color-danger);
 }
 
 /* Evidence Mini-Visual Column */
@@ -1249,7 +1265,7 @@ onMounted(async () => {
 }
 
 .mini-bar-label {
-  color: #57616d;
+  color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1267,26 +1283,26 @@ onMounted(async () => {
 }
 
 .mini-bar-fill.prior {
-  background: #b5c3cf;
+  background: var(--color-border-strong);
 }
 
 .mini-bar-fill.fill-increase {
-  background: #126c5f;
+  background: var(--color-model-ink);
 }
 
 .mini-bar-fill.fill-decrease {
-  background: #a33d41;
+  background: var(--color-danger);
 }
 
 .mini-bar-value {
   text-align: right;
-  color: #485664;
+  color: var(--color-text-secondary);
   font-variant-numeric: tabular-nums;
 }
 
 .mini-bar-value.current-val {
   font-weight: 600;
-  color: #26323d;
+  color: var(--color-text-primary);
 }
 
 /* Range Track */
@@ -1307,7 +1323,7 @@ onMounted(async () => {
 .range-line {
   width: 100%;
   height: 3px;
-  background: #8c5b0a;
+  background: var(--color-warning-ink);
 }
 
 .range-cap {
@@ -1315,7 +1331,7 @@ onMounted(async () => {
   top: 4px;
   bottom: 4px;
   width: 2px;
-  background: #8c5b0a;
+  background: var(--color-warning-ink);
 }
 
 .range-cap.left {
@@ -1331,7 +1347,7 @@ onMounted(async () => {
   top: 50%;
   width: 9px;
   height: 9px;
-  background: #8c5b0a;
+  background: var(--color-warning-ink);
   border-radius: 50%;
   transform: translate(-50%, -50%);
 }
@@ -1341,7 +1357,7 @@ onMounted(async () => {
   display: flex;
   justify-content: space-between;
   font-size: 12.5px;
-  color: #57616d;
+  color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1349,7 +1365,7 @@ onMounted(async () => {
   position: absolute;
   transform: translateX(-50%);
   font-weight: 600;
-  color: #26323d;
+  color: var(--color-text-primary);
 }
 
 /* ============================================================

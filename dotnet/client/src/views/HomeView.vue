@@ -349,7 +349,7 @@ onMounted(load);
   border: 0;
   border-radius: var(--radius-pill);
   background: transparent;
-  color: #DCE5F3;
+  color: var(--color-on-shell-soft);
   font: inherit;
   font-size: var(--text-sm);
   font-weight: 600;
@@ -358,7 +358,7 @@ onMounted(load);
 }
 
 .measure-option:hover {
-  color: #FFFFFF;
+  color: var(--color-on-shell);
   background: rgba(255, 255, 255, 0.08);
 }
 
@@ -375,7 +375,7 @@ onMounted(load);
 /* What the forecast says, in a sentence, on the navy band: the figures carry the model's teal. */
 .forecast-headline {
   max-width: 44ch;
-  color: #FFFFFF;
+  color: var(--color-on-shell);
   font-size: 26px;
   font-weight: 600;
   letter-spacing: -0.016em;
@@ -391,12 +391,12 @@ onMounted(load);
 
 .forecast-subline {
   margin-top: 8px;
-  color: #C3D0E6;
+  color: var(--color-on-shell-muted);
   font-size: var(--text-base);
 }
 
 .forecast-subline strong {
-  color: #FFFFFF;
+  color: var(--color-on-shell);
   font-weight: 650;
   font-variant-numeric: lining-nums tabular-nums;
 }

@@ -58,6 +58,25 @@
     --color-model-band: #C6E0D6;
     --color-model-border: #BCD7CC;
     --color-model-on-shell: #86D9C5;
+    --color-model-wash: #F3F8F5;
+    --color-model-hover: #DFEDE6;
+    --tint-model-on-shell: rgba(134, 217, 197, 0.14);
+
+    /* Text on the navy shell and the model's navy bands */
+    --color-on-shell: #FFFFFF;
+    --color-on-shell-soft: #DCE5F3;
+    --color-on-shell-muted: #C3D0E6;
+    --color-on-shell-warning: #F3CF86;
+    --color-on-shell-danger: #F4A3A0;
+
+    /* Data series: one navy family for shares of a whole, slate for costs */
+    --color-series-1: #16346B;
+    --color-series-2: #3D68A8;
+    --color-series-3: #7A9DD0;
+    --color-series-4: #B3C6E4;
+    --color-series-other: #8A96AC;
+    --color-costs: #9AA6BC;
+    --color-costs-ink: #7C89A3;
 
     /* Semantic tints (used sparingly — rules and washes) */
     --tint-primary: rgba(22, 52, 107, 0.08);
@@ -423,9 +442,63 @@ html {
     font-size: var(--text-xs);
 }
 
+/* Search and jump, at the top of the sidebar: looks like a field, opens the search. */
+.sidebar-search {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 10px;
+    min-height: 38px;
+    margin: 0 4px 12px;
+    padding: 0 8px 0 10px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--color-shell-muted);
+    font: inherit;
+    font-size: var(--text-sm);
+    text-align: left;
+    cursor: pointer;
+    transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.sidebar-search:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--color-shell-text);
+}
+
+.sidebar-search:focus-visible {
+    outline: 2px solid var(--color-shell-text);
+    outline-offset: 1px;
+}
+
+.sidebar-search span {
+    flex: 1;
+}
+
+.sidebar-search-icon {
+    font-size: 16px;
+}
+
+.sidebar-search kbd {
+    padding: 0 6px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: var(--radius-sm);
+    color: var(--color-shell-muted);
+    font-family: var(--font-family);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 18px;
+}
+
+.sidebar-account-link .ui-icon {
+    font-size: 20px;
+}
+
 .sheet-heading,
 .account-scrim,
 .account-button,
+.header-search,
 .tab-bar {
     display: none;
 }
@@ -484,8 +557,29 @@ html {
         order: 2;
     }
 
-    .account-button {
+    .header-search {
         order: 3;
+        display: grid;
+        place-items: center;
+        flex: none;
+        width: 44px;
+        height: 44px;
+        margin: -4px -8px -4px 0;
+        border: 0;
+        border-radius: 50%;
+        background: transparent;
+        color: var(--color-text-secondary);
+        font-size: 20px;
+        cursor: pointer;
+    }
+
+    .header-search:focus-visible {
+        outline: 2px solid var(--color-ring);
+        outline-offset: 0;
+    }
+
+    .account-button {
+        order: 4;
         display: grid;
         place-items: center;
         flex: none;
@@ -541,7 +635,8 @@ html {
     }
 
     .brand,
-    .sidebar-nav {
+    .sidebar-nav,
+    .sidebar-search {
         display: none;
     }
 

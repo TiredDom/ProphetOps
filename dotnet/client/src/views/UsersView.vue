@@ -235,6 +235,7 @@ import { undoAction, useToast } from '../composables/useToast';
 import { useFieldErrors } from '../composables/useFieldErrors';
 import { stateLabel } from '../format';
 import { looksLikeEmail } from '../records';
+import { rememberRecent } from '../recents';
 import { useAuth } from '../stores/auth';
 import { api, ApiError, type UserRow, type UserInput, type RoleOption } from '../api';
 
@@ -358,6 +359,7 @@ function openDetail(user: UserRow) {
   detailEmail.value = user.email;
   detailActionError.value = '';
   detailOpen.value = true;
+  rememberRecent({ kind: 'account', code: user.email, label: user.name, detail: `${user.email} · ${user.role}` });
 }
 
 function editFromDetail() {
@@ -589,6 +591,11 @@ onMounted(async () => {
     return;
   }
   openFromAddress();
+  // Search's "Add an account" arrives with ?new=1.
+  if (route.query.new === '1') {
+    openCreate();
+    void router.replace({ query: { ...route.query, new: undefined } });
+  }
 });
 
 watch(() => route.query.open, (value) => {
@@ -732,7 +739,7 @@ watch(() => route.query.open, (value) => {
   height: 36px;
   border-radius: 50%;
   background: var(--color-shell);
-  color: #FFFFFF;
+  color: var(--color-on-shell);
   font-size: var(--text-xs);
   font-weight: 600;
 }

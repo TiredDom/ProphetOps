@@ -649,6 +649,7 @@ import { count, peso, stateLabel } from '../format';
 import { describeRange, formatDate, formatDay, inRange, isIsoDate, isPeriodKey, resolvePeriod, type PeriodKey } from '../periods';
 import { compareText, monthSections, nextSort, singleSection, sortParts, type SortDirection } from '../listing';
 import { isAfter, listNames, mergeDraft, nextCode, suggestions } from '../records';
+import { rememberRecent } from '../recents';
 
 type BookingMode = 'package' | 'custom';
 type BookingForm = BookingInput & { mode: BookingMode };
@@ -1014,6 +1015,7 @@ function openDetail(b: Booking) {
   detailVoidError.value = '';
   detailActionError.value = '';
   detailOpen.value = true;
+  rememberRecent({ kind: 'booking', code: b.id, label: b.client, detail: `${b.id} · ${b.package} · ${peso(b.grossRevenue)}` });
 }
 
 function editFromDetail() {

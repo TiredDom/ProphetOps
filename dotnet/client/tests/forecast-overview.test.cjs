@@ -278,7 +278,7 @@ test('9. Recommendation selection highlights exact related forecast step points'
 
   assert.ok(chart);
   assert.ok(chart.highlightRegion);
-  assert.equal(chart.highlightRegion.color, '#126c5f');
+  assert.equal(chart.highlightRegion.color, 'var(--color-model-ink)');
   assert.equal(chart.highlightRegion.points.length, 2);
   assert.ok(chart.highlightRegion.width > 0);
   assert.ok(chart.highlightRegion.x >= chart.plotLeft);

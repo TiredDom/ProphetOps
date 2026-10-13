@@ -379,4 +379,25 @@ test('The forecast leads Home and follows into the record pages', async (t) => {
     assert.ok(overflow <= 0, `Scrolls sideways by ${overflow}px`);
     await page.close();
   });
+
+  await t.test('12. On wide screens a band folds on request, and every band stays folded after', async () => {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const page = await context.newPage();
+    await route(page);
+    await page.goto(`${BASE_URL}/expenses`);
+    const band = page.locator('.forecast-band');
+    await band.waitFor();
+    assert.equal(await band.locator('.guide').isVisible(), true, 'Open by default on wide screens');
+    await band.getByRole('button', { name: 'Hide details' }).click();
+    assert.equal(await band.locator('.guide').isVisible(), false);
+    assert.ok(squash(await band.locator('.band-summary').innerText()).includes('3 decisions on spending'));
+
+    await page.goto(`${BASE_URL}/bookings`);
+    const bookingsBand = page.locator('.forecast-band');
+    await bookingsBand.waitFor();
+    assert.ok(await bookingsBand.getByRole('button', { name: 'Show details' }).isVisible(), 'The choice holds on the next page');
+    await bookingsBand.getByRole('button', { name: 'Show details' }).click();
+    assert.ok(await bookingsBand.getByRole('button', { name: 'Hide details' }).isVisible());
+    await context.close();
+  });
 });

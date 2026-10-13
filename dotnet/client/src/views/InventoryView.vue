@@ -578,6 +578,7 @@ import { api, ApiError, type PackageImportPreview, type PackageRow, type Package
 import { count, peso, stateLabel } from '../format';
 import { compareText, nextSort, sortParts, type SortDirection } from '../listing';
 import { listNames, mergeDraft, nextCode, suggestions } from '../records';
+import { rememberRecent } from '../recents';
 
 type PackageRecovery = { kind: 'create'; payload: PackageInput } | { kind: 'stale-edit' };
 
@@ -756,6 +757,7 @@ const returnToDetail = ref(false);
 function openDetail(p: PackageRow) {
   detailCode.value = p.id;
   detailOpen.value = true;
+  rememberRecent({ kind: 'package', code: p.id, label: p.packageName, detail: `${p.id} · ${p.destination}` });
 }
 
 function editFromDetail() {

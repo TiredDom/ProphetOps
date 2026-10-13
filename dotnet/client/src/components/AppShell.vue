@@ -21,6 +21,12 @@
         <p class="brand-subtitle">Renan-Tina Travels &amp; Tours</p>
       </div>
 
+      <button type="button" class="sidebar-search" aria-keyshortcuts="Control+K Meta+K" @click="openPalette">
+        <UiIcon name="search" class="sidebar-search-icon" />
+        <span>Search</span>
+        <kbd>{{ modKey }} K</kbd>
+      </button>
+
       <nav class="sidebar-nav" aria-label="Main navigation">
         <RouterLink
           v-for="item in items"
@@ -62,6 +68,11 @@
           <span>{{ link.label }}</span>
         </RouterLink>
 
+        <button class="sidebar-account-link" type="button" aria-keyshortcuts="Shift+?" @click="showHelp">
+          <UiIcon name="help" class="nav-item-icon" />
+          <span>Help &amp; shortcuts</span>
+        </button>
+
         <button class="sidebar-logout" type="button" :disabled="signingOut" @click="signOut">
           {{ signingOut ? 'Logging out…' : 'Log out' }}
         </button>
@@ -76,6 +87,10 @@
         <div v-if="$slots.actions" class="page-actions">
           <slot name="actions" />
         </div>
+
+        <button class="header-search" type="button" aria-label="Search" @click="openPalette">
+          <UiIcon name="search" />
+        </button>
 
         <button
           class="account-button"
@@ -109,17 +124,25 @@
     </nav>
 
     <ToastHost />
+    <CommandPalette />
+    <HelpPanel />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuth } from '../stores/auth';
-import { accountLinksFor, navFor } from '../nav';
+import { accountLinksFor, canAccess, navFor } from '../nav';
 import { useMediaQuery } from '../composables/useMediaQuery';
 import { useModalFocus } from '../composables/useModalFocus';
+import { closePalette, openHelp, openPalette, useHelpState } from '../composables/useHelp';
+import { isTypingTarget, modKey, openOverlays, overlayOpen } from '../keyboard';
+import { useRecentsFor } from '../recents';
+import CommandPalette from './CommandPalette.vue';
+import HelpPanel from './HelpPanel.vue';
 import NavIcon from './NavIcon.vue';
+import UiIcon from './UiIcon.vue';
 import ForecastPulse from './forecast/ForecastPulse.vue';
 import ToastHost from './ToastHost.vue';
 
@@ -168,6 +191,101 @@ const initials = computed(() =>
 
 const displayRole = computed(() =>
   state.user?.role === 'Owner / Management' ? 'Owner' : state.user?.role ?? 'User');
+
+// Recently opened records belong to whoever is signed in.
+useRecentsFor(state.user?.email);
+watch(() => state.user?.email, (email) => useRecentsFor(email));
+
+function showHelp() {
+  accountOpen.value = false;
+  openHelp();
+}
+
+// ----- Keyboard shortcuts -----
+// Ctrl+K (⌘K) searches from anywhere. The rest are single keys, which wait while someone is
+// typing in a field or a panel is open: / searches the list, N adds, E edits the open record,
+// G then a letter goes to a page, ? opens help.
+
+const helpState = useHelpState();
+const goKeys: Record<string, string> = { h: '/home', b: '/bookings', p: '/packages', e: '/expenses', r: '/reports', t: '/team' };
+let goPending = false;
+let goTimer: ReturnType<typeof setTimeout> | undefined;
+
+function topDialog(): HTMLElement | null {
+  const dialogs = openOverlays('[role="dialog"][aria-modal="true"]');
+  return dialogs.length ? dialogs[dialogs.length - 1] : null;
+}
+
+function onShortcut(event: KeyboardEvent) {
+  if (event.defaultPrevented || event.isComposing) return;
+  const key = event.key;
+
+  if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && key.toLowerCase() === 'k') {
+    event.preventDefault();
+    if (helpState.paletteOpen) closePalette();
+    else openPalette();
+    return;
+  }
+  if (event.ctrlKey || event.metaKey || event.altKey || isTypingTarget(event.target)) return;
+
+  if (key === 'e' || key === 'E') {
+    const edit = topDialog()?.querySelector<HTMLButtonElement>('[aria-keyshortcuts="E"]:not(:disabled)');
+    if (edit) {
+      event.preventDefault();
+      edit.click();
+      return;
+    }
+  }
+  if (overlayOpen()) return;
+
+  if (goPending) {
+    goPending = false;
+    clearTimeout(goTimer);
+    const path = goKeys[key.toLowerCase()];
+    if (path && canAccess(state.user?.role, path)) {
+      event.preventDefault();
+      if (route.path !== path) void router.push(path);
+    }
+    return;
+  }
+
+  switch (key) {
+    case '/': {
+      event.preventDefault();
+      const search = document.querySelector<HTMLInputElement>('.main-panel .search-field input');
+      if (search) search.focus();
+      else openPalette();
+      break;
+    }
+    case '?':
+      event.preventDefault();
+      openHelp('shortcuts');
+      break;
+    case 'n':
+    case 'N': {
+      const add = document.querySelector<HTMLButtonElement>('.page-actions [aria-keyshortcuts="N"]:not(:disabled)');
+      if (add) {
+        event.preventDefault();
+        add.click();
+      }
+      break;
+    }
+    case 'g':
+    case 'G':
+      goPending = true;
+      clearTimeout(goTimer);
+      goTimer = setTimeout(() => {
+        goPending = false;
+      }, 1500);
+      break;
+  }
+}
+
+onMounted(() => document.addEventListener('keydown', onShortcut));
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onShortcut);
+  clearTimeout(goTimer);
+});
 
 async function signOut() {
   if (signingOut.value) return;

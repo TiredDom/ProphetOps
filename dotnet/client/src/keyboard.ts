@@ -16,7 +16,12 @@ export const isMac =
 /** The modifier key as this computer labels it. */
 export const modKey = isMac ? '⌘' : 'Ctrl';
 
+/** Overlays on screen, leaving out any already on their way out. */
+export function openOverlays(selector = '[aria-modal="true"], [role="menu"]'): HTMLElement[] {
+  return [...document.querySelectorAll<HTMLElement>(selector)].filter((el) => !el.closest('[class*="-leave-active"]'));
+}
+
 /** Whether an overlay (a panel, a dialog, a menu) is open, so page shortcuts wait. */
 export function overlayOpen(): boolean {
-  return !!document.querySelector('[aria-modal="true"], [role="menu"]');
+  return openOverlays().length > 0;
 }

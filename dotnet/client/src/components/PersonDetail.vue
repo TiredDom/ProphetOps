@@ -161,7 +161,7 @@ function badge(value: string): string {
   height: 52px;
   border-radius: 50%;
   background: var(--color-shell);
-  color: #FFFFFF;
+  color: var(--color-on-shell);
   font-size: var(--text-md);
   font-weight: 600;
 }

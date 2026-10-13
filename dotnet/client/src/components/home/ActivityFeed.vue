@@ -21,7 +21,7 @@
       <p v-else>No changes yet. New bookings, edits and voided records will appear here as they happen.</p>
     </div>
 
-    <div v-else class="feed">
+    <div v-else :id="feedId" class="feed">
       <section v-for="group in groups" :key="group.label" class="feed-day" :aria-label="group.label">
         <h3 class="feed-day-label">{{ group.label }}</h3>
         <ol class="feed-list">
@@ -50,12 +50,25 @@
         </ol>
       </section>
     </div>
+
+    <button
+      v-if="narrow && entries.length > PHONE_LIMIT"
+      type="button"
+      class="feed-more"
+      :aria-expanded="showAll"
+      :aria-controls="feedId"
+      @click="showAll = !showAll"
+    >
+      {{ showAll ? 'Show less' : `Show ${entries.length - PHONE_LIMIT} more` }}
+      <UiIcon name="chevron-down" class="feed-more-icon" />
+    </button>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { api, type ActivityEntry } from '../../api';
+import { useMediaQuery } from '../../composables/useMediaQuery';
 import Skeleton from '../Skeleton.vue';
 import UiIcon, { type UiIconName } from '../UiIcon.vue';
 
@@ -132,9 +145,18 @@ function timeLabel(at: Date): string {
   return `${Math.floor(minutes / 60)} h ago`;
 }
 
+// Phones show the latest few, so Home stays short; the rest are a tap away.
+const PHONE_LIMIT = 3;
+const feedId = 'activity-feed-list';
+const narrow = useMediaQuery('(max-width: 760px)');
+const showAll = ref(false);
+const shownEntries = computed(() =>
+  narrow.value && !showAll.value ? entries.value.slice(0, PHONE_LIMIT) : entries.value,
+);
+
 const groups = computed(() => {
   const result: { label: string; items: ReturnType<typeof present>[] }[] = [];
-  for (const entry of entries.value) {
+  for (const entry of shownEntries.value) {
     const item = present(entry);
     const last = result[result.length - 1];
     if (last && last.label === item.day) last.items.push(item);
@@ -227,6 +249,31 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.feed-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-primary);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.feed-more-icon {
+  font-size: 15px;
+  transition: transform var(--transition-normal);
+}
+
+.feed-more[aria-expanded='true'] .feed-more-icon {
+  transform: rotate(180deg);
+}
+
 .feed-head {
   display: flex;
   flex-wrap: wrap;
@@ -367,7 +414,7 @@ onBeforeUnmount(() => {
   height: 32px;
   border-radius: 50%;
   background: var(--color-shell);
-  color: #FFFFFF;
+  color: var(--color-on-shell);
   font-size: var(--text-xs);
   font-weight: 600;
 }
@@ -382,7 +429,7 @@ onBeforeUnmount(() => {
   height: 17px;
   border: 2px solid var(--color-surface);
   border-radius: 50%;
-  color: #FFFFFF;
+  color: var(--color-on-shell);
   font-size: 9px;
 }
 

@@ -756,7 +756,7 @@ export function buildOverviewChartModel(params: BuildOverviewChartParams): Overv
       const maxX = Math.max(...matched.map((e) => e.x));
       const left = Math.max(plotLeft, minX - half);
       const right = Math.min(plotRight, maxX + half);
-      const color = params.recKind === 'increase' ? '#126c5f' : params.recKind === 'decrease' ? '#a33d41' : '#8c5b0a';
+      const color = params.recKind === 'increase' ? 'var(--color-model-ink)' : params.recKind === 'decrease' ? 'var(--color-danger)' : 'var(--color-warning-ink)';
       highlightRegion = {
         x: left,
         width: right - left,

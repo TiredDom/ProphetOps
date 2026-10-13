@@ -113,6 +113,27 @@
       <line x1="6.5" y1="6.5" x2="17.5" y2="17.5" />
       <line x1="17.5" y1="6.5" x2="6.5" y2="17.5" />
     </template>
+    <template v-else-if="name === 'search'">
+      <circle cx="10.5" cy="10.5" r="6" />
+      <line x1="15" y1="15" x2="19.5" y2="19.5" />
+    </template>
+    <template v-else-if="name === 'help'">
+      <circle cx="12" cy="12" r="8" />
+      <path d="M9.6 9.6a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.4" />
+      <circle cx="12" cy="16.6" r="0.9" fill="currentColor" stroke="none" />
+    </template>
+    <template v-else-if="name === 'clock'">
+      <circle cx="12" cy="12" r="8" />
+      <polyline points="12 7.5 12 12 15 14" />
+    </template>
+    <template v-else-if="name === 'keyboard'">
+      <rect x="3" y="6.5" width="18" height="11" rx="1.8" />
+      <line x1="7" y1="10" x2="7.01" y2="10" />
+      <line x1="10.3" y1="10" x2="10.31" y2="10" />
+      <line x1="13.7" y1="10" x2="13.71" y2="10" />
+      <line x1="17" y1="10" x2="17.01" y2="10" />
+      <line x1="8" y1="14" x2="16" y2="14" />
+    </template>
     <!-- Direction markers are solid so they read at small sizes next to figures. -->
     <template v-else-if="name === 'up'">
       <polygon points="12 6 19 17 5 17" fill="currentColor" stroke="none" />
@@ -149,7 +170,11 @@ export type UiIconName =
   | 'forecast'
   | 'alert'
   | 'up'
-  | 'down';
+  | 'down'
+  | 'search'
+  | 'help'
+  | 'clock'
+  | 'keyboard';
 </script>
 
 <script setup lang="ts">

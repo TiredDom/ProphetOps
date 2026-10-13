@@ -185,6 +185,7 @@
         <p class="report-foot">
           Generated {{ data.generatedAt }}. Revenue is gross booking revenue and leaves out voided bookings; costs leave
           out voided expenses. Revenue after costs is revenue less recorded expenses, not accounting profit.
+          <button type="button" class="report-help" @click="openHelp('reports')">How these figures are worked out</button>
         </p>
       </template>
     </section>
@@ -200,6 +201,7 @@ import UiIcon, { type UiIconName } from '../components/UiIcon.vue';
 import { useBusinessDate } from '../composables/useBusinessDate';
 import { useContentWidth } from '../composables/useContentWidth';
 import { useQueryState } from '../composables/useQueryState';
+import { openHelp } from '../composables/useHelp';
 import { api, type ReportLine, type ReportsData } from '../api';
 import { count, peso, pesoCompact, stateLabel } from '../format';
 import { describeRange, isIsoDate, isPeriodKey, resolvePeriod, type PeriodKey } from '../periods';
@@ -567,8 +569,8 @@ onMounted(load);
 
 .key-costs,
 .bar-costs {
-  background: #9AA6BC;
-  fill: #9AA6BC;
+  background: var(--color-costs);
+  fill: var(--color-costs);
 }
 
 .month-chart-box {
@@ -675,7 +677,7 @@ onMounted(load);
 }
 
 .tone-data .report-bar-track i {
-  background: #7C89A3;
+  background: var(--color-costs-ink);
 }
 
 .report-bar-value {
@@ -724,6 +726,18 @@ onMounted(load);
   color: var(--color-text-muted);
   font-size: var(--text-sm);
   line-height: 1.5;
+}
+
+.report-help {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-primary);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
 }
 
 .print-heading {

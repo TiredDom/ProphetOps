@@ -316,25 +316,59 @@ const metrics = computed(() => {
   font-size: 15px;
 }
 
+/* Phones: one row per figure, the change under its name and the figure on the right. The
+   change already says how it compares, so the bars stay for wider screens. */
 @media (max-width: 760px) {
+  .month-head {
+    margin-bottom: 6px;
+  }
+
   .score-grid {
     grid-template-columns: minmax(0, 1fr);
-    gap: 18px;
   }
 
   .score {
-    padding: 18px 0 0;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'label value'
+      'change value';
+    align-items: center;
+    gap: 2px 12px;
+    padding: 12px 0;
     border-left: 0;
     border-top: 1px solid var(--color-border-subtle);
   }
 
   .score:first-child {
-    padding-top: 0;
     border-top: 0;
   }
 
+  .score:last-child {
+    padding-bottom: 0;
+  }
+
+  .score-label {
+    grid-area: label;
+    color: var(--color-text-secondary);
+  }
+
   .score-value {
+    grid-area: value;
     font-size: var(--text-lg);
+    text-align: right;
+  }
+
+  .score-change {
+    grid-area: change;
+    font-size: var(--text-xs);
+  }
+
+  .score-bars {
+    display: none;
+  }
+
+  .month-footnote {
+    margin-top: 12px;
   }
 
   .month-empty {

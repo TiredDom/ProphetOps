@@ -91,7 +91,7 @@ onMounted(() => {
 }
 
 .pulse-value {
-  color: #FFFFFF;
+  color: var(--color-on-shell);
   font-size: 20px;
   font-weight: 650;
   letter-spacing: -0.01em;

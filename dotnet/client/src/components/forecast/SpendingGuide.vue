@@ -1,5 +1,6 @@
 <template>
   <ForecastBand
+    help-topic="forecast-decisions"
     v-if="visible"
     title="What the forecast suggests for spending"
     subtitle="Revenue only; expenses are not forecast. The decision is yours."
@@ -106,12 +107,12 @@ onMounted(() => {
 
 .kind-decrease .guide-mark {
   background: rgba(244, 163, 160, 0.16);
-  color: #F4A3A0;
+  color: var(--color-on-shell-danger);
 }
 
 .kind-uncertainty .guide-mark {
   background: rgba(243, 207, 134, 0.16);
-  color: #F3CF86;
+  color: var(--color-on-shell-warning);
   font-size: 15px;
 }
 
@@ -122,13 +123,13 @@ onMounted(() => {
 }
 
 .guide-action {
-  color: #FFFFFF;
+  color: var(--color-on-shell);
   font-size: var(--text-base);
   font-weight: 600;
 }
 
 .guide-finding {
-  color: #B9C7DE;
+  color: var(--color-on-shell-muted);
   font-size: var(--text-sm);
 }
 
@@ -137,11 +138,11 @@ onMounted(() => {
 }
 
 .kind-decrease .guide-finding {
-  color: #F4A3A0;
+  color: var(--color-on-shell-danger);
 }
 
 .kind-uncertainty .guide-finding {
-  color: #F3CF86;
+  color: var(--color-on-shell-warning);
 }
 
 .guide-button {
@@ -149,7 +150,7 @@ onMounted(() => {
   border: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: var(--radius-pill);
   background: transparent;
-  color: #FFFFFF;
+  color: var(--color-on-shell);
   font: inherit;
   font-size: var(--text-sm);
   font-weight: 600;

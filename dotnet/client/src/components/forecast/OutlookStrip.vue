@@ -122,7 +122,7 @@ onMounted(() => {
   gap: 6px;
   flex: 1 1 320px;
   min-width: 0;
-  color: #DCE5F3;
+  color: var(--color-on-shell-soft);
   font-size: var(--text-base);
 }
 
@@ -179,7 +179,7 @@ onMounted(() => {
 }
 
 .outlook-value {
-  color: #B9C7DE;
+  color: var(--color-on-shell-muted);
   font-size: var(--text-xs);
   font-variant-numeric: lining-nums tabular-nums;
   white-space: nowrap;
@@ -209,17 +209,17 @@ onMounted(() => {
 }
 
 .outlook-month.current .outlook-bar {
-  box-shadow: inset 0 0 0 2px #FFFFFF;
+  box-shadow: inset 0 0 0 2px var(--color-on-shell);
 }
 
 .outlook-label {
-  color: #DCE5F3;
+  color: var(--color-on-shell-soft);
   font-size: var(--text-xs);
   white-space: nowrap;
 }
 
 .outlook-month.current .outlook-label {
-  color: #FFFFFF;
+  color: var(--color-on-shell);
   font-weight: 650;
 }
 

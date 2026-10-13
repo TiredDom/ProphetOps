@@ -9,39 +9,72 @@
       <div v-if="$slots.action" class="band-action">
         <slot name="action" />
       </div>
+      <button
+        v-if="summary && !compact && !folded"
+        type="button"
+        class="band-toggle"
+        aria-expanded="true"
+        :aria-controls="bodyId"
+        @click="toggle"
+      >
+        Hide details
+        <UiIcon name="chevron-down" class="band-toggle-icon" />
+      </button>
     </div>
 
-    <!-- On phones the band opens folded to one line, so the list below stays within reach. -->
-    <div v-if="compact && summary" class="band-fold">
+    <!-- Folded to one line: on phones by default, so the list below stays within reach, and on
+         wide screens when someone chooses to (remembered for every band). -->
+    <div v-if="summary && (compact || folded)" class="band-fold">
       <p class="band-summary">{{ summary }}</p>
       <button
         type="button"
         class="band-toggle"
-        :aria-expanded="expanded"
+        :aria-expanded="!folded"
         :aria-controls="bodyId"
-        @click="expanded = !expanded"
+        @click="toggle"
       >
-        {{ expanded ? 'Hide details' : 'Show details' }}
+        {{ folded ? 'Show details' : 'Hide details' }}
         <UiIcon name="chevron-down" class="band-toggle-icon" />
       </button>
     </div>
 
     <div v-show="!folded" :id="bodyId" class="band-body">
       <slot />
+      <button type="button" class="band-help" @click="openHelp(helpTopic)">
+        <UiIcon name="help" /> {{ helpTopic === 'forecast-decisions' ? 'How to use these suggestions' : 'How the forecast works' }}
+      </button>
     </div>
   </section>
 </template>
 
 <script lang="ts">
+import { ref as sharedRef } from 'vue';
+
 let nextId = 0;
+const FOLD_KEY = 'prophetops.forecastBands';
+
+function readFolded(): boolean {
+  try {
+    return localStorage.getItem(FOLD_KEY) === 'folded';
+  } catch {
+    return false;
+  }
+}
+
+// One choice for every band on wide screens, so folding one folds them on every page.
+const wideFolded = sharedRef(readFolded());
 </script>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useMediaQuery } from '../../composables/useMediaQuery';
 import UiIcon from '../UiIcon.vue';
+import { openHelp } from '../../composables/useHelp';
 
-const props = defineProps<{ title: string; subtitle?: string; summary?: string }>();
+const props = withDefaults(
+  defineProps<{ title: string; subtitle?: string; summary?: string; helpTopic?: string }>(),
+  { subtitle: '', summary: '', helpTopic: 'read-forecast' },
+);
 
 const id = ++nextId;
 const titleId = `forecast-band-${id}`;
@@ -49,7 +82,20 @@ const bodyId = `forecast-band-body-${id}`;
 
 const compact = useMediaQuery('(max-width: 640px)');
 const expanded = ref(false);
-const folded = computed(() => compact.value && !!props.summary && !expanded.value);
+const folded = computed(() => !!props.summary && (compact.value ? !expanded.value : wideFolded.value));
+
+function toggle() {
+  if (compact.value) {
+    expanded.value = !expanded.value;
+    return;
+  }
+  wideFolded.value = !wideFolded.value;
+  try {
+    localStorage.setItem(FOLD_KEY, wideFolded.value ? 'folded' : 'open');
+  } catch {
+    // The choice still holds for this visit.
+  }
+}
 </script>
 
 <style scoped>
@@ -61,7 +107,7 @@ const folded = computed(() => compact.value && !!props.summary && !expanded.valu
   padding: 18px 24px 20px;
   border-radius: var(--radius-lg);
   background: var(--color-shell);
-  color: #FFFFFF;
+  color: var(--color-on-shell);
 }
 
 .band-head {
@@ -78,7 +124,7 @@ const folded = computed(() => compact.value && !!props.summary && !expanded.valu
   width: 36px;
   height: 36px;
   border-radius: var(--radius-md);
-  background: rgba(134, 217, 197, 0.14);
+  background: var(--tint-model-on-shell);
   color: var(--color-model-on-shell);
   font-size: 20px;
 }
@@ -91,7 +137,7 @@ const folded = computed(() => compact.value && !!props.summary && !expanded.valu
 }
 
 .band-title {
-  color: #FFFFFF;
+  color: var(--color-on-shell);
   font-size: var(--text-md);
   font-weight: 600;
   letter-spacing: -0.01em;
@@ -117,7 +163,7 @@ const folded = computed(() => compact.value && !!props.summary && !expanded.valu
 .band-summary {
   flex: 1 1 180px;
   min-width: 0;
-  color: #DCE5F3;
+  color: var(--color-on-shell-soft);
   font-size: var(--text-sm);
   font-variant-numeric: lining-nums tabular-nums;
 }
@@ -131,7 +177,7 @@ const folded = computed(() => compact.value && !!props.summary && !expanded.valu
   border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: var(--radius-pill);
   background: transparent;
-  color: #FFFFFF;
+  color: var(--color-on-shell);
   font: inherit;
   font-size: var(--text-sm);
   font-weight: 600;
@@ -160,7 +206,7 @@ const folded = computed(() => compact.value && !!props.summary && !expanded.valu
 
 /* Shared pieces for what goes inside a band */
 .band-body :deep(.band-figure) {
-  color: #FFFFFF;
+  color: var(--color-on-shell);
   font-weight: 650;
   font-variant-numeric: lining-nums tabular-nums;
 }
@@ -172,14 +218,14 @@ const folded = computed(() => compact.value && !!props.summary && !expanded.valu
 }
 
 .band-body :deep(.band-muted) {
-  color: #B9C7DE;
+  color: var(--color-on-shell-muted);
 }
 
 .band-body :deep(.band-warning) {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  color: #F3CF86;
+  color: var(--color-on-shell-warning);
   font-size: var(--text-sm);
   line-height: 1.5;
 }
@@ -209,6 +255,37 @@ const folded = computed(() => compact.value && !!props.summary && !expanded.valu
 .band-action :deep(.band-link:focus-visible) {
   outline: 2px solid var(--color-model-on-shell);
   outline-offset: 2px;
+}
+
+.band-help {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  justify-self: start;
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-on-shell-muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.band-help:hover {
+  color: var(--color-on-shell);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.band-help:focus-visible {
+  outline: 2px solid var(--color-model-on-shell);
+  outline-offset: 2px;
+}
+
+.band-help .ui-icon {
+  font-size: 14px;
 }
 
 @media (max-width: 640px) {

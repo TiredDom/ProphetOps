@@ -129,7 +129,7 @@ onMounted(() => {
   flex-wrap: wrap;
   align-items: baseline;
   gap: 4px 22px;
-  color: #DCE5F3;
+  color: var(--color-on-shell-soft);
   font-size: var(--text-base);
 }
 
@@ -170,7 +170,7 @@ onMounted(() => {
   left: 0;
   min-width: 3px;
   border-radius: var(--radius-pill);
-  background: #FFFFFF;
+  background: var(--color-on-shell);
 }
 
 .pace-marker {
@@ -186,7 +186,7 @@ onMounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 4px 18px;
-  color: #B9C7DE;
+  color: var(--color-on-shell-muted);
   font-size: var(--text-xs);
 }
 
@@ -204,7 +204,7 @@ onMounted(() => {
 }
 
 .key-recorded {
-  background: #FFFFFF;
+  background: var(--color-on-shell);
 }
 
 .key-range {
