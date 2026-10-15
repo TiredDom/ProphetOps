@@ -15,7 +15,7 @@ using Xunit;
 
 namespace ProphetOps.Api.Tests;
 
-public sealed class H2aImageLifecycleTests : IDisposable
+public sealed class ImageLifecycleTests : IDisposable
 {
     private readonly ImageFactory _factory = new();
 
