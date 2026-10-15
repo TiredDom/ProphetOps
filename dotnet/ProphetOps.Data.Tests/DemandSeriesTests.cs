@@ -246,4 +246,109 @@ public class DemandSeriesTests
 
         Assert.Equal(2147583648d, series.Values[^1]);
     }
+
+    [Fact]
+    public void Excludes_voided_bookings_from_revenue_sum()
+    {
+        using var db = NewDb();
+        FillMonths(db, new DateOnly(2024, 1, 1), 24, 100000);
+
+        var voided = new Booking
+        {
+            Code = "BKG-VOID-TEST",
+            BookingDate = new DateOnly(2025, 12, 15),
+            PassengerCount = 1,
+            Client = "Test",
+            PackageName = "Test",
+            Destination = "Test",
+            GrossRevenue = 75000,
+            VoidedAt = DateTime.UtcNow,
+        };
+        db.Bookings.Add(voided);
+        db.SaveChanges();
+
+        var series = DemandSeriesBuilder.Build(db, new DateOnly(2026, 1, 9));
+
+        // December 2025 should still be 100,000, not 175,000
+        Assert.Equal(100000, series.Values[^1]);
+    }
+
+    [Fact]
+    public void Excludes_future_months_beyond_current_running_month()
+    {
+        using var db = NewDb();
+        FillMonths(db, new DateOnly(2024, 1, 1), 24, 100000);
+
+        // Standing in Jan 2026, add future booking for May 2026
+        AddBooking(db, 2026, 5, 200000);
+        db.SaveChanges();
+
+        var series = DemandSeriesBuilder.Build(db, new DateOnly(2026, 1, 15));
+
+        Assert.Equal(24, series.Values.Count);
+        Assert.Equal(new DateOnly(2025, 12, 1), series.LastMonth);
+    }
+
+    [Fact]
+    public void Handles_leap_year_february_dates_and_multi_year_rollover()
+    {
+        using var db = NewDb();
+        // 2024 is a leap year. Add a booking on Feb 29, 2024
+        db.Bookings.Add(new Booking
+        {
+            Code = "BKG-LEAP-2024",
+            BookingDate = new DateOnly(2024, 2, 29),
+            PassengerCount = 2,
+            Client = "Leap Client",
+            PackageName = "Leap Trip",
+            Destination = "Palawan",
+            GrossRevenue = 88000,
+        });
+        // Fill from March 2024 through Feb 2026 (24 months)
+        FillMonths(db, new DateOnly(2024, 3, 1), 24, 120000);
+
+        // Standing on March 5, 2026. Dec 2024->Jan 2025 and Dec 2025->Jan 2026 rollover
+        var series = DemandSeriesBuilder.Build(db, new DateOnly(2026, 3, 5));
+
+        Assert.True(series.UsingLiveRecords);
+        Assert.Equal(25, series.Values.Count);
+        Assert.Equal(88000, series.Values[0]); // Feb 2024 leap booking
+        Assert.Equal(new DateOnly(2026, 2, 1), series.LastMonth);
+    }
+
+    [Fact]
+    public void Recomputes_series_dynamically_when_booking_date_or_amount_changes()
+    {
+        using var db = NewDb();
+        FillMonths(db, new DateOnly(2024, 1, 1), 24, 100000);
+
+        var mutableBooking = new Booking
+        {
+            Code = "BKG-MUTABLE-01",
+            BookingDate = new DateOnly(2025, 6, 10),
+            PassengerCount = 1,
+            Client = "Client",
+            PackageName = "Tour",
+            Destination = "Cebu",
+            GrossRevenue = 50000,
+        };
+        db.Bookings.Add(mutableBooking);
+        db.SaveChanges();
+
+        var juneIndex = 17; // Jan 2024 = 0, June 2025 = 17
+        var julyIndex = 18;
+
+        var series1 = DemandSeriesBuilder.Build(db, new DateOnly(2026, 1, 9));
+        Assert.Equal(150000, series1.Values[juneIndex]);
+        Assert.Equal(100000, series1.Values[julyIndex]);
+
+        // Change amount and move to July
+        mutableBooking.BookingDate = new DateOnly(2025, 7, 12);
+        mutableBooking.GrossRevenue = 90000;
+        db.SaveChanges();
+
+        var series2 = DemandSeriesBuilder.Build(db, new DateOnly(2026, 1, 9));
+        Assert.Equal(100000, series2.Values[juneIndex]);
+        Assert.Equal(190000, series2.Values[julyIndex]);
+    }
 }

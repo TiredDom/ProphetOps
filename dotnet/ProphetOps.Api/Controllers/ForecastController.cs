@@ -24,10 +24,16 @@ public class ForecastController : ControllerBase
         _environment = environment;
     }
 
+    /// The same Holt-Winters forecast for one of three monthly measures: booking revenue (the
+    /// default and the study's main measure), the number of bookings, or the number of passengers.
+    /// Counts are by booking date; no departure dates are recorded.
     [HttpGet]
-    public IActionResult Get()
+    public IActionResult Get([FromQuery] string? measure)
     {
-        var demand = DemandSeriesBuilder.Build(_db, _clock.Today, AllowSampleFallback());
+        if (!TryReadMeasure(measure, out var chosen))
+            return BadRequest(new Dictionary<string, string> { ["measure"] = "Use revenue, bookings or passengers." });
+
+        var demand = DemandSeriesBuilder.Build(_db, _clock.Today, AllowSampleFallback(), chosen);
         var anchor = demand.LastMonth;
         var series = demand.Values.ToList();
 
@@ -36,6 +42,8 @@ public class ForecastController : ControllerBase
             return Ok(new
             {
                 method = "Holt-Winters",
+                measure = MeasureName(chosen),
+                unit = UnitName(chosen),
                 seasonLength = 12,
                 horizon = 6,
                 ok = false,
@@ -97,7 +105,7 @@ public class ForecastController : ControllerBase
             : "";
         var peakValue = peak?.Value ?? 0;
 
-        var notes = forecast.Ok
+        var notes = forecast.Ok && chosen == DemandMeasure.Revenue
             ? TrajectoryInsights.Build(new TrajectoryInput
             {
                 Steps = forecastSteps
@@ -127,6 +135,8 @@ public class ForecastController : ControllerBase
         return Ok(new
         {
             method = "Holt-Winters",
+            measure = MeasureName(chosen),
+            unit = UnitName(chosen),
             seasonLength = 12,
             horizon = 6,
             ok = forecast.Ok,
@@ -162,6 +172,40 @@ public class ForecastController : ControllerBase
             steps,
         });
     }
+
+    private static bool TryReadMeasure(string? value, out DemandMeasure measure)
+    {
+        switch ((value ?? "").Trim().ToLowerInvariant())
+        {
+            case "":
+            case "revenue":
+                measure = DemandMeasure.Revenue;
+                return true;
+            case "bookings":
+                measure = DemandMeasure.Bookings;
+                return true;
+            case "passengers":
+                measure = DemandMeasure.Passengers;
+                return true;
+            default:
+                measure = DemandMeasure.Revenue;
+                return false;
+        }
+    }
+
+    private static string MeasureName(DemandMeasure measure) => measure switch
+    {
+        DemandMeasure.Bookings => "bookings",
+        DemandMeasure.Passengers => "passengers",
+        _ => "revenue",
+    };
+
+    private static string UnitName(DemandMeasure measure) => measure switch
+    {
+        DemandMeasure.Bookings => "bookings",
+        DemandMeasure.Passengers => "passengers",
+        _ => "PHP",
+    };
 
     private bool AllowSampleFallback() =>
         _configuration.GetValue<bool>("Demo:Enabled") && !_environment.IsProduction();

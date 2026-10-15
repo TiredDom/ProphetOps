@@ -1,0 +1,1455 @@
+<template>
+  <section class="overview-tool" aria-label="Forecast overview">
+    <!-- The model's summary: what made it, and what it says -->
+    <div class="overview-brief">
+      <div class="overview-brief-head">
+        <div class="overview-title-group">
+          <span class="overview-mark" aria-hidden="true"><UiIcon name="forecast" :stroke-width="2" /></span>
+          <div class="overview-title-text">
+            <h2 class="overview-title">{{ title }}</h2>
+            <p v-if="subtitle" class="overview-subtitle">{{ subtitle }}</p>
+          </div>
+        </div>
+        <div v-if="$slots.controls" class="overview-controls">
+          <slot name="controls" />
+        </div>
+      </div>
+      <div v-if="$slots.lead" class="overview-lead">
+        <slot name="lead" />
+      </div>
+    </div>
+
+    <div v-if="$slots.notice" class="overview-notice">
+      <slot name="notice" />
+    </div>
+
+    <!-- Top Section: White Chart -->
+    <div ref="chartBox" class="overview-chart-section forecast-chart">
+      <!-- Chart toolbar: legend, then the monthly figures link and the history range -->
+      <div class="overview-header-row">
+        <div class="overview-legend-row" aria-label="Chart legend">
+          <div class="legend-item">
+            <svg class="legend-swatch-line" width="24" height="14" aria-hidden="true">
+              <line x1="0" y1="7" x2="24" y2="7" stroke="var(--color-primary)" stroke-width="2.5" />
+              <circle cx="12" cy="7" r="2.5" fill="var(--color-primary)" />
+            </svg>
+            <span>{{ isNarrow ? 'Recorded' : `Recorded ${noun}` }}</span>
+          </div>
+          <div class="legend-item">
+            <svg class="legend-swatch-line" width="24" height="14" aria-hidden="true">
+              <line x1="0" y1="7" x2="24" y2="7" stroke="var(--color-model)" stroke-width="2.5" stroke-dasharray="5 4" />
+              <circle cx="12" cy="7" r="2.5" fill="var(--color-surface)" stroke="var(--color-model)" stroke-width="1.5" />
+            </svg>
+            <span>{{ isNarrow ? 'Forecast' : `Forecast ${noun}` }}</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-swatch-band" aria-hidden="true"></span>
+            <span>80% prediction range</span>
+          </div>
+        </div>
+        <div class="overview-header-actions">
+          <button type="button" class="compact-action-link view-full-link read-help-link" @click="openHelp('read-forecast')">
+            <UiIcon name="help" /> How to read this
+          </button>
+          <a
+            v-if="detailsTarget"
+            :href="`#${detailsTarget}`"
+            class="compact-action-link view-full-link"
+            @click.prevent="emit('details')"
+          >
+            Monthly figures <UiIcon name="arrow-down" />
+          </a>
+          <div class="history-toggle-group" role="group" aria-label="Recorded history display range">
+            <button
+              type="button"
+              class="history-toggle-btn"
+              :class="{ active: historyMonths === 6 }"
+              :aria-pressed="historyMonths === 6"
+              @click="setHistoryMonths(6)"
+            >
+              Past 6 months
+            </button>
+            <button
+              type="button"
+              class="history-toggle-btn"
+              :class="{ active: historyMonths === 12 }"
+              :aria-pressed="historyMonths === 12"
+              @click="setHistoryMonths(12)"
+            >
+              Past 12 months
+            </button>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- Responsive SVG Plot -->
+      <div v-if="chartModel" class="overview-plot-wrapper">
+        <svg
+          :viewBox="`0 0 ${chartModel.width} ${chartModel.height}`"
+          class="overview-svg"
+          role="group"
+          :aria-label="`Recorded ${noun} and 6-month forecast chart`"
+        >
+          <!-- Labels above plot -->
+          <text :x="chartModel.plotLeft" :y="chartModel.plotTop - 12" font-size="13" fill="var(--color-text-muted)">
+            {{ axisTitle }}
+          </text>
+          <text :x="chartModel.plotRight" :y="chartModel.plotTop - 12" font-size="13" fill="var(--color-model-ink)" text-anchor="end">
+            Next 6 months
+          </text>
+
+          <!-- Forecast region subtle tint background -->
+          <rect
+            :x="chartModel.dividerX"
+            :y="chartModel.plotTop"
+            :width="chartModel.plotRight - chartModel.dividerX"
+            :height="chartModel.plotHeight"
+            fill="var(--color-model-wash)"
+          />
+
+          <!-- Shaded highlight region (when a recommendation is selected) -->
+          <rect
+            v-if="chartModel.highlightRegion"
+            :x="chartModel.highlightRegion.x"
+            :y="chartModel.plotTop"
+            :width="chartModel.highlightRegion.width"
+            :height="chartModel.plotHeight"
+            :fill="chartModel.highlightRegion.color"
+            fill-opacity="0.1"
+            pointer-events="none"
+          />
+
+          <!-- Horizontal grid lines -->
+          <g class="overview-grid-h" aria-hidden="true">
+            <line
+              v-for="t in chartModel.yTicks"
+              :key="`y-grid-${t.value}`"
+              :x1="chartModel.plotLeft"
+              :x2="chartModel.plotRight"
+              :y1="t.y"
+              :y2="t.y"
+              stroke="var(--color-border)"
+              stroke-width="1"
+            />
+          </g>
+
+          <!-- Y-axis numeric labels -->
+          <g class="overview-axis-y" aria-hidden="true">
+            <text
+              v-for="t in chartModel.yTicks"
+              :key="`y-lbl-${t.value}`"
+              :x="chartModel.plotLeft - 10"
+              :y="t.y + 4"
+              font-size="12"
+              fill="var(--color-text-secondary)"
+              text-anchor="end"
+            >
+              {{ t.label }}
+            </text>
+          </g>
+
+          <!-- Vertical grid lines -->
+          <g class="overview-grid-v" aria-hidden="true">
+            <line
+              v-for="e in chartModel.entries"
+              :key="`v-grid-${e.index}`"
+              :x1="e.x"
+              :x2="e.x"
+              :y1="chartModel.plotTop"
+              :y2="chartModel.plotBottom"
+              stroke="var(--color-border)"
+              stroke-width="1"
+            />
+          </g>
+
+          <!-- Prediction Interval Band -->
+          <g class="forecast-reveal">
+            <path :d="chartModel.bandPath" fill="var(--color-model-band)" fill-opacity="0.55" />
+
+          <!-- Recorded Series Line (Navy) -->
+          <path :d="chartModel.historyPath" fill="none" stroke="var(--color-primary)" stroke-width="2.5" stroke-linejoin="round" />
+
+          <!-- Forecast Series Line (Teal Dashed) -->
+            <path :d="chartModel.forecastPath" fill="none" stroke="var(--color-model)" stroke-width="2.5" stroke-dasharray="6 4" stroke-linejoin="round" />
+          </g>
+
+          <!-- Entry circle markers -->
+          <g class="overview-markers" aria-hidden="true">
+            <circle
+              v-for="e in chartModel.entries"
+              :key="`pt-${e.index}`"
+              :cx="e.x"
+              :cy="e.y"
+              :r="activeMonthIndex === e.index ? 5.5 : 3.5"
+              :fill="e.isForecast ? 'var(--color-surface)' : 'var(--color-primary)'"
+              :stroke="e.isForecast ? 'var(--color-model)' : 'var(--color-surface)'"
+              :stroke-width="e.isForecast ? 2 : 1"
+              :class="{ 'forecast-point': e.isForecast }"
+            />
+          </g>
+
+          <!-- Highlight circle on selected recommendation month(s) -->
+          <template v-if="chartModel.highlightRegion">
+            <circle
+              v-for="(pt, pIdx) in chartModel.highlightRegion.points"
+              :key="`hl-pt-${pIdx}`"
+              :cx="pt.x"
+              :cy="pt.y"
+              r="6"
+              fill="var(--color-surface)"
+              :stroke="chartModel.highlightRegion.color"
+              stroke-width="2.5"
+              pointer-events="none"
+            />
+          </template>
+
+          <!-- Active Month Hover/Focus Guide Line -->
+          <line
+            v-if="activeEntry"
+            :x1="activeEntry.x"
+            :y1="chartModel.plotTop"
+            :x2="activeEntry.x"
+            :y2="chartModel.plotBottom"
+            stroke="var(--color-model)"
+            stroke-width="1.5"
+            stroke-dasharray="4 3"
+            pointer-events="none"
+          />
+
+          <!-- Month Label Ticks along bottom -->
+          <g class="overview-axis-x" aria-hidden="true">
+            <text
+              v-for="lbl in chartModel.xTicks"
+              :key="`x-lbl-${lbl.index}`"
+              :x="lbl.x"
+              :y="chartModel.plotBottom + 18"
+              text-anchor="middle"
+              font-size="12"
+              fill="var(--color-text-primary)"
+              font-weight="600"
+            >
+              {{ lbl.shortMonth }}
+            </text>
+            <!-- The year appears under the first label and wherever it changes, not under every month. -->
+            <text
+              v-for="(lbl, tickIdx) in chartModel.xTicks"
+              :key="`x-yr-${lbl.index}`"
+              :x="lbl.x"
+              :y="chartModel.plotBottom + 32"
+              text-anchor="middle"
+              font-size="12"
+              fill="var(--color-text-muted)"
+            >
+              {{ tickIdx === 0 || lbl.year !== chartModel.xTicks[tickIdx - 1].year ? (lbl.year ?? '') : '' }}
+            </text>
+          </g>
+
+          <!-- Divider between history and forecast -->
+          <line
+            :x1="chartModel.dividerX"
+            :y1="chartModel.plotTop"
+            :x2="chartModel.dividerX"
+            :y2="chartModel.plotBottom"
+            stroke="var(--color-model)"
+            stroke-width="1.5"
+            stroke-dasharray="4 4"
+          />
+
+          <!-- Perimeter Plot Border -->
+          <rect
+            :x="chartModel.plotLeft"
+            :y="chartModel.plotTop"
+            :width="chartModel.plotRight - chartModel.plotLeft"
+            :height="chartModel.plotHeight"
+            fill="none"
+            stroke="var(--color-text-faint)"
+            stroke-width="1.5"
+            pointer-events="none"
+          />
+
+          <!-- Interactive Hit-Zones for hover/tap/keyboard navigation -->
+          <g
+            class="overview-hit-targets"
+            role="group"
+            aria-label="Monthly details"
+            @pointerleave="clearActiveMonth"
+            @focusout="onTargetsFocusOut"
+          >
+            <g
+              v-for="(e, idx) in chartModel.entries"
+              :key="`hit-g-${e.index}`"
+              role="button"
+              :tabindex="activeMonthIndex === idx || (activeMonthIndex === -1 && idx === 0) ? 0 : -1"
+              :aria-label="monthAriaLabel(e)"
+              class="month-target"
+              @pointerenter="setActiveMonth(idx)"
+              @focus="setActiveMonth(idx)"
+              @click="setActiveMonth(idx)"
+              @keydown="handleMonthKeydown($event, idx)"
+            >
+              <rect
+                :x="hitBounds(idx).left"
+                :y="chartModel.plotTop"
+                :width="hitBounds(idx).width"
+                :height="chartModel.plotHeight"
+                fill="transparent"
+                class="month-hit-rect"
+              />
+            </g>
+          </g>
+
+          <!-- Interactive Tooltip Callout Card -->
+          <g
+            v-if="activeEntry"
+            class="chart-tooltip-group"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            pointer-events="none"
+            :transform="`translate(${tooltipX} ${tooltipY})`"
+          >
+            <rect
+              :width="tooltipWidth"
+              :height="tooltipHeight"
+              rx="5"
+              fill="var(--color-surface)"
+              stroke="var(--color-border-strong)"
+              stroke-width="1.5"
+            />
+            <text x="14" y="27" font-size="15" font-weight="600" fill="var(--color-text-primary)">
+              {{ activeEntry.fullDate }}
+            </text>
+
+            <!-- Forecast Month Tooltip Content -->
+            <template v-if="activeEntry.isForecast">
+              <text x="14" y="55" font-size="13" fill="var(--color-text-muted)">Forecast {{ noun }}</text>
+              <text :x="tooltipWidth - 14" y="55" font-size="14" font-weight="600" fill="var(--color-text-primary)" text-anchor="end">
+                {{ tip(activeEntry.value) }}
+              </text>
+              <text x="14" y="81" font-size="13" fill="var(--color-text-muted)">Range (approx. 80%)</text>
+              <text x="14" y="102" font-size="13" fill="var(--color-text-primary)">
+                {{ tip(activeEntry.lower ?? activeEntry.value) }} – {{ tip(activeEntry.upper ?? activeEntry.value) }}
+              </text>
+            </template>
+
+            <!-- Recorded Month Tooltip Content -->
+            <template v-else>
+              <text x="14" y="55" font-size="13" fill="var(--color-text-muted)">Recorded {{ noun }}</text>
+              <text :x="tooltipWidth - 14" y="55" font-size="14" font-weight="600" fill="var(--color-text-primary)" text-anchor="end">
+                {{ tip(activeEntry.value) }}
+              </text>
+
+              <!-- If matched recorded expenses available -->
+              <template v-if="activeEntryExpenses">
+                <text x="14" y="81" font-size="13" fill="var(--color-text-muted)">Recorded expenses</text>
+                <text :x="tooltipWidth - 14" y="81" font-size="14" font-weight="600" fill="var(--color-text-primary)" text-anchor="end">
+                  {{ peso(activeEntryExpenses.total) }}
+                </text>
+                <line x1="14" :x2="tooltipWidth - 14" y1="96" y2="96" stroke="var(--color-border)" stroke-width="1" />
+                <template v-for="(cat, cIdx) in activeEntryExpenses.categories" :key="`cat-${cIdx}`">
+                  <text x="14" :y="117 + cIdx * 23" font-size="12.5" fill="var(--color-text-muted)">{{ cat.name }}</text>
+                  <text :x="tooltipWidth - 14" :y="117 + cIdx * 23" font-size="12.5" fill="var(--color-text-primary)" text-anchor="end">
+                    {{ peso(cat.amount) }}
+                  </text>
+                </template>
+              </template>
+            </template>
+          </g>
+        </svg>
+      </div>
+
+      <!-- Concise Source & Honest Model Provenance Footers -->
+      <div class="overview-footer-meta">
+        <span class="overview-meta-item">{{ sourceNote }}</span>
+      </div>
+    </div>
+
+    <!-- Bottom Section: the decisions the forecast points to, each with its evidence -->
+    <div
+      v-if="showRecommendations && recommendations.length"
+      class="overview-recommendations-section"
+      :aria-labelledby="`${idPrefix}-decisions-title`"
+    >
+      <div class="rec-section-head">
+        <h3 :id="`${idPrefix}-decisions-title`" class="rec-section-title">
+          Decisions to review
+          <span class="rec-section-count">{{ recommendations.length }}</span>
+        </h3>
+        <p class="rec-section-note">Suggested from the forecast. Select one to see its months on the chart. The decision is yours.</p>
+      </div>
+      <div
+        v-for="rec in recommendations"
+        :key="rec.id"
+        class="rec-row"
+        :class="{
+          selected: selectedRecId === rec.id,
+          [`rec-kind-${rec.kind}`]: true
+        }"
+        @click="toggleRec(rec.id)"
+      >
+        <!-- Left: Action Heading and Finding with Indicator Triangle -->
+        <div class="rec-main-col">
+          <h4 class="rec-action-heading">
+            <button
+              type="button"
+              class="rec-toggle"
+              :aria-pressed="selectedRecId === rec.id"
+              :aria-describedby="`${idPrefix}-finding-${rec.id}`"
+              @click.stop="toggleRec(rec.id)"
+            >{{ rec.action }}</button>
+          </h4>
+          <div class="rec-finding-line">
+            <svg class="rec-triangle-svg" width="16" height="14" viewBox="0 0 16 14" aria-hidden="true">
+              <!-- Increase: Green Up Triangle -->
+              <polygon v-if="rec.kind === 'increase'" points="0,14 8,0 16,14" fill="var(--color-model-ink)" />
+              <!-- Decrease: Red Down Triangle -->
+              <polygon v-else-if="rec.kind === 'decrease'" points="0,0 16,0 8,14" fill="var(--color-danger)" />
+              <!-- Uncertainty: Amber Warning Triangle with Exclamation Mark -->
+              <g v-else>
+                <polygon points="0,14 8,0 16,14" fill="var(--color-warning-ink)" />
+                <line x1="8" y1="4" x2="8" y2="8" stroke="var(--color-surface)" stroke-width="1.8" stroke-linecap="round" />
+                <circle cx="8" cy="11" r="0.9" fill="var(--color-surface)" />
+              </g>
+            </svg>
+            <span :id="`${idPrefix}-finding-${rec.id}`" class="rec-finding-text" :class="`finding-kind-${rec.kind}`">{{ rec.finding }}</span>
+          </div>
+          <RouterLink
+            v-if="nextStep(rec)"
+            class="rec-next"
+            :to="nextStep(rec)!.to"
+            @click.stop
+          >
+            {{ nextStep(rec)!.label }}
+            <UiIcon name="arrow-right" />
+          </RouterLink>
+        </div>
+
+        <!-- Right / Stacking: Evidence Mini-Visual -->
+        <div class="rec-evidence-col">
+          <!-- Comparison Mini-Visual (Two Bars) -->
+          <div v-if="rec.evidence.type === 'comparison'" class="mini-comparison-visual">
+            <div class="mini-bar-row">
+              <span class="mini-bar-label">{{ rec.evidence.prior.label }}</span>
+              <div class="mini-bar-track">
+                <div
+                  class="mini-bar-fill prior"
+                  :style="{ width: comparisonBarWidth(rec.evidence.prior.value, rec.evidence) }"
+                ></div>
+              </div>
+              <span class="mini-bar-value">{{ short(rec.evidence.prior.value) }}</span>
+            </div>
+            <div class="mini-bar-row">
+              <span class="mini-bar-label">{{ rec.evidence.current.label }}</span>
+              <div class="mini-bar-track">
+                <div
+                  class="mini-bar-fill"
+                  :class="`fill-${rec.kind}`"
+                  :style="{ width: comparisonBarWidth(rec.evidence.current.value, rec.evidence) }"
+                ></div>
+              </div>
+              <span class="mini-bar-value current-val">{{ short(rec.evidence.current.value) }}</span>
+            </div>
+          </div>
+
+          <!-- Range Mini-Visual (Bracket / Line track with dot) -->
+          <div v-else-if="rec.evidence.type === 'range'" class="mini-range-visual">
+            <div class="range-track-wrapper">
+              <div class="range-cap left"></div>
+              <div class="range-line"></div>
+              <div class="range-cap right"></div>
+              <div class="range-dot" :style="{ left: rangeDotPosition(rec.evidence) }"></div>
+            </div>
+            <div class="range-labels-row">
+              <span class="range-lbl-lower">{{ short(rec.evidence.lower) }}</span>
+              <span class="range-lbl-current" :style="{ left: rangeDotPosition(rec.evidence) }">forecast</span>
+              <span class="range-lbl-upper">{{ short(rec.evidence.upper) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</template>
+
+<script setup lang="ts">
+import { computed, nextTick, onMounted, ref } from 'vue';
+import type { RouteLocationRaw } from 'vue-router';
+import { api, type ForecastData, type ForecastMeasure } from '../api';
+import { useContentWidth } from '../composables/useContentWidth';
+import {
+  buildOverviewChartModel,
+  buildForecastDecisions,
+  type ComparisonEvidence,
+  type DecisionRecommendation,
+  type RangeEvidence,
+} from '../forecastChart';
+import { formatAxis, formatFull, formatShort, measureNoun } from '../forecastUnits';
+import { peso } from '../format';
+import UiIcon from './UiIcon.vue';
+import { openHelp } from '../composables/useHelp';
+
+export interface ForecastOverviewCardProps {
+  data: ForecastData;
+  showRecommendations?: boolean;
+  /** Id of the element holding the monthly figures; shows a link to it when set. */
+  detailsTarget?: string;
+  title?: string;
+  /** How the forecast was made, under the title. */
+  subtitle?: string;
+  idPrefix?: string;
+  /** Where to act on a decision: a page that holds its evidence. */
+  decisionLink?: (rec: DecisionRecommendation) => { to: RouteLocationRaw; label: string } | null;
+  /** What the forecast counts; revenue unless bookings or passengers are shown. */
+  measure?: ForecastMeasure;
+}
+
+const props = withDefaults(defineProps<ForecastOverviewCardProps>(), {
+  showRecommendations: true,
+  detailsTarget: '',
+  title: 'Overview',
+  subtitle: '',
+  idPrefix: 'foc',
+  decisionLink: undefined,
+  measure: 'revenue',
+});
+
+const noun = computed(() => measureNoun(props.measure));
+const axisTitle = computed(() => {
+  if (props.measure === 'bookings') return 'Bookings per month';
+  if (props.measure === 'passengers') return 'Passengers per month';
+  return 'Revenue (PHP)';
+});
+
+/** Tooltip figures: full pesos, or a bare count since the label already names the unit. */
+function tip(value: number): string {
+  return props.measure === 'revenue' ? formatFull(value, props.measure) : formatShort(value, props.measure);
+}
+
+function short(value: number): string {
+  return formatShort(value, props.measure);
+}
+
+const emit = defineEmits<{ details: [] }>();
+
+const chartBox = ref<HTMLElement | null>(null);
+const { width: chartWidth, attach: attachChart } = useContentWidth(chartBox, 760);
+
+// Display-only recorded history months toggle (defaults to 6 on mobile, 12 on desktop)
+const historyMonths = ref<6 | 12>(typeof window !== 'undefined' && window.innerWidth < 760 ? 6 : 12);
+const isNarrow = computed(() => (chartWidth.value || 800) < 760);
+
+// Recommendation interactive selection
+const selectedRecId = ref<string | null>(null);
+
+// Interactive month hover / focus / tap
+const activeMonthIndex = ref<number>(-1);
+
+// Optional safe expense data matched to calendar months
+interface MonthExpenses {
+  total: number;
+  categories: { name: string; amount: number }[];
+}
+const expenseMap = ref<Record<string, MonthExpenses>>({});
+
+function setHistoryMonths(count: 6 | 12) {
+  historyMonths.value = count;
+  clearActiveMonth();
+}
+
+function nextStep(rec: DecisionRecommendation) {
+  return props.decisionLink ? props.decisionLink(rec) : null;
+}
+
+function toggleRec(recId: string) {
+  clearActiveMonth();
+  selectedRecId.value = selectedRecId.value === recId ? null : recId;
+}
+
+const recommendations = computed(() => {
+  const d = props.data;
+  if (!d?.ok || !d.steps?.length) return [];
+  return buildForecastDecisions({ steps: d.steps, history: d.history, measure: props.measure });
+});
+
+const selectedRec = computed(() => {
+  if (!selectedRecId.value) return null;
+  return recommendations.value.find((r) => r.id === selectedRecId.value) ?? null;
+});
+
+const chartModel = computed(() => {
+  const d = props.data;
+  if (!d?.ok || !d.history?.length || !d.steps?.length) return null;
+  return buildOverviewChartModel({
+    width: chartWidth.value,
+    history: d.history,
+    steps: d.steps,
+    dataSource: d.dataSource,
+    historyMonths: historyMonths.value,
+    selectedRecStepNumbers: selectedRec.value?.stepNumbers,
+    formatTick: (value: number) => formatAxis(value, props.measure),
+    recKind: selectedRec.value?.kind,
+  });
+});
+
+const activeEntry = computed(() => {
+  if (activeMonthIndex.value < 0 || !chartModel.value) return null;
+  return chartModel.value.entries[activeMonthIndex.value] ?? null;
+});
+
+const activeEntryExpenses = computed(() => {
+  if (!activeEntry.value || activeEntry.value.isForecast || props.measure !== 'revenue') return null;
+  const parsedMonth = activeEntry.value.label.match(/^([A-Za-z]+)\s+(\d{4})$/);
+  if (!parsedMonth) return null;
+  const monthNames = [
+    'january', 'february', 'march', 'april', 'may', 'june',
+    'july', 'august', 'september', 'october', 'november', 'december'
+  ];
+  const mIdx = monthNames.indexOf(parsedMonth[1].toLowerCase());
+  if (mIdx < 0) return null;
+  const ym = `${parsedMonth[2]}-${String(mIdx + 1).padStart(2, '0')}`;
+  return expenseMap.value[ym] ?? null;
+});
+
+function setActiveMonth(index: number) {
+  activeMonthIndex.value = index;
+}
+
+function clearActiveMonth() {
+  activeMonthIndex.value = -1;
+}
+
+function onTargetsFocusOut(event: FocusEvent) {
+  const target = event.currentTarget as HTMLElement | null;
+  if (!target || !target.contains(event.relatedTarget as Node)) {
+    clearActiveMonth();
+  }
+}
+
+async function focusMonth(index: number) {
+  setActiveMonth(index);
+  await nextTick();
+  chartBox.value?.querySelectorAll<SVGElement>('.month-target')[index]?.focus();
+}
+
+function handleMonthKeydown(event: KeyboardEvent, currentIndex: number) {
+  if (!chartModel.value) return;
+  const total = chartModel.value.entries.length;
+  if (event.key === 'ArrowLeft') {
+    event.preventDefault();
+    void focusMonth(Math.max(0, currentIndex - 1));
+  } else if (event.key === 'ArrowRight') {
+    event.preventDefault();
+    void focusMonth(Math.min(total - 1, currentIndex + 1));
+  } else if (event.key === 'Home') {
+    event.preventDefault();
+    void focusMonth(0);
+  } else if (event.key === 'End') {
+    event.preventDefault();
+    void focusMonth(total - 1);
+  } else if (event.key === 'Escape') {
+    event.preventDefault();
+    clearActiveMonth();
+  }
+}
+
+function monthAriaLabel(entry: { fullDate: string; isForecast: boolean }) {
+  return `${entry.fullDate}, ${entry.isForecast ? 'forecast' : 'recorded'} ${noun.value}, show monthly details`;
+}
+
+function hitBounds(idx: number) {
+  if (!chartModel.value) return { left: 0, width: 40 };
+  const entries = chartModel.value.entries;
+  const stepX = (chartModel.value.plotRight - chartModel.value.plotLeft - 12) / Math.max(entries.length - 1, 1);
+  const half = stepX / 2;
+  const entry = entries[idx];
+  const left = Math.max(chartModel.value.plotLeft, entry.x - half);
+  const right = Math.min(chartModel.value.plotRight, entry.x + half);
+  return { left, width: Math.max(right - left, 12) };
+}
+
+const tooltipWidth = computed(() => {
+  const available = (chartWidth.value || 320) - 24;
+  return isNarrow.value ? Math.min(250, available) : 250;
+});
+
+const tooltipHeight = computed(() => {
+  if (!activeEntry.value) return 80;
+  if (activeEntry.value.isForecast) return 118;
+  if (activeEntryExpenses.value) {
+    const cats = activeEntryExpenses.value.categories.length;
+    return 108 + cats * 23;
+  }
+  return 72;
+});
+
+const tooltipX = computed(() => {
+  if (!activeEntry.value || !chartModel.value) return 0;
+  const x = activeEntry.value.x;
+  const w = tooltipWidth.value;
+  const margin = 8;
+  const leftLimit = margin;
+  const rightLimit = chartModel.value.width - margin;
+
+  let ideal = x - w / 2;
+  if (ideal + w > rightLimit) {
+    ideal = rightLimit - w;
+  }
+  if (ideal < leftLimit) {
+    ideal = leftLimit;
+  }
+  return ideal;
+});
+
+const tooltipY = computed(() => {
+  if (!activeEntry.value || !chartModel.value) return 0;
+  const h = tooltipHeight.value;
+  const targetY = activeEntry.value.y;
+  const above = targetY - h - 14;
+  if (above >= chartModel.value.plotTop + 4) {
+    return above;
+  }
+  const below = targetY + 16;
+  if (below + h <= chartModel.value.plotBottom - 4) {
+    return below;
+  }
+  return chartModel.value.plotTop + 8;
+});
+
+function comparisonBarWidth(val: number, ev: ComparisonEvidence) {
+  const max = Math.max(ev.prior.value, ev.current.value, 1);
+  const pct = Math.max(4, Math.round((val / max) * 100));
+  return `${pct}%`;
+}
+
+function rangeDotPosition(ev: RangeEvidence) {
+  const span = Math.max(ev.upper - ev.lower, 1);
+  const pos = Math.max(0, Math.min(100, Math.round(((ev.value - ev.lower) / span) * 100)));
+  return `${pos}%`;
+}
+
+const sourceNote = computed(() => {
+  const d = props.data;
+  if (!d) return '';
+  const s = d.dataSource;
+  if (s.usingLiveRecords) {
+    const gaps = s.filledMonths > 0
+      ? ` (${s.filledMonths} month${s.filledMonths === 1 ? '' : 's'} had no bookings and counted as zero)`
+      : '';
+    const basis = props.measure === 'revenue' ? 'booking revenue' : props.measure === 'bookings' ? 'bookings' : 'passenger numbers';
+    return `Based on recorded ${basis}, by booking date — ${s.liveMonthsAvailable} months recorded${gaps}.`;
+  }
+  if (s.usingSample) {
+    return 'Demonstration data, not a live forecast.';
+  }
+  return `Live ${noun.value} forecast.`;
+});
+
+async function loadSafeExpenses() {
+  if (!props.data?.ok || !props.data.dataSource?.usingLiveRecords) {
+    expenseMap.value = {};
+    return;
+  }
+  try {
+    const rows = await api.expenses();
+    const active = rows.filter((r) => !r.voided);
+    const byMonth: Record<string, { total: number; categories: Record<string, number> }> = {};
+    for (const r of active) {
+      if (!r.date) continue;
+      const ym = r.date.slice(0, 7);
+      if (!byMonth[ym]) byMonth[ym] = { total: 0, categories: {} };
+      const amt = Number(r.amount) || 0;
+      byMonth[ym].total += amt;
+      const cat = r.category || 'Other';
+      byMonth[ym].categories[cat] = (byMonth[ym].categories[cat] || 0) + amt;
+    }
+    const map: Record<string, MonthExpenses> = {};
+    for (const [ym, d] of Object.entries(byMonth)) {
+      const topCats = Object.entries(d.categories)
+        .map(([name, amount]) => ({ name, amount }))
+        .sort((a, b) => b.amount - a.amount)
+        .slice(0, 3);
+      map[ym] = { total: d.total, categories: topCats };
+    }
+    expenseMap.value = map;
+  } catch {
+    expenseMap.value = {};
+  }
+}
+
+onMounted(async () => {
+  await nextTick();
+  attachChart();
+  if (props.data?.ok && props.data.dataSource?.usingLiveRecords && props.measure === 'revenue') {
+    loadSafeExpenses();
+  }
+});
+</script>
+
+<style scoped>
+/* ============================================================
+   Overview Tool (Genuinely framed tool, radius 8px)
+   ============================================================ */
+.overview-tool {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-md);
+}
+
+/* Navy, like the sidebar, so the model's summary reads as its own voice; its figures are teal. */
+.overview-brief {
+  display: grid;
+  gap: 18px;
+  padding: 24px 28px 26px;
+  background: var(--color-shell);
+  color: var(--color-on-shell);
+}
+
+.overview-brief-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px 20px;
+  min-width: 0;
+}
+
+.overview-controls {
+  flex: none;
+  max-width: 100%;
+}
+
+.overview-brief .overview-mark {
+  background: var(--tint-model-on-shell);
+  color: var(--color-model-on-shell);
+}
+
+.overview-brief .overview-title {
+  color: var(--color-on-shell);
+}
+
+.overview-brief .overview-subtitle {
+  color: var(--color-shell-muted);
+}
+
+.overview-notice {
+  padding: 0;
+}
+
+.overview-chart-section {
+  padding: 20px 24px 16px;
+  background: var(--color-surface);
+}
+
+.overview-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.overview-title-group {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* The forecast's mark: the same teal as the forecast line, wherever model output appears. */
+.overview-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-lg);
+  background: var(--color-model-soft);
+  color: var(--color-model);
+  font-size: 24px;
+}
+
+.overview-title-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.overview-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.overview-subtitle {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.overview-lead {
+  min-width: 0;
+}
+
+.overview-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.view-full-link {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--color-model);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  text-decoration: none;
+}
+
+.view-full-link:hover {
+  text-decoration: underline;
+  color: var(--color-model-ink);
+}
+
+.read-help-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.read-help-link .ui-icon {
+  font-size: 15px;
+}
+
+/* History Segmented Toggle Controls */
+.history-toggle-group {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.history-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 13px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.history-toggle-btn:hover {
+  border-color: var(--color-text-faint);
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+
+.history-toggle-btn.active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-active);
+  font-weight: 600;
+}
+
+.history-toggle-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+/* Legend Row */
+.overview-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 10px 24px;
+  flex-wrap: wrap;
+  font-size: 13.5px;
+  color: var(--color-text-primary);
+  letter-spacing: 0;
+}
+
+.overview-header-row + .overview-plot-wrapper {
+  margin-top: 16px;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend-swatch-band {
+  display: inline-block;
+  width: 22px;
+  height: 14px;
+  background: var(--color-model-soft);
+  border: 1px solid var(--color-model-border);
+  border-radius: 2px;
+}
+
+/* Plot Wrapper & SVG */
+.overview-plot-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.overview-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+  letter-spacing: 0;
+}
+
+.month-target {
+  cursor: crosshair;
+  outline: none;
+}
+
+.month-target:focus-visible .month-hit-rect {
+  fill: var(--tint-primary);
+}
+
+/* The forecast region opens from the divider outward, then its points settle in. Without
+   motion (or before the animation runs) everything is simply shown. */
+.forecast-reveal {
+  animation: forecast-reveal 900ms var(--ease-out) 120ms both;
+}
+
+.forecast-point {
+  animation: forecast-point 300ms var(--ease-out) 760ms both;
+}
+
+@keyframes forecast-reveal {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes forecast-point {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .forecast-reveal,
+  .forecast-point {
+    animation: none;
+  }
+}
+
+/* Footer Provenance Meta */
+.overview-footer-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border-subtle);
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+  letter-spacing: 0;
+}
+
+/* ============================================================
+   Recommendations area, on the model's soft teal
+   ============================================================ */
+.overview-recommendations-section {
+  background: var(--color-model-soft);
+  border-top: 1px solid var(--color-model-border);
+  padding: 0 0 4px;
+}
+
+.rec-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 20px;
+  padding: 18px 24px 12px 28px;
+  border-bottom: 1px solid var(--color-model-border);
+}
+
+.rec-section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--color-model-ink);
+  font-size: 18px;
+  font-weight: 650;
+}
+
+.rec-section-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: var(--radius-pill);
+  background: var(--color-model);
+  color: var(--color-on-shell);
+  font-size: var(--text-xs);
+  font-weight: 650;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.rec-section-note {
+  color: var(--color-model-ink);
+  font-size: var(--text-sm);
+}
+
+.rec-toggle {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rec-toggle:focus-visible {
+  outline: 2px solid var(--color-model);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
+}
+
+.rec-next {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 6px;
+  margin-top: 2px;
+  color: var(--color-model-ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.rec-next:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.rec-next .ui-icon {
+  font-size: 15px;
+  transition: transform var(--transition-fast);
+}
+
+.rec-next:hover .ui-icon {
+  transform: translateX(2px);
+}
+
+.rec-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  padding: 20px 24px 20px 28px;
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+  border-bottom: 1px solid var(--color-model-border);
+  min-height: 44px;
+  letter-spacing: 0;
+}
+
+.rec-row:last-child {
+  border-bottom: none;
+}
+
+.rec-row:hover {
+  background: var(--color-model-hover);
+}
+
+/* Selection outlines the whole row rather than marking one edge. */
+.rec-row.selected {
+  background: var(--color-model-hover);
+  box-shadow: inset 0 0 0 2px var(--color-model);
+}
+
+
+.rec-main-col {
+  flex: 1;
+  max-width: 58%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rec-action-heading {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  line-height: 1.3;
+  letter-spacing: 0;
+}
+
+.rec-finding-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+.rec-triangle-svg {
+  flex: none;
+  width: 16px;
+  height: 14px;
+}
+
+.finding-kind-increase {
+  color: var(--color-model-ink);
+}
+
+.finding-kind-uncertainty {
+  color: var(--color-warning-ink);
+}
+
+.finding-kind-decrease {
+  color: var(--color-danger);
+}
+
+/* Evidence Mini-Visual Column */
+.rec-evidence-col {
+  width: 38%;
+  min-width: 250px;
+  max-width: 360px;
+  flex-shrink: 0;
+}
+
+/* Comparison Bars */
+.mini-comparison-visual {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.mini-bar-row {
+  display: grid;
+  grid-template-columns: 36px 1fr 68px;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+}
+
+.mini-bar-label {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.mini-bar-track {
+  width: 100%;
+  height: 12px;
+  background: transparent;
+  display: flex;
+  align-items: center;
+}
+
+.mini-bar-fill {
+  height: 12px;
+  border-radius: 2px;
+}
+
+.mini-bar-fill.prior {
+  background: var(--color-border-strong);
+}
+
+.mini-bar-fill.fill-increase {
+  background: var(--color-model-ink);
+}
+
+.mini-bar-fill.fill-decrease {
+  background: var(--color-danger);
+}
+
+.mini-bar-value {
+  text-align: right;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.mini-bar-value.current-val {
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+/* Range Track */
+.mini-range-visual {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 4px;
+}
+
+.range-track-wrapper {
+  position: relative;
+  height: 24px;
+  display: flex;
+  align-items: center;
+}
+
+.range-line {
+  width: 100%;
+  height: 3px;
+  background: var(--color-warning-ink);
+}
+
+.range-cap {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  background: var(--color-warning-ink);
+}
+
+.range-cap.left {
+  left: 0;
+}
+
+.range-cap.right {
+  right: 0;
+}
+
+.range-dot {
+  position: absolute;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  background: var(--color-warning-ink);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.range-labels-row {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.range-lbl-current {
+  position: absolute;
+  transform: translateX(-50%);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+/* ============================================================
+   Mobile Stacking (< 760px)
+   ============================================================ */
+@media (max-width: 760px) {
+  .overview-chart-section {
+    padding: 16px 14px 12px;
+  }
+
+  .overview-brief {
+    gap: 14px;
+    padding: 18px 16px 20px;
+  }
+
+  .overview-controls {
+    flex: 1 1 100%;
+  }
+
+  .overview-notice {
+    padding: 0;
+  }
+
+  .overview-header-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .overview-header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .history-toggle-group {
+    width: 100%;
+    display: flex;
+  }
+
+  .history-toggle-btn {
+    flex: 1;
+    min-height: 40px;
+  }
+
+  .overview-legend-row {
+    gap: 12px 16px;
+    margin: 8px 0 12px;
+    font-size: 12.5px;
+  }
+
+  .rec-row {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 16px 14px;
+    gap: 14px;
+  }
+
+  .rec-main-col {
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .rec-section-title,
+  .rec-action-heading {
+    font-size: var(--text-md);
+  }
+
+  .rec-section-head {
+    padding: 14px 14px 10px;
+  }
+
+  .overview-mark {
+    width: 40px;
+    height: 40px;
+    font-size: 22px;
+  }
+
+  .rec-evidence-col {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .overview-footer-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 12px;
+  }
+}
+</style>

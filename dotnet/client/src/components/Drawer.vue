@@ -4,7 +4,7 @@
       v-if="open"
       class="slide-drawer-backdrop"
       aria-hidden="true"
-      @click="emit('close')"
+      @click="requestClose"
     ></div>
   </Transition>
 
@@ -20,7 +20,7 @@
     >
       <header class="slide-drawer-header">
         <h2 class="slide-drawer-title">{{ title }}</h2>
-        <button class="slide-drawer-close" type="button" aria-label="Close panel" @click="emit('close')">
+        <button class="slide-drawer-close" type="button" aria-label="Close panel" @click="requestClose">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M6 6l12 12M18 6L6 18" />
           </svg>
@@ -31,32 +31,119 @@
         <slot />
       </div>
 
-      <footer v-if="$slots.footer" class="slide-drawer-footer">
-        <slot name="footer" />
+      <!-- Closing a form with unsaved changes asks first, in place of the footer's buttons. -->
+      <footer v-if="confirming" class="slide-drawer-footer drawer-discard" role="alertdialog" aria-labelledby="drawer-discard-text">
+        <p id="drawer-discard-text" class="drawer-discard-text">
+          {{ leaveTo ? 'Leave this page and lose your changes?' : 'Discard the changes you made?' }}
+        </p>
+        <button ref="keepButton" class="secondary-button" type="button" @click="keepEditing">Keep editing</button>
+        <button class="danger-button" type="button" @click="discard">
+          {{ leaveTo ? 'Leave page' : 'Discard changes' }}
+        </button>
+      </footer>
+      <footer v-else-if="$slots.footer" class="slide-drawer-footer">
+        <slot name="footer" :request-close="requestClose" />
       </footer>
     </aside>
   </Transition>
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue';
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { onBeforeRouteLeave, useRouter } from 'vue-router';
 import { useModalFocus } from '../composables/useModalFocus';
 
-const props = defineProps<{ open: boolean; title: string }>();
+/**
+ * A side panel for a record or a form. With `dirty` set, every way out (the close button,
+ * Esc, the backdrop, Cancel through the footer's `requestClose`, leaving the page, reloading)
+ * asks before throwing the changes away.
+ */
+const props = withDefaults(defineProps<{ open: boolean; title: string; dirty?: boolean }>(), { dirty: false });
 const emit = defineEmits<{ close: [] }>();
 
+const router = useRouter();
 const panel = ref<HTMLElement | null>(null);
+const keepButton = ref<HTMLButtonElement | null>(null);
+const confirming = ref(false);
+const leaveTo = ref<string | null>(null);
+let leaving = false;
 
 useModalFocus(panel, () => props.open);
 
-function onKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape' && props.open) {
-    emit('close');
+async function ask() {
+  confirming.value = true;
+  await nextTick();
+  keepButton.value?.focus();
+}
+
+function requestClose() {
+  if (props.dirty && props.open) {
+    leaveTo.value = null;
+    void ask();
+    return;
+  }
+  emit('close');
+}
+
+function keepEditing() {
+  confirming.value = false;
+  leaveTo.value = null;
+}
+
+function discard() {
+  const target = leaveTo.value;
+  confirming.value = false;
+  leaveTo.value = null;
+  emit('close');
+  if (target) {
+    leaving = true;
+    void router.push(target).finally(() => {
+      leaving = false;
+    });
   }
 }
 
-onMounted(() => document.addEventListener('keydown', onKeydown));
-onUnmounted(() => document.removeEventListener('keydown', onKeydown));
+watch(
+  () => props.open,
+  (open) => {
+    if (!open) {
+      confirming.value = false;
+      leaveTo.value = null;
+    }
+  },
+);
+
+onBeforeRouteLeave((to) => {
+  if (leaving || !props.open || !props.dirty) return true;
+  leaveTo.value = to.fullPath;
+  void ask();
+  return false;
+});
+
+function onKeydown(event: KeyboardEvent) {
+  if (event.key !== 'Escape' || !props.open) return;
+  // A lightbox or menu opened from inside the panel closes first.
+  if (event.defaultPrevented) return;
+  if (confirming.value) keepEditing();
+  else requestClose();
+}
+
+function onBeforeUnload(event: BeforeUnloadEvent) {
+  if (!props.open || !props.dirty) return;
+  event.preventDefault();
+  event.returnValue = '';
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', onKeydown);
+  window.addEventListener('beforeunload', onBeforeUnload);
+});
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onKeydown);
+  window.removeEventListener('beforeunload', onBeforeUnload);
+});
+
+defineExpose({ requestClose });
 </script>
 
 <style scoped>
@@ -143,6 +230,19 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown));
   background: var(--color-surface);
 }
 
+.drawer-discard {
+  flex-wrap: wrap;
+  background: var(--tone-warning-surface);
+  border-top-color: var(--tone-warning-border);
+}
+
+.drawer-discard-text {
+  flex: 1 1 200px;
+  color: var(--tone-warning-ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
 .scrim-enter-active,
 .scrim-leave-active {
   transition: opacity 200ms var(--ease-out);
@@ -161,6 +261,20 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown));
 .panel-enter-from,
 .panel-leave-to {
   transform: translateX(100%);
+}
+
+/* On phones the panel is the whole screen, so it needs no edge or shadow. */
+@media (max-width: 640px) {
+  .slide-drawer {
+    width: 100vw;
+    max-width: 100vw;
+    border-left: none;
+    box-shadow: none;
+  }
+
+  .slide-drawer-footer {
+    padding: var(--space-3) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

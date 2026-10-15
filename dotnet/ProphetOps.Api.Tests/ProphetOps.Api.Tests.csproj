@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ProphetOps.Api\ProphetOps.Api.csproj" />
+    <ProjectReference Include="..\ProphetOps.PostgresMigrations\ProphetOps.PostgresMigrations.csproj" />
   </ItemGroup>
 
 </Project>

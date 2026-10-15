@@ -52,6 +52,128 @@ public class ExportApiTests : IDisposable
 
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/export/bookings.csv")).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/export/packages.csv")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/export/expenses.csv")).StatusCode);
+    }
+
+    private const string ExpenseHeadings =
+        "code,date,category,amount,related_package,payment,notes,voided,void_reason";
+
+    private async Task<HttpClient> SignedInAs(string email, string password)
+    {
+        var client = _factory.CreateClient();
+        var login = await client.PostAsJsonAsync("/api/auth/login", new { email, password });
+        login.EnsureSuccessStatusCode();
+        return client;
+    }
+
+    private static async Task CreateExpense(HttpClient client, string code, string date, int amount)
+    {
+        var created = await client.PostAsJsonAsync("/api/expenses", new
+        {
+            id = code,
+            date,
+            category = "Marketing",
+            amount,
+            relatedPackage = "Boracay Group Package",
+            paymentStatus = "Pending",
+            notes = "Export check",
+        });
+        created.EnsureSuccessStatusCode();
+    }
+
+    [Fact]
+    public async Task Expense_export_opens_with_a_byte_order_mark_and_the_exact_headings()
+    {
+        var client = await SignedIn();
+        var count = (await client.GetFromJsonAsync<JsonElement>("/api/expenses")).GetArrayLength();
+
+        var (bytes, text, response) = await Fetch(client, "/api/export/expenses.csv");
+        var lines = Lines(text).Where(l => l.Length > 0).ToArray();
+
+        Assert.Equal(new byte[] { 0xEF, 0xBB, 0xBF }, bytes[..3]);
+        Assert.Equal(ExpenseHeadings, lines[0]);
+        Assert.Equal(count, lines.Length - 1);
+        Assert.Equal("text/csv", response.Content.Headers.ContentType!.MediaType);
+
+        var disposition = response.Content.Headers.GetValues("Content-Disposition").Single();
+        Assert.Contains("attachment", disposition);
+        Assert.Contains("prophetops-expenses-", disposition);
+    }
+
+    [Fact]
+    public async Task Expense_export_can_be_limited_to_a_period()
+    {
+        var client = await SignedIn();
+        await CreateExpense(client, "EXP-JUL1", "2026-07-10", 12_000);
+        await CreateExpense(client, "EXP-AUG1", "2026-08-20", 8_000);
+
+        var (_, text, response) = await Fetch(client, "/api/export/expenses.csv?from=2026-07-01&to=2026-07-31");
+        var rows = Lines(text).Skip(1).Where(l => l.Length > 0).ToArray();
+
+        Assert.Contains(rows, r => r.StartsWith("EXP-JUL1,2026-07-10,Marketing,12000,"));
+        Assert.DoesNotContain(rows, r => r.StartsWith("EXP-AUG1,"));
+        Assert.All(rows, r =>
+        {
+            var date = r.Split(',')[1];
+            Assert.InRange(string.CompareOrdinal(date, "2026-07-01"), 0, int.MaxValue);
+            Assert.InRange(string.CompareOrdinal(date, "2026-07-31"), int.MinValue, 0);
+        });
+
+        var disposition = response.Content.Headers.GetValues("Content-Disposition").Single();
+        Assert.Contains("prophetops-expenses-2026-07-01-to-2026-07-31.csv", disposition);
+    }
+
+    [Fact]
+    public async Task Expense_export_with_only_a_start_date_runs_to_the_latest_expense()
+    {
+        var client = await SignedIn();
+        await CreateExpense(client, "EXP-JUL2", "2026-07-10", 5_000);
+        await CreateExpense(client, "EXP-AUG2", "2026-08-20", 6_000);
+
+        var (_, text, _) = await Fetch(client, "/api/export/expenses.csv?from=2026-08-01");
+        var rows = Lines(text).Skip(1).Where(l => l.Length > 0).ToArray();
+
+        Assert.Contains(rows, r => r.StartsWith("EXP-AUG2,"));
+        Assert.DoesNotContain(rows, r => r.StartsWith("EXP-JUL2,"));
+    }
+
+    [Fact]
+    public async Task A_voided_expense_is_in_the_export_and_marked()
+    {
+        var client = await SignedIn();
+        await CreateExpense(client, "EXP-VOID1", "2026-07-12", 4_500);
+
+        var voided = await client.PostAsJsonAsync("/api/expenses/EXP-VOID1/void", new { reason = "Entered twice" });
+        voided.EnsureSuccessStatusCode();
+
+        var (_, text, _) = await Fetch(client, "/api/export/expenses.csv");
+        var line = Lines(text).Single(l => l.StartsWith("EXP-VOID1,"));
+
+        Assert.Contains(",yes,", line);
+        Assert.EndsWith("Entered twice", line);
+    }
+
+    [Theory]
+    [InlineData("from=2026-13-01")]
+    [InlineData("to=yesterday")]
+    [InlineData("from=2026-08-01&to=2026-07-01")]
+    public async Task Expense_export_refuses_a_period_it_cannot_read(string query)
+    {
+        var client = await SignedIn();
+
+        var response = await client.GetAsync("/api/export/expenses.csv?" + query);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Staff_cannot_export_expenses()
+    {
+        var client = await SignedInAs("staff@prophetops.local", "staff123");
+
+        var response = await client.GetAsync("/api/export/expenses.csv");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]

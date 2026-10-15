@@ -102,8 +102,8 @@ public static class TrajectoryInsights
         };
 
         return peakStandsOut
-            ? $"Demand is {movement}, peaking in {peak.MonthLabel} at {Money(peak.Value)}."
-            : $"Demand is {movement}, with no single month standing out.";
+            ? $"Booking revenue is {movement}, peaking in {peak.MonthLabel} at {Money(peak.Value)}."
+            : $"Booking revenue is {movement}, with no single month standing out.";
     }
 
     private static TrajectoryNote? NextMonthNote(TrajectoryInput input, TrajectoryStep first)

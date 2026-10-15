@@ -49,6 +49,15 @@ export interface RecentBooking {
   ds: string;
 }
 
+/** Totals for an inclusive range of business dates (yyyy-MM-dd), voided records excluded. */
+export interface PeriodTotals {
+  from: string;
+  to: string;
+  revenue: number;
+  bookings: number;
+  expenses: number;
+}
+
 export interface DashboardData {
   totalsScope: 'lifetime';
   excludesVoided: true;
@@ -58,6 +67,8 @@ export interface DashboardData {
   bookings: number;
   packages: number;
   expenses: number;
+  /** This month so far, and the same run of days in the previous month. */
+  thisMonth?: { current: PeriodTotals; previous: PeriodTotals };
   forecast: DashboardForecast;
   lowStockPackages: LowStockPackage[];
   pendingPayments: PendingPayments;
@@ -224,38 +235,6 @@ export interface ExpenseInput {
   notes: string | null;
 }
 
-export interface AnalyticsPoint {
-  label: string;
-  value: number;
-}
-
-export interface MonthlyActualPoint extends AnalyticsPoint {
-  month: string;
-  bookingCount: number;
-  passengerCount: number;
-}
-
-export interface ActualsChartWindow {
-  fromMonth: string;
-  throughMonth: string;
-  revenuePhp: number;
-  bookingCount: number;
-  passengerCount: number;
-}
-
-export interface AnalyticsData {
-  totalsScope: 'lifetime';
-  excludesVoided: true;
-  chartWindow: ActualsChartWindow;
-  salesHistory: MonthlyActualPoint[];
-  packageMix: AnalyticsPoint[];
-  paymentBreakdown: AnalyticsPoint[];
-  revenueByDestination: AnalyticsPoint[];
-  totalRevenue: number;
-  totalBookings: number;
-  averageBooking: number;
-}
-
 export interface ForecastParams {
   alpha: number;
   beta: number;
@@ -314,8 +293,14 @@ export interface ForecastDataSource {
   lastRecordedMonth: string | null;
 }
 
+/** What a forecast adds up each month. Counts are by booking date, not travel date. */
+export type ForecastMeasure = 'revenue' | 'bookings' | 'passengers';
+
 export interface ForecastData {
   method: string;
+  /** Present on every forecast since the measure was added; revenue when absent. */
+  measure?: ForecastMeasure;
+  unit?: string;
   seasonLength: number;
   horizon: number;
   ok: boolean;
@@ -329,28 +314,60 @@ export interface ForecastData {
   steps: ForecastStepView[];
 }
 
-export interface ReportBreakdown {
+export interface ReportLine {
   label: string;
+  /** Pesos for revenue and spending lines; a count for booking stages and payment states. */
   value: number;
+  count?: number;
+  /** Booked value, on payment lines. */
+  revenue?: number;
+}
+
+export interface ReportMonth {
+  month: string;
+  label: string;
+  revenue: number;
+  costs: number;
+  afterCosts: number;
+  bookings: number;
+  passengers: number;
+}
+
+export interface ReportComparison {
+  from: string | null;
+  to: string | null;
+  revenue: number;
+  costs: number;
+  profit: number;
+  bookings: number;
+  passengers: number;
 }
 
 export interface ReportCounts {
   bookings: number;
+  passengers: number;
   packages: number;
   expenses: number;
   users: number;
 }
 
 export interface ReportsData {
-  totalsScope: 'lifetime';
+  totalsScope: 'lifetime' | 'period';
   excludesVoided: true;
+  /** `through` is where the figures stop: today, when the period runs past it. */
+  period: { from: string | null; to: string | null; through: string | null };
   revenue: number;
   costs: number;
+  /** Gross booking revenue less recorded expenses, not accounting profit. */
   profit: number;
   counts: ReportCounts;
-  bookingsByStatus: ReportBreakdown[];
-  expensesByCategory: ReportBreakdown[];
-  revenueByPackage: ReportBreakdown[];
+  previous: ReportComparison | null;
+  monthly: ReportMonth[];
+  bookingsByStatus: ReportLine[];
+  bookingsByPayment: ReportLine[];
+  expensesByCategory: ReportLine[];
+  revenueByPackage: ReportLine[];
+  revenueByDestination: ReportLine[];
   generatedAt: string;
 }
 
@@ -387,14 +404,35 @@ export class ApiError extends Error {
   }
 }
 
+/** Words for any failure: the server's own, or a plain line when the server could not be reached. */
+export function describeError(error: unknown, fallback: string): string {
+  if (error instanceof ApiError) return error.message;
+  if (error instanceof TypeError) return 'Could not reach ProphetOps. Check the connection, then try again.';
+  return fallback;
+}
+
 function readCookie(name: string): string | null {
   const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
   return match ? decodeURIComponent(match[1]) : null;
 }
 
+/**
+ * What to say when the server gives no words of its own: plain language, what happened to the
+ * person's work, and what to do next. Never a status code or "Unauthorized".
+ */
+function plainMessage(status: number): string {
+  if (status === 401) return 'You have been signed out. Sign in again in another tab, then try again here; nothing on this page is lost.';
+  if (status === 403) return 'Your account cannot do this. Ask an owner if you need access.';
+  if (status === 404) return 'This record could not be found. It may have been removed; refresh the page to see the latest.';
+  if (status === 413) return 'That file is too large to upload.';
+  if (status === 429) return 'Too many tries in a short time. Wait a minute, then try again.';
+  if (status >= 500) return 'The server ran into a problem, so nothing was saved. Try again in a moment.';
+  return 'That could not be done. Check the details, then try again.';
+}
+
 async function unwrap<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    let message = 'Request failed.';
+    let message = '';
     let fields: Record<string, string> = {};
     let code: string | undefined;
     try {
@@ -410,9 +448,9 @@ async function unwrap<T>(response: Response): Promise<T> {
         ) as Record<string, string>;
       }
     } catch {
-      message = response.statusText;
+      // No body, or not JSON: the plain message below stands in.
     }
-    throw new ApiError(response.status, message, fields, code);
+    throw new ApiError(response.status, message || plainMessage(response.status), fields, code);
   }
 
   if (response.status === 204) return undefined as T;
@@ -470,10 +508,11 @@ export const api = {
     request<ExpenseRow>('POST', `/api/expenses/${encodeURIComponent(code)}/void`, { reason }),
   restoreExpense: (code: string) =>
     request<ExpenseRow>('POST', `/api/expenses/${encodeURIComponent(code)}/restore`, {}),
-  activity: (entityType?: string, entityCode?: string) => {
+  activity: (entityType?: string, entityCode?: string, take?: number) => {
     const params = new URLSearchParams();
     if (entityType) params.set('entityType', entityType);
     if (entityCode) params.set('entityCode', entityCode);
+    if (take) params.set('take', String(take));
     const query = params.toString();
     return request<ActivityEntry[]>('GET', '/api/activity' + (query ? '?' + query : ''));
   },
@@ -499,9 +538,15 @@ export const api = {
   createExpense: (input: ExpenseInput) => request<ExpenseRow>('POST', '/api/expenses', input),
   updateExpense: (code: string, input: ExpenseInput) =>
     request<ExpenseRow>('PUT', `/api/expenses/${code}`, input),
-  analytics: () => request<AnalyticsData>('GET', '/api/analytics'),
-  forecast: () => request<ForecastData>('GET', '/api/forecast'),
-  reports: () => request<ReportsData>('GET', '/api/reports'),
+  forecast: (measure: ForecastMeasure = 'revenue') =>
+    request<ForecastData>('GET', measure === 'revenue' ? '/api/forecast' : `/api/forecast?measure=${measure}`),
+  reports: (from = '', to = '') => {
+    const params = new URLSearchParams();
+    if (from) params.set('from', from);
+    if (to) params.set('to', to);
+    const query = params.toString();
+    return request<ReportsData>('GET', '/api/reports' + (query ? '?' + query : ''));
+  },
   users: () => request<UserRow[]>('GET', '/api/users'),
   userRoles: () => request<RoleOption[]>('GET', '/api/users/roles'),
   createUser: (input: UserInput) => request<UserRow>('POST', '/api/users', input),

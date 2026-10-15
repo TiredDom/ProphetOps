@@ -1,7 +1,16 @@
 <template>
   <div class="toast-host" role="status" aria-live="polite" aria-atomic="false">
     <TransitionGroup name="toast">
-      <div v-for="t in toasts" :key="t.id" class="toast" :class="`toast-${t.tone}`">
+      <div
+        v-for="t in toasts"
+        :key="t.id"
+        class="toast"
+        :class="`toast-${t.tone}`"
+        @mouseenter="hold(t.id)"
+        @mouseleave="release(t.id)"
+        @focusin="hold(t.id)"
+        @focusout="release(t.id)"
+      >
         <span class="toast-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <polyline v-if="t.tone === 'success'" points="5 12.5 10 17.5 19 7" />
@@ -16,6 +25,17 @@
           </svg>
         </span>
         <p class="toast-message">{{ t.message }}</p>
+        <button
+          v-if="t.action"
+          class="toast-action"
+          type="button"
+          :disabled="t.busy"
+          :aria-keyshortcuts="t.action.undo ? (isMac ? 'Meta+Z' : 'Control+Z') : undefined"
+          @click="runAction(t.id)"
+        >
+          {{ t.busy ? 'Working…' : t.action.label }}
+          <kbd v-if="t.action.undo && !t.busy" class="toast-kbd">{{ modKey }} Z</kbd>
+        </button>
         <button class="toast-close" type="button" aria-label="Dismiss" @click="dismiss(t.id)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
             <line x1="6" y1="6" x2="18" y2="18" />
@@ -28,29 +48,44 @@
 </template>
 
 <script setup lang="ts">
+import { onBeforeUnmount, onMounted } from 'vue';
 import { useToastList } from '../composables/useToast';
+import { isMac, isTypingTarget, modKey } from '../keyboard';
 
-const { toasts, dismiss } = useToastList();
+const { toasts, dismiss, hold, release, runAction, undoLatest } = useToastList();
+
+// Ctrl+Z (⌘Z) undoes the latest change while its notice is up. In a text field the browser's
+// own undo for the typing comes first.
+function onKeydown(event: KeyboardEvent) {
+  if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey) return;
+  if (event.key.toLowerCase() !== 'z' || isTypingTarget(event.target)) return;
+  if (undoLatest()) event.preventDefault();
+}
+
+onMounted(() => document.addEventListener('keydown', onKeydown));
+onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
 </script>
 
 <style scoped>
+/* Bottom centre on wide screens keeps notices clear of the side panels and their buttons. */
 .toast-host {
   position: fixed;
   bottom: var(--space-6);
-  right: var(--space-6);
+  left: 50%;
   z-index: var(--z-toast);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  width: min(360px, calc(100vw - var(--space-8)));
+  width: min(400px, calc(100vw - var(--space-8)));
+  transform: translateX(-50%);
   pointer-events: none;
 }
 
 .toast {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
@@ -66,6 +101,7 @@ const { toasts, dismiss } = useToastList();
   height: 22px;
   border-radius: var(--radius-pill);
   color: #fff;
+  align-self: flex-start;
   margin-top: 1px;
 }
 
@@ -94,12 +130,69 @@ const { toasts, dismiss } = useToastList();
   line-height: 1.45;
 }
 
+.toast-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-primary);
+  font-size: var(--text-sm);
+  font-weight: 650;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.toast-action:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.toast-action:disabled {
+  color: var(--color-text-muted);
+  cursor: progress;
+}
+
+.toast-kbd {
+  padding: 0 5px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-sunken);
+  color: var(--color-text-muted);
+  font-family: var(--font-family);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+}
+
+/* Touch screens have no keyboard shortcut to offer. */
+@media (hover: none) {
+  .toast-kbd {
+    display: none;
+  }
+}
+
+/* Narrow screens carry the tab bar along the bottom edge; notices sit just above it. */
+@media (max-width: 1024px) {
+  .toast-host {
+    right: var(--space-4);
+    left: var(--space-4);
+    bottom: calc(var(--tab-bar-height) + env(safe-area-inset-bottom, 0px) + var(--space-3));
+    width: auto;
+    transform: none;
+  }
+}
+
 .toast-close {
   flex: none;
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   border: none;
   background: none;

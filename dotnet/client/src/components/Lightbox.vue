@@ -37,12 +37,16 @@ const label = computed(() => (props.caption ? `Photo of ${props.caption}` : 'Pho
 
 useModalFocus(panel, () => !!props.url);
 
+// Listens in the capture phase and marks the key handled, so a panel underneath the photo
+// stays open when Esc closes the photo.
 function onKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape' && props.url) emit('close');
+  if (event.key !== 'Escape' || !props.url) return;
+  event.preventDefault();
+  emit('close');
 }
 
-onMounted(() => document.addEventListener('keydown', onKeydown));
-onUnmounted(() => document.removeEventListener('keydown', onKeydown));
+onMounted(() => document.addEventListener('keydown', onKeydown, true));
+onUnmounted(() => document.removeEventListener('keydown', onKeydown, true));
 </script>
 
 <style scoped>
@@ -75,7 +79,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown));
 
 .lightbox-caption {
   margin-top: 10px;
-  color: #EAF0FB;
+  color: var(--color-shell-text);
   font-size: 13.5px;
   text-align: center;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
@@ -92,7 +96,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown));
   border: none;
   border-radius: var(--radius-pill);
   background: rgba(255, 255, 255, 0.12);
-  color: #FFFFFF;
+  color: var(--color-on-shell);
   cursor: pointer;
   transition: background var(--transition-fast);
 }

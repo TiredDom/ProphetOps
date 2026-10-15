@@ -7,6 +7,15 @@ public enum DemandSeriesSource
     SampleSeries,
 }
 
+/// What each month of the series adds up. Revenue is the study's main measure; booking and
+/// passenger counts measure demand by booking date, not by travel date.
+public enum DemandMeasure
+{
+    Revenue,
+    Bookings,
+    Passengers,
+}
+
 public class DemandSeries
 {
     public required IReadOnlyList<double> Values { get; init; }
@@ -15,6 +24,8 @@ public class DemandSeries
     public required DateOnly LastMonth { get; init; }
 
     public required DemandSeriesSource Source { get; init; }
+
+    public DemandMeasure Measure { get; init; } = DemandMeasure.Revenue;
 
     /// Complete months of real booking history available, whatever the chosen source.
     public required int LiveMonthsAvailable { get; init; }
@@ -42,9 +53,14 @@ public static class DemandSeriesBuilder
 
     private static readonly DateOnly SampleAnchor = new(2026, 7, 1);
 
-    /// Builds the monthly revenue series the forecaster consumes. Live history is preferred once
-    /// it covers MinimumMonths. Sample history is only returned when the caller explicitly opts in.
-    public static DemandSeries Build(AppDbContext db, DateOnly today, bool allowSampleFallback = false)
+    /// Builds the monthly series the forecaster consumes: revenue unless another measure is asked
+    /// for. Live history is preferred once it covers MinimumMonths. Sample history is only returned
+    /// when the caller explicitly opts in, and only for revenue, because the sample is revenue.
+    public static DemandSeries Build(
+        AppDbContext db,
+        DateOnly today,
+        bool allowSampleFallback = false,
+        DemandMeasure measure = DemandMeasure.Revenue)
     {
         // The running month is still accumulating bookings. Including it would read as a demand
         // collapse every time someone opens the page mid-month, so the series stops last month.
@@ -55,7 +71,12 @@ public static class DemandSeriesBuilder
             .Where(b => b.BookingDate <= lastComplete.AddMonths(1).AddDays(-1))
             .AsEnumerable()
             .GroupBy(b => new DateOnly(b.BookingDate.Year, b.BookingDate.Month, 1))
-            .ToDictionary(g => g.Key, g => (double)g.Sum(b => (long)b.GrossRevenue));
+            .ToDictionary(g => g.Key, g => measure switch
+            {
+                DemandMeasure.Bookings => (double)g.Count(),
+                DemandMeasure.Passengers => (double)g.Sum(b => (long)b.PassengerCount),
+                _ => (double)g.Sum(b => (long)b.GrossRevenue),
+            });
 
         var liveMonths = 0;
         var filled = 0;
@@ -95,13 +116,14 @@ public static class DemandSeriesBuilder
                 Values = live,
                 LastMonth = new DateOnly(monthly.Keys.Min().Year, monthly.Keys.Min().Month, 1).AddMonths(liveMonths - 1),
                 Source = DemandSeriesSource.LiveRecords,
+                Measure = measure,
                 LiveMonthsAvailable = liveMonths,
                 FilledMonths = filled,
                 MinimumMonths = MinimumMonths,
             };
         }
 
-        if (!allowSampleFallback)
+        if (!allowSampleFallback || measure != DemandMeasure.Revenue)
         {
             return new DemandSeries
             {
@@ -110,6 +132,7 @@ public static class DemandSeriesBuilder
                     ? monthly.Keys.Max()
                     : lastComplete,
                 Source = DemandSeriesSource.InsufficientLiveRecords,
+                Measure = measure,
                 LiveMonthsAvailable = liveMonths,
                 FilledMonths = filled,
                 MinimumMonths = MinimumMonths,

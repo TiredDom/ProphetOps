@@ -29,7 +29,7 @@ public class AuthFlowTests : IClassFixture<ApiFactory>
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var user = await response.Content.ReadFromJsonAsync<AuthUser>();
         Assert.Equal(Roles.OwnerManagement, user!.Role);
-        Assert.Equal("/dashboard", user.DefaultPath);
+        Assert.Equal("/home", user.DefaultPath);
     }
 
     [Fact]
