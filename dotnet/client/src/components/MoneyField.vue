@@ -18,7 +18,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { nextTick, ref, watch } from 'vue';
 import { count, digitsOnly } from '../format';
 
 const props = defineProps<{
@@ -48,9 +48,14 @@ function onInput(event: Event) {
   emit('update:modelValue', value);
 }
 
-function onFocus() {
+async function onFocus(event: FocusEvent) {
   focused.value = true;
   display.value = String(digitsOnly(display.value) || '');
+  // Dropping the commas moves the caret to the end, so the figure is selected again: typing a new
+  // price replaces it, as in any field reached by Tab, instead of adding digits to the old one.
+  const el = event.target as HTMLInputElement;
+  await nextTick();
+  if (document.activeElement === el) el.select();
 }
 
 function onBlur() {

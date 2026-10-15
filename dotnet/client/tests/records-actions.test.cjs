@@ -420,4 +420,24 @@ test('Record forms, panels, undo and bulk updates', async (t) => {
     assert.equal(await again.locator('.drawer-form-merge').count(), 0, 'Nothing is offered once it was dropped');
     await context.close();
   });
+
+  await t.test('8. A price reached by Tab is replaced by what is typed, not added to', async () => {
+    const w = world();
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    await route(page, w);
+    await page.goto(`${BASE_URL}/bookings?new=1&package=PKG-1`);
+    const form = page.getByRole('dialog', { name: 'New booking' });
+    await form.waitFor();
+    const price = form.locator('#booking-grossRevenue');
+    assert.equal(await price.inputValue(), '10,000', 'The package price is filled in');
+
+    await form.locator('#booking-packageId').focus();
+    await page.keyboard.press('Tab');
+    assert.equal(await page.evaluate(() => document.activeElement?.id), 'booking-grossRevenue');
+    await page.keyboard.type('25000');
+    assert.equal(await price.inputValue(), '25000', 'Typing replaces the price');
+    await page.keyboard.press('Tab');
+    assert.equal(await price.inputValue(), '25,000', 'The figure reads with commas again once left');
+    await page.close();
+  });
 });
