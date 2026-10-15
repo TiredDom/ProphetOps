@@ -105,6 +105,16 @@ Deploy `render.yaml` as a Render Blueprint or configure the service manually. Su
 | `ObjectStorage__S3__ForcePathStyle` | `true` |
 | `ObjectStorage__S3__TimeoutSeconds` | `30` |
 
+Optional settings, left unset unless the agency approves them:
+
+| Environment Variable | Value / Description |
+|----------------------|---------------------|
+| `Gemini__ApiKey` | *(Secret: Gemini API key. Unset means the forecast is worded by rules only and nothing is sent to Google.)* |
+| `Gemini__Model` | Defaults to `gemini-3.8-flash` |
+| `Gemini__MaxRequestsPerHour` | Defaults to `30` across the service |
+
+What Gemini receives, how its wording is checked, and the approvals needed before setting a key are described in `dotnet/README.md` under "Optional: Gemini wording". Installing ProphetOps as an app needs no settings: the site is already served over HTTPS.
+
 ### Step 7: Deploy and Verify
 Trigger a manual deploy on Render and monitor container startup.
 
@@ -152,7 +162,7 @@ Before certifying the hosted service for capstone research evaluation, complete 
 - [ ] **Antiforgery:** Confirm `XSRF-TOKEN` cookie is set on GET requests and required as `X-XSRF-TOKEN` on POST/PUT mutations.
 - [ ] **Package Catalog Flow:** Create a travel package and upload a valid JPEG/PNG image. Confirm image bytes can be viewed at `/api/inventory/{code}/image`.
 - [ ] **Core Business Flows:** Execute test transactions for Bookings, Expenses, and Reports. Confirm isolated audit records are created.
-- [ ] **Truthful Forecasting State:** Navigate to Forecast view. If fewer than 24 monthly observations (two annual seasonal cycles, `DemandSeriesBuilder.MinimumMonths = 24`) of completed booking records exist, confirm the system truthfully displays an "Insufficient Historical Data" guidance card with status `insufficient-history` rather than hallucinating predictive trajectories.
+- [ ] **Truthful Forecasting State:** Sign in as an Owner or Admin and open Home. If fewer than 24 monthly observations (two annual seasonal cycles, `DemandSeriesBuilder.MinimumMonths = 24`) of booking records exist, confirm Home shows "Forecast unavailable" with the number of months recorded (the forecast API reports status `insufficient-history`) rather than a forecast. Otherwise, open Monthly figures and model details and confirm "In plain words" and "Accuracy on months it had not seen" load.
 - [ ] **Persistence Across Restart:** Restart the web service in Render. After the container boots and reaches ready status, verify existing users, travel packages, and uploaded package images remain fully intact.
 - [ ] **Backup and Scratch Restore Rehearsal:** Capture an encrypted `.pobak` backup package (via authenticated `POST /api/maintenance/backup/export` or `POST /api/maintenance/backup`) and execute `restore-backup.ps1` to an isolated scratch PostgreSQL database. Compare record counts and image checksums. (Note: No offline backup-capture CLI exists; live captures use the API or direct `pg_dump`).
 

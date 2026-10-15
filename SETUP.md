@@ -68,9 +68,11 @@ Open http://localhost:5173.
 ```powershell
 cd dotnet
 dotnet test
+cd client ; npx playwright install chromium ; npm test
 ```
 
-Expected: all suites pass — forecasting parity, data layer, and API + security.
+Expected: all suites pass: forecasting, data layer, API + security, and the browser tests.
+`dotnet/README.md` notes the few tests that need PostgreSQL or PowerShell 7.
 
 ## Publish / deploy
 
@@ -81,9 +83,9 @@ cd dotnet
 ```
 
 Produces a self-contained win-x64 build (no .NET install needed on the target). See
-`dotnet/README.md` for the legacy/local Windows Service release path, LAN / HTTPS
-notes, and the separate planned hosted-container path. The hosted access layer,
-domain, backup storage and production cutover are not provisioned by this quickstart.
+`dotnet/README.md` for the legacy/local Windows Service release path and LAN / HTTPS
+notes, and `dotnet/HOSTING.md` for the hosted copy (Render with Supabase PostgreSQL and
+private storage). This quickstart does not change the hosted copy.
 
 ## Demo accounts (explicit development mode)
 
@@ -102,8 +104,8 @@ an agency installation.
 
 ```text
 owner@prophetops.local / owner123      Owner / Management — full access
-admin@prophetops.local / admin123      Admin — all modules except Users
-staff@prophetops.local / staff123      Staff — Bookings + Package Catalog only
+admin@prophetops.local / admin123      Admin — every page except Team & access
+staff@prophetops.local / staff123      Staff — Bookings + Packages only
 ```
 
 Invalid-login test: `wrong@example.com / wrongpass`.
@@ -111,9 +113,12 @@ Invalid-login test: `wrong@example.com / wrongpass`.
 ## Main routes
 
 ```text
-/login  /dashboard  /forecast  /analytics
-/bookings  /inventory  /expenses  /reports  /users
+/login  /home  /bookings  /packages  /expenses  /reports  /team
 ```
+
+Older addresses still work: `/dashboard` opens Home, `/forecast` opens Home's model
+details, `/analytics` opens Reports, `/inventory` opens Packages and `/users` opens
+Team & access.
 
 ## Project rule
 

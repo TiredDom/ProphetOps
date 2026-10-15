@@ -12,17 +12,20 @@ unchanged.
 
 | Project | Purpose |
 | --- | --- |
-| `ProphetOps.Forecasting` | Holt-Winters additive triple exponential smoothing (grid-searched) |
+| `ProphetOps.Forecasting` | Holt-Winters additive triple exponential smoothing (grid-searched), the rolling-origin accuracy test, and the monthly CSV reader |
 | `ProphetOps.Domain` | Entities and role/permission rules |
-| `ProphetOps.Data` | EF Core (SQLite) context, migrations, seeding, sample sales history |
-| `ProphetOps.Api` | Cookie-auth Web API, security middleware, serves the SPA from `wwwroot` |
-| `client` | Vue 3 + TypeScript SPA (Vite) |
-| `*.Tests` | xUnit suites (forecasting parity, data layer, API + security) |
+| `ProphetOps.Data` | EF Core context and SQLite migrations, seeding, sample sales history, monthly demand series |
+| `ProphetOps.PostgresMigrations` | EF Core migrations for hosted PostgreSQL |
+| `ProphetOps.Api` | Cookie-auth Web API, security middleware, forecast and planning endpoints; serves the SPA from `wwwroot` |
+| `ProphetOps.Evaluation` | Offline command that tests the forecast on a CSV of monthly totals |
+| `ProphetOps.Setup` | Legacy Windows installer (`net8.0`) |
+| `client` | Vue 3 + TypeScript SPA (Vite), installable as a progressive web app |
+| `*.Tests` | xUnit suites (forecasting, data layer, API + security) |
 
 ## Prerequisites
 
 - **Build:** Node.js 18+ (SPA) and the .NET 10 SDK selected by `global.json`.
-- **Run (published, self-contained):** nothing — the runtime is bundled.
+- **Run (published, self-contained):** nothing; the runtime is bundled.
 
 ## Develop
 
@@ -58,7 +61,83 @@ Open http://localhost:5099.
 
 ```powershell
 dotnet test
+cd client ; npx playwright install chromium ; npm test
 ```
+
+`dotnet test` runs the forecasting, data and API suites. PostgreSQL provider tests are
+skipped unless `PROPHETOPS_TEST_POSTGRES` names a test database. The restore-script tests
+start PowerShell 7, which must be able to find the .NET 10 runtime (set `DOTNET_ROOT` when
+the SDK is not installed system-wide). `npm test` runs the browser tests: each file starts
+its own Vite server on its own port and answers the API with fixed test data.
+
+## Forecast endpoints
+
+Every forecast endpoint needs an Owner or Admin session. `measure` is `revenue` (the
+default), `bookings` or `passengers`; counts are by booking date.
+
+| Endpoint | What it gives |
+| --- | --- |
+| `GET /api/forecast?measure=` | The six-month Holt-Winters forecast with 80% ranges, its fit, baselines and suggestions |
+| `GET /api/forecast/evaluation?measure=` | The rolling-origin test: the forecast rerun from each past month on the months before it, compared with what was recorded and with the same month last year |
+| `GET /api/export/forecast-test.csv?measure=` | Every comparison in that test, one row each |
+| `GET /api/forecast/explanation?measure=` | The forecast in plain words, written by rules from its own figures, and whether Gemini is set up |
+| `POST /api/forecast/explanation?measure=` | Gemini's wording of the same figures, or the rules' wording with the reason Gemini's was not used |
+| `GET /api/forecast/scenario?basis=share&share=0.42` | Revenue forecast less spending assumed as a share of revenue (default: the share of the last 12 recorded months) or, with `basis=last-year`, as the same month last year; also needs Expenses access |
+| `GET /api/forecast/packages?months=3` | Each package's expected passengers over 1 to 6 months (its share of the last 12 months' passengers) against its open slots, with a price to consider where one applies |
+
+When recent months have no bookings recorded, some forecast months may already have
+passed; the scenario and the package outlook leave those months out and name them.
+Suggested prices only fill in the package form; nothing is saved until a person saves it.
+
+## Test the forecast on your own figures
+
+`ProphetOps.Evaluation` runs the same rolling-origin test offline, on a CSV of monthly
+totals that never has to be entered into the application:
+
+```powershell
+dotnet run --project ProphetOps.Evaluation -- agency-revenue.csv --out results
+```
+
+The CSV has one row per month, `month,value` (for example `2024-01,152000`), in any order,
+with an optional header. Every month between the first and the last must be present;
+write 0 for a month that really had nothing. Missing or repeated months are refused, not
+filled in. It prints the result and, with `--out`, writes `forecast-test-points.csv` and
+`forecast-test-summary.csv`. `--horizon` (1 to 12, default 6) and `--season` (default 12)
+change the test. Exit codes: 0 tested, 1 too few months, 2 unreadable input. Nothing is
+sent anywhere.
+
+## Install as an app
+
+The built client carries a web app manifest, icons and a small service worker, so
+browsers that support it (Chrome, Edge, Android) offer **Install ProphetOps** from the
+account menu; on iPhone and iPad, use Share, then Add to Home Screen. The worker only
+answers page loads it cannot complete with a short offline page: it stores no pages,
+records or forecasts, and data requests never pass through it. It is registered by the
+built app only, not by the development server. Installing needs HTTPS (or localhost).
+
+## Optional: Gemini wording
+
+The forecast's plain-words explanation is written by rules. Gemini can reword the same
+figures when a key is set; without one, nothing is sent anywhere.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `Gemini__ApiKey` | empty (off) | Gemini API key. A secret: set it only in the host's dashboard or secret manager. |
+| `Gemini__Model` | `gemini-3.8-flash` | Model name: lowercase letters, digits, dots and hyphens |
+| `Gemini__TimeoutSeconds` | `12` | Time limit for each request, 2 to 60 |
+| `Gemini__MaxRequestsPerHour` | `30` | Requests the whole service may send in an hour, 1 to 1000 |
+| `Gemini__CacheHours` | `12` | How long a wording is kept for the same figures, 0 to 72 |
+
+- **What is sent:** the agency-wide monthly totals for the chosen measure, the forecast with
+  its ranges, and the accuracy test, already rounded and worded. No client, booking,
+  package, staff member or text anyone typed is included. The key travels in the
+  `x-goog-api-key` header, never in the address, and is not logged or returned.
+- **What is checked:** the answer is used only if it is the JSON asked for, within set
+  lengths, and every figure in it is one of the forecast's own, as given or rounded.
+  Otherwise, or when Gemini is slow, failing or over the hourly limit, the rules' wording
+  is shown with the reason. The page renders the wording as plain text.
+- **Before setting a key** for the agency's real records, get approval for the spending and
+  for sending these figures to Google, and check Google's data terms for the plan in use.
 
 ## Publish a standalone legacy/local build
 
@@ -108,52 +187,32 @@ Remove it with `sc.exe delete ProphetOps`.
 - **Remote:** for this legacy/local path, use the agency's private remote-access
   arrangement rather than exposing an unmanaged office service directly.
 
-## Hosted container path
+## Hosted path
 
-The application has been prepared for a staff-only hosted container deployment:
-storage paths are explicit, the business timezone is explicit, container port binding is
-supported, and forwarded headers stay disabled unless a trusted proxy boundary is
-configured. This repository does not provision the hosted service, access layer, domain,
-object-storage bucket, credentials, DNS, billing limits, notifications, or cutover.
+The hosted copy runs the `Dockerfile` image on Render with Supabase PostgreSQL and private
+Supabase storage. **[HOSTING.md](HOSTING.md)** is the step-by-step operator guide and
+**[BACKUP.md](BACKUP.md)** covers encrypted backups and restores. In short:
 
-In hosted/container mode, startup also requires origin-side Cloudflare Access validation
-to be explicitly configured. Supply the operator-approved values for
-`CloudflareAccess__Issuer`, `CloudflareAccess__Audience`, and the HTTPS
-`CloudflareAccess__JwksUrl`; the app accepts only the `Cf-Access-Jwt-Assertion` header
-and still requires the normal ProphetOps session cookie after Access has admitted the
-request.
+- `Hosted__Enabled=true` turns on the hosted checks: storage must be set explicitly,
+  backups must be encrypted, and with `ApplicationLogin` the database must be PostgreSQL.
+  On PostgreSQL the web process never migrates the schema or creates the first owner at
+  startup; run `--migrate-database` and `--bootstrap-owner` offline, as HOSTING.md
+  describes, with a verified-TLS connection string.
+- `Hosted__AccessMode=ApplicationLogin` is the current access mode: staff sign in with
+  their ProphetOps accounts, and `CloudflareAccess__Enabled=false`. Without that mode,
+  hosted startup requires Cloudflare Access in front of the app: set
+  `CloudflareAccess__Enabled=true` with the operator-approved `CloudflareAccess__Issuer`,
+  `CloudflareAccess__Audience` and HTTPS `CloudflareAccess__JwksUrl`. The app then
+  accepts only the `Cf-Access-Jwt-Assertion` header and still requires the normal
+  ProphetOps session cookie.
+- `../render.yaml` describes the current hosted shape (free plan, Singapore, manual
+  deploys, scheduled backups off while the service sleeps). Its secrets are `sync: false`
+  and are entered only in the Render dashboard.
+- `../render.preview.yaml` and `../render.preview.singapore.yaml` describe earlier
+  disposable previews that keep SQLite in `/tmp/prophetops` and create a preview owner
+  from environment secrets at each start. They are not durable.
 
-Two source-only Render blueprints are checked in:
-
-- `../render.preview.yaml` is a temporary free preview. It uses `/tmp/prophetops`,
-  disables scheduled backups, and is intentionally non-durable.
-- `../render.yaml` is the paid staff-hosting shape. It uses one persistent disk and
-  requires encrypted off-host backups through an S3-compatible object store.
-
-The paid hosted environment must include values like these, with real values supplied
-only in the provider dashboard or secret manager:
-
-```text
-Hosted__Enabled=true
-Storage__Root=/app/storage
-Business__TimeZone=Asia/Manila
-CloudflareAccess__Enabled=true
-CloudflareAccess__Issuer=https://<team>.cloudflareaccess.com
-CloudflareAccess__Audience=<cloudflare-access-audience>
-CloudflareAccess__JwksUrl=https://<team>.cloudflareaccess.com/cdn-cgi/access/certs
-Backup__Scheduled__Enabled=true
-Backup__Storage=r2
-Backup__Encryption__Key=<base64-32-byte-key>
-Backup__Encryption__KeyId=<operator-key-id>
-Backup__S3__Endpoint=https://<account-id>.r2.cloudflarestorage.com
-Backup__S3__Bucket=<bucket-name>
-Backup__S3__Region=auto
-Backup__S3__AccessKeyId=<scoped-access-key-id>
-Backup__S3__SecretAccessKey=<scoped-secret-access-key>
-Backup__S3__Prefix=prophetops/production/
-```
-
-For a temporary preview only:
+For such a disposable preview only:
 
 ```text
 Hosted__Enabled=false
@@ -167,11 +226,10 @@ Bootstrap__OwnerPassword=<unique-preview-password>
 Backup__Scheduled__Enabled=false
 ```
 
-For this disposable preview, keep the unique preview bootstrap secrets while the service
-uses `/tmp/prophetops`. Render free instances can restart with empty storage; when that
-happens the app recreates the same preview owner on the next start. Managed startup
-provisioning creates an owner only when the database has no accounts; on an existing
-database it leaves the existing password, role and status unchanged.
+Render free instances can restart with empty storage; when that happens a preview
+recreates the same owner on the next start. Startup provisioning creates an owner only
+when the database has no accounts; on an existing database it leaves the existing
+password, role and status unchanged.
 
 ## Security posture
 
@@ -180,6 +238,7 @@ database it leaves the existing password, role and status unchanged.
   on every unsafe `/api` request except the auth bootstrap.
 - Hardened response headers: CSP, `X-Content-Type-Options`, `X-Frame-Options: DENY`,
   `Referrer-Policy: no-referrer`, no `Server` header.
+- An `/api` address with no endpoint answers 404 in JSON rather than the app page.
 
 ## First agency owner
 
@@ -210,42 +269,27 @@ passed through the child process environment, not command history or an applicat
 configuration file. The command refuses to run if any account already exists. Existing
 installations retain their accounts; do not delete accounts to rerun setup.
 
-Managed hosts without shell access may instead set `Bootstrap__Owner__Enabled=true`
-for the first start, together with `Bootstrap__OwnerName`, `Bootstrap__OwnerEmail`, and
-`Bootstrap__OwnerPassword` as environment secrets. Use the staff member's real Access
-email address so Cloudflare Access email binding can match the ProphetOps account later.
-On durable storage, remove those variables after the account is created. In disposable
-preview storage, retain the preview-only values so the account can be recreated after
-storage resets. Unlike the explicit `--bootstrap-owner` command, this startup mode is
-idempotent on existing accounts and will not reset an existing owner's password or role.
+Hosts without shell access that keep SQLite (such as the disposable previews) may instead
+set `Bootstrap__Owner__Enabled=true` for the first start, together with
+`Bootstrap__OwnerName`, `Bootstrap__OwnerEmail`, and `Bootstrap__OwnerPassword` as
+environment secrets. Hosted PostgreSQL refuses this; use the offline command in
+HOSTING.md. Where Cloudflare Access is in use, give the owner the staff member's Access
+email address so the two can be matched. On durable storage, remove those variables
+after the account is created. Unlike the explicit `--bootstrap-owner` command, this
+startup mode is idempotent on existing accounts and will not reset an existing owner's
+password or role.
 
-## Remaining External Actions
+## Outstanding operator actions
 
-The repository is source-ready only. The operator still must:
+The hosted copy is running. Before handing it to the agency, the operator still must:
 
-- Create and connect the Git provider repository used by Render.
-
-For the temporary free preview:
-
-- Create a Blueprint from `render.preview.yaml`.
-- Fill the preview `sync: false` values with disposable, unique preview owner
-  credentials and the chosen business timezone.
-- Keep the preview bootstrap values for as long as the service uses `/tmp/prophetops`.
-  They are not production owner credentials and the preview is not durable.
-
-For paid staff hosting later:
-
-- Create a separate Blueprint from `render.yaml`. Treat it as a new durable service
-  shape, not a simple in-place free-tier upgrade.
-- Fill all paid-hosting secrets in the provider dashboard or secret manager.
-- Provision Cloudflare Access, staff identity policies, domain/DNS and the origin rule.
-- Provision the R2/S3 bucket, lifecycle/retention policy, scoped credentials, and
-  billing guardrails.
-- Generate and store the backup encryption key outside the app host and disk.
-- Before changing from disposable preview storage to durable hosted storage, perform a
-  controlled data move: export/restore from a verified backup or run an operator-approved
-  migration. Do not assume `/tmp` preview data survives a blueprint/service change.
-- Run a clean-host restore rehearsal with a real backup before production cutover.
+- Restore an actual encrypted hosted backup into an isolated scratch database and compare
+  record counts and images.
+- Keep the backup encryption key, the Data Protection certificate and its password in
+  independent custody, with an encrypted backup copy outside the Supabase project.
+- Decide whether the service keeps its current Render hostname or gets its own domain.
+- Turn on scheduled backups only once the service no longer sleeps, and set a Gemini key
+  only after the approvals above.
 
 ## Demonstration accounts
 
