@@ -126,6 +126,17 @@ async function route(page, user = owner) {
     const measure = new URL(url).searchParams.get('measure') ?? 'revenue';
     return r.fulfill(json(measure === 'passengers' ? passengerForecast : measure === 'bookings' ? bookingForecast : forecast));
   });
+  // Registered after the forecast, so it answers the accuracy test the opened details ask for.
+  await page.route('**/api/forecast/evaluation**', (r) => {
+    if (user.role === 'Staff') return r.fulfill({ status: 403, body: '' });
+    const measure = new URL(r.request().url()).searchParams.get('measure') ?? 'revenue';
+    return r.fulfill(json({
+      method: 'Rolling-origin test', measure, unit: measure === 'revenue' ? 'PHP' : measure, ok: false,
+      reason: 'The test needs two full seasonal cycles to learn from and at least one later month to check.',
+      seasonLength: 12, horizon: 6, monthsAvailable: 24, monthsRequired: 25, origins: 0,
+      dataSource: forecast.dataSource, byHorizon: [], overall: null, points: [],
+    }));
+  });
   await page.route('**/api/activity**', (r) => r.fulfill(json([])));
   await page.route('**/api/bookings', (r) => r.fulfill(json({ bookings, packages })));
   await page.route('**/api/inventory', (r) => r.fulfill(json(packages)));

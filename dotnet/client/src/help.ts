@@ -164,7 +164,7 @@ export const helpTopics: HelpTopic[] = [
           ['Solid navy line', 'Recorded months: gross booking revenue (or bookings, or passengers) without voided bookings.'],
           ['Dashed teal line', 'The forecast. Teal always marks something the model produced, never a recorded figure.'],
           ['Shaded range', 'The likely range: in about 8 months out of 10, the real figure should land inside it.'],
-          ['Average miss', 'How far the model’s fitted values were from the recorded months, on average. It describes the fit on the past, not a promise about the future.'],
+          ['Average miss', 'How far the model’s fitted values were from the recorded months, on average. It describes the fit on the past, not a promise about the future. The accuracy test in the model details checks the forecast on months it had not seen.'],
         ],
       },
       {
@@ -177,7 +177,42 @@ export const helpTopics: HelpTopic[] = [
         ],
       },
     ],
-    related: ['forecast-decisions', 'glossary'],
+    related: ['forecast-accuracy', 'forecast-decisions', 'glossary'],
+  },
+  {
+    id: 'forecast-accuracy',
+    title: 'Check how accurate the forecast has been',
+    summary: 'The forecast rerun from past months and compared with what was recorded.',
+    pages: ['/home'],
+    access: '/home',
+    keywords: 'accuracy accurate test tested backtest rolling past months unseen error miss mape baseline same month last year range hit how good reliable trust csv download research',
+    blocks: [
+      {
+        kind: 'steps',
+        items: [
+          'On Home, open Monthly figures and model details.',
+          'Read Accuracy on months it had not seen.',
+          'Choose Download the test as CSV for every forecast it compared, one row each.',
+        ],
+      },
+      {
+        kind: 'text',
+        text: 'The test stands at each past month in turn, makes the forecast again using only the months before it, and compares each forecast with what was recorded afterwards. Nothing it is checked against was used to make it.',
+      },
+      {
+        kind: 'terms',
+        items: [
+          ['Holt-Winters miss', 'The average difference between the forecast and the recorded figure, as a share of the recorded figure.'],
+          ['Same month last year', 'The miss of the simplest seasonal guess: repeating what was recorded a year earlier. A useful forecast should miss less.'],
+          ['Inside the range', 'How often the recorded figure fell inside the 80% range. About 8 in 10 is what the range aims for.'],
+        ],
+      },
+      {
+        kind: 'text',
+        text: 'The test needs 25 recorded months: two years to learn from and at least one more to check. It shows how the method did on the months recorded in ProphetOps, not a promise about the months ahead.',
+      },
+    ],
+    related: ['read-forecast'],
   },
   {
     id: 'forecast-decisions',

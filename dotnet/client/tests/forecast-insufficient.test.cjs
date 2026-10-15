@@ -98,9 +98,28 @@ async function routeHome(page, forecast, dashboard = mockInsufficientDashboard) 
   await page.route('**/api/app/config', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ today: '2026-10-13', timeZone: 'Asia/Manila' }) }));
   await page.route('**/api/dashboard', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(dashboard) }));
   await page.route('**/api/forecast', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(forecast) }));
+  await page.route('**/api/forecast/evaluation**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockEvaluationTooShort) }));
   await page.route('**/api/activity**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mockActivity) }));
   await page.route('**/api/expenses', route => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
 }
+
+// The accuracy test in the opened details; these pages only need it to answer.
+const mockEvaluationTooShort = {
+  method: 'Rolling-origin test',
+  measure: 'revenue',
+  unit: 'PHP',
+  ok: false,
+  reason: 'The test needs two full seasonal cycles to learn from and at least one later month to check.',
+  seasonLength: 12,
+  horizon: 6,
+  monthsAvailable: 24,
+  monthsRequired: 25,
+  origins: 0,
+  dataSource: { status: 'live', usingLiveRecords: true, usingSample: false, label: 'Live booking history', liveMonthsAvailable: 24, recordedMonths: 24, minimumMonths: 24, filledMonths: 0, lastRecordedMonth: 'September 2026' },
+  byHorizon: [],
+  overall: null,
+  points: []
+};
 
 const mockActiveForecast = {
   method: 'Holt-Winters',
@@ -247,7 +266,8 @@ test('Home forecast, insufficient history and mobile UX', async (t) => {
     const detailsText = await page.locator('#forecast-details').innerText();
     assert.ok(detailsText.includes('Fit on recorded months'), 'Model figures are labelled as fit on recorded months');
     assert.ok(!detailsText.includes('Model accuracy'), 'No "Model accuracy" claim');
-    assert.ok(detailsText.includes('not a test on months it has not seen'), 'States the limit of the fit figures');
+    assert.ok(detailsText.includes('reproduces the months it learned from'), 'States the limit of the fit figures');
+    assert.ok(detailsText.includes('Accuracy on months it had not seen'), 'Points to the test on unseen months');
 
     await page.close();
   });

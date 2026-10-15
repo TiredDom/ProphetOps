@@ -3,6 +3,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ProphetOps.Data;
+using ProphetOps.Forecasting;
 
 namespace ProphetOps.Api.Controllers;
 
@@ -15,11 +16,15 @@ public class ExportController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IBusinessClock _clock;
+    private readonly IConfiguration _configuration;
+    private readonly IHostEnvironment _environment;
 
-    public ExportController(AppDbContext db, IBusinessClock clock)
+    public ExportController(AppDbContext db, IBusinessClock clock, IConfiguration configuration, IHostEnvironment environment)
     {
         _db = db;
         _clock = clock;
+        _configuration = configuration;
+        _environment = environment;
     }
 
     [HttpGet("bookings.csv")]
@@ -163,6 +168,45 @@ public class ExportController : ControllerBase
             name);
     }
 
+    /// Every forecast the accuracy test compared with a recorded month: the month it was made after,
+    /// the month it aimed at, the recorded figure, the forecast with its 80% range, and the same month
+    /// a year earlier. One row per comparison, ready for a spreadsheet or a results chapter.
+    [HttpGet("forecast-test.csv")]
+    [Authorize(Policy = "Forecast")]
+    public IActionResult ForecastTest([FromQuery] string? measure)
+    {
+        if (!ForecastMeasures.TryRead(measure, out var chosen))
+            return BadRequest(new Dictionary<string, string> { ["measure"] = ForecastMeasures.Choices });
+
+        var demand = DemandSeriesBuilder.Build(
+            _db, _clock.Today, ForecastMeasures.AllowSampleFallback(_configuration, _environment), chosen);
+        var test = demand.UsingLiveRecords || demand.UsingSample
+            ? RollingOriginEvaluation.Evaluate(demand.Values, DemandSeriesBuilder.SeasonLength, 6)
+            : null;
+        if (test is null || !test.Ok)
+            return Conflict(new { message = "There are not enough recorded months to test the forecast yet." });
+
+        var first = demand.LastMonth.AddMonths(-(demand.Values.Count - 1));
+        string Month(int index) => first.AddMonths(index).ToString("yyyy-MM", CultureInfo.InvariantCulture);
+
+        var rows = test.Points.Select(p => new[]
+        {
+            Month(p.Origin - 1),
+            Month(p.Target),
+            Whole(p.Step),
+            Number(p.Actual),
+            Number(p.Forecast),
+            Number(p.Lower),
+            Number(p.Upper),
+            Number(p.SeasonalNaive),
+            p.InsideRange ? "yes" : "no",
+        });
+
+        return Download($"forecast-test-{ForecastMeasures.Name(chosen)}",
+            "made_after,month,months_ahead,recorded,forecast,lower_80,upper_80,same_month_last_year,inside_range",
+            rows);
+    }
+
     private static DateOnly? ReadDate(string? value, string field, Dictionary<string, string> errors)
     {
         if (string.IsNullOrWhiteSpace(value)) return null;
@@ -190,7 +234,7 @@ public class ExportController : ControllerBase
 
     private static readonly char[] Reserved = { ',', '"', '\r', '\n' };
 
-    private static readonly System.Text.RegularExpressions.Regex PlainNumber = new(@"^-?\d+$");
+    private static readonly System.Text.RegularExpressions.Regex PlainNumber = new(@"^-?\d+(\.\d+)?$");
 
     /// The apostrophe is how spreadsheets themselves write a value that must not be evaluated,
     /// so it survives a round trip through them and through our own importer.
@@ -209,6 +253,9 @@ public class ExportController : ControllerBase
     }
 
     private static string Whole(int value) => value.ToString(CultureInfo.InvariantCulture);
+
+    private static string Number(double value) =>
+        Math.Round(value, 2, MidpointRounding.AwayFromZero).ToString("0.##", CultureInfo.InvariantCulture);
 
     private static string Whole(long value) => value.ToString(CultureInfo.InvariantCulture);
 }

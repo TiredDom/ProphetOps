@@ -137,7 +137,7 @@
             </span>
             <UiIcon name="chevron-down" class="details-chevron" />
           </summary>
-          <ForecastDetails :data="forecast" />
+          <ForecastDetails :data="forecast" :active="detailsOpen" />
         </details>
 
         <!-- 3. This month so far against the same days last month -->

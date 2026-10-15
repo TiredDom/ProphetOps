@@ -51,6 +51,8 @@
       </p>
     </section>
 
+    <ForecastAccuracy :measure="measure" :active="active" />
+
     <section class="details-block model-block" aria-labelledby="model-title">
       <h3 id="model-title" class="details-heading">Model details</h3>
 
@@ -103,8 +105,8 @@
             </div>
           </dl>
           <p class="details-note">
-            These figures show how closely the model reproduces the months it learned from. They are not a test on
-            months it has not seen.
+            These figures show how closely the model reproduces the months it learned from. The test on months it
+            had not seen is above.
           </p>
         </div>
       </div>
@@ -127,9 +129,11 @@
 import { computed } from 'vue';
 import type { ForecastData } from '../api';
 import { formatFull, formatMiss, formatShort, measureDescription, measureNoun, measureOf } from '../forecastUnits';
+import ForecastAccuracy from './forecast/ForecastAccuracy.vue';
 import UiIcon from './UiIcon.vue';
 
-const props = defineProps<{ data: ForecastData }>();
+/** `active` is whether the details are open; the accuracy test is only asked for then. */
+const props = withDefaults(defineProps<{ data: ForecastData; active?: boolean }>(), { active: false });
 
 const measure = computed(() => measureOf(props.data.measure));
 const noun = computed(() => measureNoun(measure.value));

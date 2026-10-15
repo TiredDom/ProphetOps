@@ -314,6 +314,59 @@ export interface ForecastData {
   steps: ForecastStepView[];
 }
 
+/** How the forecasts made a given number of months ahead did in the accuracy test. */
+export interface ForecastEvaluationHorizon {
+  step: number;
+  forecasts: number;
+  mae: number;
+  /** Percentages leave out months with nothing recorded; null when every month had nothing. */
+  mape: number | null;
+  seasonalNaiveMae: number;
+  seasonalNaiveMape: number | null;
+  insideRange: number;
+  coverage: number;
+}
+
+export interface ForecastEvaluationOverall extends Omit<ForecastEvaluationHorizon, 'step'> {
+  /** How much smaller the Holt-Winters miss was than the baseline's; below zero when it was larger. */
+  skillVsSeasonalNaive: number | null;
+}
+
+export interface ForecastEvaluationPoint {
+  madeAfter: string;
+  month: string;
+  step: number;
+  actual: number;
+  forecast: number;
+  lower: number;
+  upper: number;
+  sameMonthLastYear: number;
+  insideRange: boolean;
+}
+
+/**
+ * The forecast tested on recorded months it had not seen: rerun from each past month using only
+ * the months before it, and compared with what was recorded and with the same month a year earlier.
+ */
+export interface ForecastEvaluation {
+  method: string;
+  measure: ForecastMeasure;
+  unit: string;
+  ok: boolean;
+  reason: string | null;
+  seasonLength: number;
+  horizon: number;
+  monthsAvailable: number;
+  monthsRequired: number;
+  origins: number;
+  firstTestedMonth?: string;
+  lastTestedMonth?: string;
+  dataSource: ForecastDataSource;
+  byHorizon: ForecastEvaluationHorizon[];
+  overall: ForecastEvaluationOverall | null;
+  points: ForecastEvaluationPoint[];
+}
+
 export interface ReportLine {
   label: string;
   /** Pesos for revenue and spending lines; a count for booking stages and payment states. */
@@ -540,6 +593,8 @@ export const api = {
     request<ExpenseRow>('PUT', `/api/expenses/${code}`, input),
   forecast: (measure: ForecastMeasure = 'revenue') =>
     request<ForecastData>('GET', measure === 'revenue' ? '/api/forecast' : `/api/forecast?measure=${measure}`),
+  forecastEvaluation: (measure: ForecastMeasure = 'revenue') =>
+    request<ForecastEvaluation>('GET', `/api/forecast/evaluation?measure=${measure}`),
   reports: (from = '', to = '') => {
     const params = new URLSearchParams();
     if (from) params.set('from', from);
