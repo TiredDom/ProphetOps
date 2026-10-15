@@ -359,6 +359,28 @@ export const helpTopics: HelpTopic[] = [
     related: ['shortcuts'],
   },
   {
+    id: 'install',
+    title: 'Install ProphetOps on a phone or computer',
+    summary: 'Open it from the home screen like an app, in its own window.',
+    pages: [],
+    keywords: 'install app phone android iphone ipad home screen add shortcut icon desktop pwa offline connection',
+    blocks: [
+      {
+        kind: 'terms',
+        items: [
+          ['Android phone', 'In Chrome, open the account menu and choose Install ProphetOps, or open Chrome’s ⋮ menu and choose Install app (or Add to Home screen).'],
+          ['iPhone or iPad', 'In Safari, tap Share, then Add to Home Screen, then Add.'],
+          ['Computer', 'In Chrome or Edge, choose Install ProphetOps in the account menu, or the install icon at the end of the address bar.'],
+        ],
+      },
+      {
+        kind: 'text',
+        text: 'The installed app is the same ProphetOps: sign in the same way, with the same access. It still needs an internet connection. Records and figures always come from the server, so they are never out of date; without a connection it says so instead of showing old ones.',
+      },
+    ],
+    related: ['shortcuts'],
+  },
+  {
     id: 'shortcuts',
     title: 'Keyboard shortcuts',
     summary: 'Keys for the things done most often.',

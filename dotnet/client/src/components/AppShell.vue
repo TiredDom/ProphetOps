@@ -74,6 +74,11 @@
           <span>Help &amp; shortcuts</span>
         </button>
 
+        <button v-if="canInstall" class="sidebar-account-link" type="button" @click="installApp">
+          <UiIcon name="download" class="nav-item-icon" />
+          <span>Install ProphetOps</span>
+        </button>
+
         <button class="sidebar-logout" type="button" :disabled="signingOut" @click="signOut">
           {{ signingOut ? 'Logging out…' : 'Log out' }}
         </button>
@@ -138,6 +143,7 @@ import { accountLinksFor, canAccess, navFor } from '../nav';
 import { useMediaQuery } from '../composables/useMediaQuery';
 import { useModalFocus } from '../composables/useModalFocus';
 import { closePalette, openHelp, openPalette, useHelpState } from '../composables/useHelp';
+import { useInstall } from '../composables/usePwaInstall';
 import { isTypingTarget, modKey, openOverlays, overlayOpen } from '../keyboard';
 import { useRecentsFor } from '../recents';
 import CommandPalette from './CommandPalette.vue';
@@ -200,6 +206,14 @@ watch(() => state.user?.email, (email) => useRecentsFor(email));
 function showHelp() {
   accountOpen.value = false;
   openHelp();
+}
+
+// Offered only where the browser can install the app; Safari users follow the help topic.
+const { canInstall, install } = useInstall();
+
+async function installApp() {
+  accountOpen.value = false;
+  await install();
 }
 
 // ----- Keyboard shortcuts -----
