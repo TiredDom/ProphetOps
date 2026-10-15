@@ -380,6 +380,9 @@ app.MapGet(CloudflareAccessOptions.ReadyPath, async (IServiceProvider services, 
         : Results.Json(new { status = readiness.Status }, statusCode: StatusCodes.Status503ServiceUnavailable);
 });
 app.MapControllers();
+// An /api address that matches no endpoint is a missing API, not a page of the app: answer 404 in
+// JSON rather than handing back index.html with 200.
+app.MapFallback("/api/{**path}", () => Results.NotFound(new { message = "There is no API at this address." }));
 app.MapFallbackToFile("index.html");
 app.Run();
 
