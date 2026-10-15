@@ -136,6 +136,8 @@
         @show-month="showMonth"
       />
 
+      <CostScenario v-if="!loading && expenses.length" />
+
       <div v-if="loading" class="content-panel">
         <Skeleton :rows="8" />
       </div>
@@ -387,6 +389,7 @@ import FormField from '../components/FormField.vue';
 import FormProblems from '../components/FormProblems.vue';
 import ExpenseDetail, { type ExpenseBusy } from '../components/ExpenseDetail.vue';
 import SpendingGuide from '../components/forecast/SpendingGuide.vue';
+import CostScenario from '../components/forecast/CostScenario.vue';
 import { usePaged } from '../composables/usePaged';
 import { undoAction, useToast } from '../composables/useToast';
 import { useMediaQuery } from '../composables/useMediaQuery';

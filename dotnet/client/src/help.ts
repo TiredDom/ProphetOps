@@ -121,7 +121,7 @@ export const helpTopics: HelpTopic[] = [
         text: 'Open a package to see its seats, photo and history, to book it straight away, or to see its bookings.',
       },
     ],
-    related: ['record-booking', 'forecast-decisions'],
+    related: ['record-booking', 'package-demand', 'forecast-decisions'],
   },
   {
     id: 'expenses',
@@ -144,7 +144,7 @@ export const helpTopics: HelpTopic[] = [
         text: 'Expenses are recorded, not forecast. The spending suggestions above the list come from the revenue forecast and point to last year’s spending in the same month.',
       },
     ],
-    related: ['forecast-decisions', 'export'],
+    related: ['forecast-decisions', 'cost-scenario', 'export'],
   },
   {
     id: 'read-forecast',
@@ -173,7 +173,7 @@ export const helpTopics: HelpTopic[] = [
           'It needs at least 24 months of records to tell the seasonal pattern from the trend.',
           'If recent months have no bookings, the forecast works from the last month that has them, and says so. Record those months to bring it up to date.',
           'Counts are by booking date, for the whole agency.',
-          'It does not forecast expenses, cash, profit, or individual packages.',
+          'It does not forecast expenses, cash, profit, or individual packages. The cost scenario and each package’s expected demand are built on it with a stated assumption.',
         ],
       },
     ],
@@ -236,7 +236,70 @@ export const helpTopics: HelpTopic[] = [
         text: 'Revenue suggestions are about spending. Booking and passenger suggestions are about preparing for demand: seats, staff and suppliers.',
       },
     ],
-    related: ['read-forecast'],
+    related: ['read-forecast', 'cost-scenario', 'package-demand'],
+  },
+  {
+    id: 'cost-scenario',
+    title: 'See what the coming months could leave after costs',
+    summary: 'The revenue forecast less an assumed level of spending, with the assumption in plain view.',
+    pages: ['/expenses'],
+    access: '/home',
+    keywords: 'scenario what if plan planning budget costs spending share revenue after costs margin last year same month coming months loss',
+    blocks: [
+      {
+        kind: 'steps',
+        items: [
+          'On Expenses, open What the coming months could leave after costs, below the list.',
+          'Choose how spending is assumed: as a share of revenue, or the same as the same month last year.',
+          'For a share, type the percentage to try. The button beside it puts back the share spending took over the last 12 recorded months.',
+        ],
+      },
+      {
+        kind: 'text',
+        text: 'Revenue comes from the Holt-Winters forecast, with its 80% range. Spending is not forecast: it is the assumption you chose, applied month by month, so revenue after costs is a scenario to plan with, not a prediction.',
+      },
+      {
+        kind: 'list',
+        items: [
+          'A share of revenue moves spending up and down with revenue; the same month last year keeps it as it was then.',
+          'Months the forecast covers that have already passed are left out: record their bookings instead.',
+          'Nothing here is saved or changes an expense.',
+        ],
+      },
+    ],
+    related: ['read-forecast', 'expenses'],
+  },
+  {
+    id: 'package-demand',
+    title: 'See which packages may run short of slots',
+    summary: 'Each package’s share of the passenger forecast against its open slots, and a price to consider.',
+    pages: ['/packages'],
+    access: '/home',
+    keywords: 'demand short run out sold out capacity slots seats share passengers forecast price raise offer discount suggestion outlook',
+    blocks: [
+      {
+        kind: 'steps',
+        items: [
+          'On Packages, read the Demand outlook band, or choose May run short to list those packages.',
+          'Open a package to read Expected demand: the passengers expected over the next three months, with a range, against its open slots.',
+          'Where a price is suggested, choose Use this price to fill it into the package form. Review it and save, or close the form to keep the price as it is.',
+        ],
+      },
+      {
+        kind: 'terms',
+        items: [
+          ['Share', 'The package’s part of all passengers booked over the last 12 recorded months. Tailored trips count in the total but belong to no package.'],
+          ['Likely to run short', 'Even the low end of the expected passengers is more than the open slots.'],
+          ['Could run short', 'The high end is more than the open slots; the low end is not.'],
+          ['Price to consider', 'About 5% more for a package likely to run short, or a limited offer of about 5% off when at least 10 slots are open and even the high end would fill under half of them. Rounded to ₱100, never more than 10% either way.'],
+        ],
+      },
+      {
+        kind: 'text',
+        text: 'This is an estimate. Packages have no travel dates, so it sets passengers by booking month against today’s open slots and assumes each package keeps its recent share. Nothing changes until someone saves the package, and bookings already made keep their prices.',
+      },
+    ],
+    related: ['packages', 'read-forecast'],
   },
   {
     id: 'reports',

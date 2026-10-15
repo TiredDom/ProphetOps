@@ -15,14 +15,19 @@
         :can-see-history="canSeeHistory"
         :can-book="canBook"
         :history-version="historyVersion"
+        :demand="detailPackage ? demandOf(detailPackage) : null"
+        :demand-months="outlook?.months ?? []"
+        :basis="outlook?.basisPeriod ?? null"
         @close="detailOpen = false"
         @edit="editFromDetail"
         @view-photo="detailPackage && openLightbox(detailPackage)"
+        @use-price="usePrice"
       />
 
       <Drawer :open="showForm" :title="editingCode ? 'Edit package' : 'New package'" :dirty="formDirty" @close="closeForm">
         <p v-if="formError" class="drawer-form-error" role="alert">{{ formError }}</p>
         <p v-if="mergeNotice" class="drawer-form-merge" role="status">{{ mergeNotice }}</p>
+        <p v-if="prefillNotice" class="drawer-form-merge" role="status">{{ prefillNotice }}</p>
         <p v-if="!editingCode && draftRestoredAt" class="drawer-form-merge" role="status">
           Restored the package you started {{ draftStartedLabel() }}; nothing was lost.
           <button type="button" class="field-note-action" @click="startOver">Start over</button>
@@ -403,7 +408,12 @@
         :low-count="lowPackages.length"
         :low-active="lowOnly"
         :open-slots="allOpenSlots"
+        :short-count="demandReady ? shortPackages.length : null"
+        :likely-count="likelyCount"
+        :short-active="shortOnly"
+        :short-by="shortBy"
         @show-low="filters.stock = 'low'"
+        @show-short="filters.demand = 'short'"
       />
 
       <div v-if="loading" class="content-panel">
@@ -436,6 +446,16 @@
           >
             Low on slots
             <span class="chip-count">{{ count(lowPackages.length) }}</span>
+          </button>
+          <button
+            v-if="demandReady"
+            type="button"
+            class="filter-chip"
+            :aria-pressed="shortOnly"
+            @click="filters.demand = shortOnly ? '' : 'short'"
+          >
+            May run short
+            <span class="chip-count">{{ count(shortPackages.length) }}</span>
           </button>
           <label v-if="stacked" class="records-sort">
             <span class="visually-hidden">Sort packages</span>
@@ -474,6 +494,9 @@
                     · {{ count(p.soldCount) }} sold · {{ p.id }}
                   </span>
                   <span class="record-badge" :class="badge(p.status)">{{ stateLabel(p.status) }}</span>
+                </span>
+                <span v-if="shortFlag(p)" class="demand-flag">
+                  <UiIcon name="forecast" />{{ shortFlag(p) }}
                 </span>
               </button>
             </li>
@@ -525,7 +548,12 @@
                       <span class="slot-detail">{{ slotDetail(p) }}</span>
                     </span>
                   </td>
-                  <td><span class="record-badge" :class="badge(p.status)">{{ stateLabel(p.status) }}</span></td>
+                  <td>
+                    <span class="record-badge" :class="badge(p.status)">{{ stateLabel(p.status) }}</span>
+                    <span v-if="shortFlag(p)" class="demand-flag">
+                      <UiIcon name="forecast" />{{ shortFlag(p) }}
+                    </span>
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -578,8 +606,16 @@ import { useQueryState } from '../composables/useQueryState';
 import { useFieldErrors } from '../composables/useFieldErrors';
 import { useFormDraft } from '../composables/useDraft';
 import { useAuth } from '../stores/auth';
-import { canAccess } from '../nav';
-import { api, ApiError, type PackageImportPreview, type PackageRow, type PackageInput } from '../api';
+import { canAccess, canSeeForecast } from '../nav';
+import {
+  api,
+  ApiError,
+  type PackageDemand,
+  type PackageImportPreview,
+  type PackageOutlook,
+  type PackageRow,
+  type PackageInput,
+} from '../api';
 import { count, peso, stateLabel } from '../format';
 import { compareText, nextSort, sortParts, type SortDirection } from '../listing';
 import { listNames, mergeDraft, nextCode, suggestions } from '../records';
@@ -644,9 +680,10 @@ const sortOptions = [
 const firstDirection: Record<string, SortDirection> = { name: 'asc', price: 'desc', slots: 'asc' };
 
 const filters = useQueryState(
-  { q: '', stock: '', sort: 'name-asc' },
+  { q: '', stock: '', demand: '', sort: 'name-asc' },
   {
     stock: (value) => value === 'low',
+    demand: (value) => value === 'short',
     sort: (value) => sortOptions.some((option) => option.key === value),
   },
 );
@@ -661,9 +698,56 @@ const lowPackages = computed(() => {
   return flagged.length > 0 ? flagged : packages.value.filter((p) => p.availableSlots <= 5);
 });
 
+// ----- Expected demand, for Owner and Admin -----
+
+// Each package's share of the passenger forecast against its open slots. It is read again whenever
+// the packages are, since a save or a booking changes the slots it is compared with.
+const outlook = ref<PackageOutlook | null>(null);
+let outlookRequest = 0;
+
+const demandReady = computed(() => outlook.value?.ok === true);
+const demandByCode = computed(() => new Map((outlook.value?.packages ?? []).map((d) => [d.code, d])));
+const shortBy = computed(() => {
+  const months = outlook.value?.months ?? [];
+  return months.length > 0 ? months[months.length - 1] : '';
+});
+
+function demandOf(p: PackageRow): PackageDemand | null {
+  return demandReady.value ? demandByCode.value.get(p.id) ?? null : null;
+}
+
+function mayRunShort(p: PackageRow): boolean {
+  const status = demandOf(p)?.status;
+  return status === 'likely-short' || status === 'could-short';
+}
+
+function shortFlag(p: PackageRow): string {
+  const status = demandOf(p)?.status;
+  if (status === 'likely-short') return 'Likely to run short';
+  if (status === 'could-short') return 'Could run short';
+  return '';
+}
+
+const shortPackages = computed(() => packages.value.filter(mayRunShort));
+const likelyCount = computed(() => shortPackages.value.filter((p) => demandOf(p)?.status === 'likely-short').length);
+const shortOnly = computed(() => filters.demand === 'short' && demandReady.value);
+
+async function loadOutlook() {
+  if (!canSeeForecast(auth.user?.role)) return;
+  const request = ++outlookRequest;
+  try {
+    const answer = await api.packageOutlook(3);
+    if (request === outlookRequest) outlook.value = answer;
+  } catch {
+    // The demand view is extra: the packages work without it.
+    if (request === outlookRequest) outlook.value = null;
+  }
+}
+
 const filtered = computed(() => {
   const q = filters.q.trim().toLowerCase();
-  const pool = lowOnly.value ? lowPackages.value : packages.value;
+  let pool = lowOnly.value ? lowPackages.value : packages.value;
+  if (shortOnly.value) pool = pool.filter(mayRunShort);
   if (!q) return pool;
   return pool.filter((p) =>
     p.packageName.toLowerCase().includes(q) ||
@@ -691,11 +775,12 @@ const allOpenSlots = computed(() => packages.value.reduce((sum, p) => sum + p.av
 const soldSlots = computed(() => filtered.value.reduce((sum, p) => sum + p.soldCount, 0));
 const anyPhotos = computed(() => visiblePackages.value.some((p) => p.imageUrl));
 
-const isFiltered = computed(() => filters.q.trim() !== '' || lowOnly.value);
+const isFiltered = computed(() => filters.q.trim() !== '' || lowOnly.value || shortOnly.value);
 
 const scopeText = computed(() => {
   const parts: string[] = [];
   if (lowOnly.value) parts.push('Low on slots');
+  if (shortOnly.value) parts.push('May run short');
   const term = filters.q.trim();
   if (term) parts.push(`matching “${term}”`);
   return parts.join(' · ');
@@ -703,6 +788,11 @@ const scopeText = computed(() => {
 
 const emptyMessage = computed(() => {
   const q = filters.q.trim();
+  if (shortOnly.value) {
+    if (q) return `No package that may run short matches “${q}”.`;
+    if (lowOnly.value) return 'No package is both low on slots and expected to run short.';
+    return `No package is expected to run short of slots by ${shortBy.value}.`;
+  }
   if (q && lowOnly.value) return `No package low on slots matches “${q}”.`;
   if (q) return `Nothing matches “${q}”. Try a different name, ID or destination.`;
   return 'Every package has slots available.';
@@ -715,6 +805,7 @@ function sortBy(field: string) {
 function clearFilters() {
   filters.q = '';
   filters.stock = '';
+  filters.demand = '';
 }
 
 function capacity(p: PackageRow): number {
@@ -771,6 +862,16 @@ function editFromDetail() {
   detailOpen.value = false;
   openEdit(p);
   returnToDetail.value = true;
+}
+
+const prefillNotice = ref('');
+
+/** A suggested price only fills in the form; a person reviews it and saves, or closes without saving. */
+function usePrice(price: number) {
+  editFromDetail();
+  if (!showForm.value) return;
+  form.basePrice = price;
+  prefillNotice.value = 'The suggested price is filled in. Review it, then save; bookings already made keep their prices.';
 }
 
 // ----- The package form -----
@@ -1025,6 +1126,7 @@ function clearFormState() {
   formError.value = '';
   imageError.value = '';
   mergeNotice.value = '';
+  prefillNotice.value = '';
   theirValues.value = {};
   pendingRecovery.value = null;
   resetFieldErrors();
@@ -1071,6 +1173,7 @@ function closeForm() {
   // Closing a new package's form on purpose lets its draft go.
   if (!editingCode.value) discardDraft();
   showForm.value = false;
+  prefillNotice.value = '';
   if (returnToDetail.value && detailPackage.value) detailOpen.value = true;
   returnToDetail.value = false;
 }
@@ -1199,6 +1302,7 @@ async function commitImport() {
 async function load(showErrorToast = true): Promise<boolean> {
   try {
     packages.value = await api.packages();
+    void loadOutlook();
     return true;
   } catch {
     if (showErrorToast) toast.error('We could not load the packages. Please refresh and try again.');
@@ -1463,6 +1567,28 @@ watch(() => route.query.open, (value) => {
 
 .slot-detail {
   color: var(--color-text-muted);
+}
+
+/* The forecast's word on a package, in the model's teal with its mark, apart from the stock status dot. */
+.demand-flag {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  color: var(--color-model-ink);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.demand-flag :deep(svg) {
+  flex: none;
+  color: var(--color-model);
+  font-size: 14px;
+}
+
+.record-item .demand-flag {
+  margin-top: 1px;
 }
 
 .slot-line {

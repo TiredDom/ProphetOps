@@ -39,9 +39,31 @@
             Show {{ lowCount === 1 ? 'it' : 'them' }}
           </button>
         </p>
+        <p v-if="shortCount !== null" class="outlook-line">
+          <template v-if="likelyCount > 0">
+            <strong class="band-model">{{ likelyCount }}</strong>
+            {{ likelyCount === 1 ? 'package is' : 'packages are' }} likely to run short of slots by
+            {{ shortBy }}<template v-if="shortCount > likelyCount">, and {{ shortCount - likelyCount }} more could</template>.
+          </template>
+          <template v-else-if="shortCount > 0">
+            <strong class="band-model">{{ shortCount }}</strong>
+            {{ shortCount === 1 ? 'package' : 'packages' }} could run short of slots by {{ shortBy }} if demand comes
+            in at the high end.
+          </template>
+          <template v-else>No package is expected to run short of slots by {{ shortBy }}.</template>
+          <button
+            v-if="shortCount > 0 && !shortActive"
+            type="button"
+            class="outlook-button"
+            @click="emit('show-short')"
+          >
+            Show {{ shortCount === 1 ? 'it' : 'them' }}
+          </button>
+        </p>
         <p class="outlook-note band-muted">
           Open slots are today's total for every package. The forecast is for the whole agency, not each package,
-          and counts passengers in the month they book.
+          and counts passengers in the month they book.<template v-if="shortCount !== null"> A package's part of it is
+          estimated from its share of the passengers booked over the last 12 months.</template>
         </p>
       </div>
 
@@ -72,8 +94,24 @@ import { count } from '../../format';
 import UiIcon from '../UiIcon.vue';
 import ForecastBand from './ForecastBand.vue';
 
-const props = defineProps<{ lowCount: number; lowActive: boolean; openSlots: number }>();
-const emit = defineEmits<{ 'show-low': [] }>();
+/**
+ * `shortCount` is how many packages may run short over the coming months (null until the package
+ * outlook is in), `likelyCount` how many of them even at the low end of the forecast, and `shortBy`
+ * the last of those months.
+ */
+const props = withDefaults(
+  defineProps<{
+    lowCount: number;
+    lowActive: boolean;
+    openSlots: number;
+    shortCount?: number | null;
+    likelyCount?: number;
+    shortActive?: boolean;
+    shortBy?: string;
+  }>(),
+  { shortCount: null, likelyCount: 0, shortActive: false, shortBy: '' },
+);
+const emit = defineEmits<{ 'show-low': []; 'show-short': [] }>();
 
 // Packages are about people and seats, so this band reads the passenger forecast.
 const { state, allowed, load } = useForecast('passengers');

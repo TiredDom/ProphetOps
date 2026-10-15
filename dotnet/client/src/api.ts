@@ -367,6 +367,76 @@ export interface ForecastEvaluation {
   points: ForecastEvaluationPoint[];
 }
 
+export interface ForecastEstimate {
+  value: number;
+  lower: number;
+  upper: number;
+}
+
+export interface CostScenarioMonth {
+  month: string;
+  revenue: number;
+  revenueLower: number;
+  revenueUpper: number;
+  costs: number;
+  afterCosts: number;
+  afterCostsLower: number;
+  afterCostsUpper: number;
+}
+
+/** What the coming months could leave after costs under one stated spending assumption. */
+export interface CostScenario {
+  ok: boolean;
+  reason: string | null;
+  basis: 'share' | 'last-year';
+  /** The share of revenue spending is assumed to take; null when it repeats last year instead. */
+  share: number | null;
+  /** The share spending took over the last 12 recorded months. */
+  recordedShare: number | null;
+  basisPeriod: { from: string; to: string; revenue: number; costs: number } | null;
+  /** Months the forecast covers that have already passed; left out of the scenario. */
+  passedMonths: string[];
+  months: CostScenarioMonth[];
+  total: { revenue: number; costs: number; afterCosts: number; afterCostsLower: number; afterCostsUpper: number } | null;
+  dataSource: ForecastDataSource;
+}
+
+export type PackageDemandStatus = 'likely-short' | 'could-short' | 'enough' | 'no-history';
+
+/** A price worth considering; it only ever fills in the package form for a person to save. */
+export interface PriceSuggestion {
+  kind: 'raise' | 'offer';
+  currentPrice: number;
+  suggestedPrice: number;
+  changePercent: number;
+  reason: string;
+}
+
+export interface PackageDemand {
+  code: string;
+  name: string;
+  destination: string;
+  openSlots: number;
+  passengersInBasis: number;
+  share: number;
+  expected: ForecastEstimate;
+  status: PackageDemandStatus;
+  price: PriceSuggestion | null;
+}
+
+/** Each package's expected passengers over the coming months against its open slots. */
+export interface PackageOutlook {
+  ok: boolean;
+  reason: string | null;
+  monthsAhead: number;
+  months: string[];
+  passedMonths: string[];
+  basisPeriod: { from: string; to: string; passengers: number } | null;
+  agency: ForecastEstimate | null;
+  packages: PackageDemand[];
+  dataSource: ForecastDataSource;
+}
+
 export interface ReportLine {
   label: string;
   /** Pesos for revenue and spending lines; a count for booking stages and payment states. */
@@ -595,6 +665,12 @@ export const api = {
     request<ForecastData>('GET', measure === 'revenue' ? '/api/forecast' : `/api/forecast?measure=${measure}`),
   forecastEvaluation: (measure: ForecastMeasure = 'revenue') =>
     request<ForecastEvaluation>('GET', `/api/forecast/evaluation?measure=${measure}`),
+  costScenario: (basis: CostScenario['basis'] = 'share', share?: number) => {
+    const params = new URLSearchParams({ basis });
+    if (basis === 'share' && share != null) params.set('share', String(share));
+    return request<CostScenario>('GET', `/api/forecast/scenario?${params.toString()}`);
+  },
+  packageOutlook: (months = 3) => request<PackageOutlook>('GET', `/api/forecast/packages?months=${months}`),
   reports: (from = '', to = '') => {
     const params = new URLSearchParams();
     if (from) params.set('from', from);
