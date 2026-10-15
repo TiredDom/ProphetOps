@@ -367,6 +367,26 @@ export interface ForecastEvaluation {
   points: ForecastEvaluationPoint[];
 }
 
+/** Why Gemini's wording is not the one given: not set up, asked too often, unreachable or out of shape, or holding a figure the forecast does not. */
+export type ExplanationFallback = 'not-configured' | 'busy' | 'unavailable' | 'unknown-figure';
+
+/** The forecast in plain words, by ProphetOps' own rules or, when the agency has set it up, by Gemini. */
+export interface ForecastExplanation {
+  measure: ForecastMeasure;
+  ok: boolean;
+  reason: string | null;
+  source: 'rules' | 'gemini' | null;
+  model: string | null;
+  fallbackReason: ExplanationFallback | null;
+  summary: string | null;
+  points: string[];
+  /** Whether Gemini is set up for this agency, and with which model. */
+  aiAvailable: boolean;
+  aiModel: string | null;
+  /** The facts the wording speaks from: what Gemini is given when it is asked. */
+  facts: Record<string, unknown> | null;
+}
+
 export interface ForecastEstimate {
   value: number;
   lower: number;
@@ -665,6 +685,10 @@ export const api = {
     request<ForecastData>('GET', measure === 'revenue' ? '/api/forecast' : `/api/forecast?measure=${measure}`),
   forecastEvaluation: (measure: ForecastMeasure = 'revenue') =>
     request<ForecastEvaluation>('GET', `/api/forecast/evaluation?measure=${measure}`),
+  forecastExplanation: (measure: ForecastMeasure = 'revenue') =>
+    request<ForecastExplanation>('GET', `/api/forecast/explanation?measure=${measure}`),
+  explainWithGemini: (measure: ForecastMeasure = 'revenue') =>
+    request<ForecastExplanation>('POST', `/api/forecast/explanation?measure=${measure}`),
   costScenario: (basis: CostScenario['basis'] = 'share', share?: number) => {
     const params = new URLSearchParams({ basis });
     if (basis === 'share' && share != null) params.set('share', String(share));

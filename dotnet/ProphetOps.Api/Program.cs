@@ -46,6 +46,12 @@ builder.Services.AddSingleton<MaintenanceGate>();
 builder.Services.AddHttpClient<ICloudflareAccessJwksTransport, HttpCloudflareAccessJwksTransport>(client =>
     client.Timeout = TimeSpan.FromSeconds(5));
 builder.Services.AddSingleton<ICloudflareAccessKeyStore, CloudflareAccessJwksCache>();
+// Optional: Gemini words the forecast only when Gemini:ApiKey is set. The explainer sets its own,
+// shorter time limit on each request.
+builder.Services.AddSingleton(sp => GeminiOptions.FromConfiguration(sp.GetRequiredService<IConfiguration>()));
+builder.Services.AddHttpClient(HttpGeminiTransport.ClientName, client => client.Timeout = TimeSpan.FromSeconds(60));
+builder.Services.AddSingleton<IGeminiTransport, HttpGeminiTransport>();
+builder.Services.AddSingleton<ForecastExplainer>();
 
 if (builder.Environment.IsProduction() && containerHosted)
 {

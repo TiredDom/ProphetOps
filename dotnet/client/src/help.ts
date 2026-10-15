@@ -177,7 +177,7 @@ export const helpTopics: HelpTopic[] = [
         ],
       },
     ],
-    related: ['forecast-accuracy', 'forecast-decisions', 'glossary'],
+    related: ['forecast-accuracy', 'forecast-in-words', 'forecast-decisions', 'glossary'],
   },
   {
     id: 'forecast-accuracy',
@@ -212,7 +212,34 @@ export const helpTopics: HelpTopic[] = [
         text: 'The test needs 25 recorded months: two years to learn from and at least one more to check. It shows how the method did on the months recorded in ProphetOps, not a promise about the months ahead.',
       },
     ],
-    related: ['read-forecast'],
+    related: ['read-forecast', 'forecast-in-words'],
+  },
+  {
+    id: 'forecast-in-words',
+    title: 'Read the forecast in plain words',
+    summary: 'A short explanation of the forecast, worded by ProphetOps or, where the agency sets it up, by Gemini.',
+    pages: ['/home'],
+    access: '/home',
+    keywords: 'plain words explain explanation summary ai artificial intelligence gemini google wording simple language',
+    blocks: [
+      {
+        kind: 'steps',
+        items: [
+          'On Home, open Monthly figures and model details.',
+          'Read In plain words at the top: where the forecast is heading, its highest month, the range and how the accuracy test went.',
+          'Where the agency has set up Gemini, choose Word it with Gemini for its wording of the same figures.',
+        ],
+      },
+      {
+        kind: 'text',
+        text: 'Holt-Winters makes every figure; Gemini only rewords them. It is given the agency’s monthly totals, the forecast and its accuracy test, never a client, a booking or a member of staff, and its wording is shown only if every figure in it is one of the forecast’s own. Otherwise ProphetOps’ wording stays, with the reason.',
+      },
+      {
+        kind: 'text',
+        text: 'Gemini stays off unless a Gemini API key is set on the server. Its answers are kept for a while, and it is asked at most a set number of times an hour.',
+      },
+    ],
+    related: ['read-forecast', 'forecast-accuracy'],
   },
   {
     id: 'forecast-decisions',

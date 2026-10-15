@@ -94,12 +94,9 @@ public class ForecastController : ControllerBase
             })
             .ToList();
 
-        var recentMean = series.Count > 0 ? series.Skip(Math.Max(0, series.Count - 6)).Average() : 0;
-        var forecastMean = forecastSteps.Count > 0 ? forecastSteps.Average(s => s.Value) : recentMean;
-        var changePercent = recentMean != 0 ? Math.Round((forecastMean - recentMean) / recentMean * 100, 1) : 0;
-        var direction = changePercent > 1 ? "up" : changePercent < -1 ? "down" : "flat";
+        var (direction, changePercent) = ForecastTrend.Of(series, forecastSteps);
 
-        var peak = forecastSteps.OrderByDescending(s => s.Value).FirstOrDefault();
+        var peak = ForecastTrend.Peak(forecastSteps);
         var peakMonth = peak is not null
             ? anchor.AddMonths(peak.Step).ToString("MMMM yyyy", CultureInfo.InvariantCulture)
             : "";
@@ -264,6 +261,54 @@ public class ForecastController : ControllerBase
             }),
         });
     }
+
+    /// The forecast in plain words, as ProphetOps words it by rules from the forecast's own figures.
+    /// It says whether Gemini is set up to word the same figures instead (the POST below).
+    [HttpGet("explanation")]
+    public IActionResult Explanation([FromQuery] string? measure, [FromServices] ForecastExplainer explainer)
+    {
+        if (!TryReadMeasure(measure, out var chosen))
+            return BadRequest(new Dictionary<string, string> { ["measure"] = ForecastMeasures.Choices });
+
+        var facts = ForecastFacts.Build(_db, _clock.Today, AllowSampleFallback(), chosen);
+        return Ok(ExplanationBody(chosen, facts, facts is null ? null : ForecastExplainer.Rules(facts), explainer));
+    }
+
+    /// Asks Gemini to word the forecast, when the agency has set it up. Gemini is given only the
+    /// agency's monthly totals, the forecast and its accuracy test, never a client, a booking or a
+    /// person, and its wording is used only if every figure in it is one of the forecast's own.
+    /// Otherwise, or when Gemini is not set up, busy or unreachable, the rules' wording comes back
+    /// with the reason.
+    [HttpPost("explanation")]
+    public async Task<IActionResult> ExplainWithGemini(
+        [FromQuery] string? measure,
+        [FromServices] ForecastExplainer explainer,
+        CancellationToken cancellationToken)
+    {
+        if (!TryReadMeasure(measure, out var chosen))
+            return BadRequest(new Dictionary<string, string> { ["measure"] = ForecastMeasures.Choices });
+
+        var facts = ForecastFacts.Build(_db, _clock.Today, AllowSampleFallback(), chosen);
+        var explanation = facts is null ? null : await explainer.WithGeminiAsync(facts, cancellationToken);
+        return Ok(ExplanationBody(chosen, facts, explanation, explainer));
+    }
+
+    private static object ExplanationBody(DemandMeasure measure, ForecastFacts? facts, Explanation? explanation, ForecastExplainer explainer) => new
+    {
+        measure = MeasureName(measure),
+        ok = explanation is not null,
+        reason = explanation is null
+            ? "The forecast needs two full years of recorded months before it can be put into words."
+            : null,
+        source = explanation?.Source,
+        model = explanation?.Model,
+        fallbackReason = explanation?.FallbackReason,
+        summary = explanation?.Summary,
+        points = explanation?.Points ?? [],
+        aiAvailable = explainer.AiAvailable,
+        aiModel = explainer.Model,
+        facts = facts?.ForWriter(),
+    };
 
     /// What the coming months could leave after costs under one stated spending assumption:
     /// spending keeps a share of the revenue forecast ("share", by default the share it took over

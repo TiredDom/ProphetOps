@@ -1,5 +1,7 @@
 <template>
   <div class="forecast-details-body">
+    <ForecastExplanation :measure="measure" :active="active" />
+
     <section class="details-block step-panel" aria-labelledby="breakdown-title">
       <h3 id="breakdown-title" class="details-heading">Monthly breakdown</h3>
 
@@ -130,6 +132,7 @@ import { computed } from 'vue';
 import type { ForecastData } from '../api';
 import { formatFull, formatMiss, formatShort, measureDescription, measureNoun, measureOf } from '../forecastUnits';
 import ForecastAccuracy from './forecast/ForecastAccuracy.vue';
+import ForecastExplanation from './forecast/ForecastExplanation.vue';
 import UiIcon from './UiIcon.vue';
 
 /** `active` is whether the details are open; the accuracy test is only asked for then. */
