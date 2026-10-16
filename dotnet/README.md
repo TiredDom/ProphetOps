@@ -262,6 +262,11 @@ password, role and status unchanged.
 - Hardened response headers: CSP, `X-Content-Type-Options`, `X-Frame-Options: DENY`,
   `Referrer-Policy: no-referrer`, no `Server` header.
 - An `/api` address with no endpoint answers 404 in JSON rather than the app page.
+- Signed out, the app names only itself: the sign-in page, page title and install file say
+  nothing about the agency or what it holds, and the agency's name (`Business:Name` in
+  `appsettings.json`) reaches the page only through the signed-in settings. `robots.txt`, a
+  `noindex` meta tag and an `X-Robots-Tag` header on every response ask search engines not to
+  list the site.
 
 ## First agency owner
 

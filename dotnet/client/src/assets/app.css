@@ -322,8 +322,11 @@ html {
 }
 
 .brand-subtitle {
+    /* The agency's name arrives with the signed-in settings; its line is kept so nothing shifts. */
+    min-height: 1.5em;
     color: var(--color-shell-muted);
     font-size: var(--text-xs);
+    line-height: 1.5;
 }
 
 .sidebar-nav {
@@ -2384,43 +2387,6 @@ meter::-webkit-meter-even-less-good-value {
     gap: 2px;
 }
 
-.login-aside-tagline {
-    max-width: 22ch;
-    margin-top: 28px;
-    color: #FFFFFF;
-    font-size: var(--text-xl);
-    font-weight: 600;
-    letter-spacing: -0.015em;
-    line-height: 1.25;
-}
-
-.login-aside-points {
-    display: grid;
-    gap: 12px;
-    max-width: 36ch;
-    margin: 24px 0 0;
-    padding: 0;
-    list-style: none;
-    color: #C3D0E6;
-    font-size: var(--text-base);
-    line-height: 1.5;
-}
-
-.login-aside-points li {
-    position: relative;
-    padding-left: 22px;
-}
-
-/* A short dashed stroke, the forecast line's own mark, in place of a bullet. */
-.login-aside-points li::before {
-    content: '';
-    position: absolute;
-    top: 0.72em;
-    left: 0;
-    width: 12px;
-    border-top: 2px dashed var(--color-model-on-shell);
-}
-
 .login-aside-foot {
     color: var(--color-shell-muted);
     font-size: 12px;
@@ -2572,8 +2538,7 @@ input[type='checkbox']:focus-visible {
         justify-content: center;
     }
 
-    .login-aside-foot,
-    .login-aside-points {
+    .login-aside-foot {
         display: none;
     }
 

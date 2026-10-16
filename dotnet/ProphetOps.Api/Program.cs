@@ -316,6 +316,8 @@ app.Use(async (context, next) =>
     headers["X-Content-Type-Options"] = "nosniff";
     headers["X-Frame-Options"] = "DENY";
     headers["Referrer-Policy"] = "no-referrer";
+    // An internal system: asked to stay out of search results, along with robots.txt and the page's meta tag.
+    headers["X-Robots-Tag"] = "noindex, nofollow";
     headers["Cache-Control"] = "no-store";
     await next();
 });

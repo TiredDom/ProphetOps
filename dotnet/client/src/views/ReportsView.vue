@@ -13,7 +13,7 @@
 
     <section class="dss-page report-page">
       <p class="print-heading">
-        ProphetOps · Renan-Tina Travels &amp; Tours · Report for {{ periodLabel }}
+        ProphetOps<template v-if="businessName"> · {{ businessName }}</template> · Report for {{ periodLabel }}
       </p>
 
       <div class="content-panel report-period">
@@ -224,7 +224,7 @@ import { describeRange, isIsoDate, isPeriodKey, resolvePeriod, type PeriodKey } 
 const data = ref<ReportsData | null>(null);
 const loading = ref(true);
 const error = ref('');
-const { today, load: loadToday } = useBusinessDate();
+const { today, businessName, load: loadToday } = useBusinessDate();
 
 // A year to date is the usual report; any period can be chosen and kept in the address.
 const filters = useQueryState(

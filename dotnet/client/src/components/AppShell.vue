@@ -18,7 +18,7 @@
     >
       <div class="brand">
         <p class="brand-name">ProphetOps</p>
-        <p class="brand-subtitle">Renan-Tina Travels &amp; Tours</p>
+        <p class="brand-subtitle">{{ businessName }}</p>
       </div>
 
       <button type="button" class="sidebar-search" aria-keyshortcuts="Control+K Meta+K" @click="openPalette">
@@ -144,6 +144,7 @@ import { useMediaQuery } from '../composables/useMediaQuery';
 import { useModalFocus } from '../composables/useModalFocus';
 import { closePalette, openHelp, openPalette, useHelpState } from '../composables/useHelp';
 import { useInstall } from '../composables/usePwaInstall';
+import { useBusinessDate } from '../composables/useBusinessDate';
 import { isTypingTarget, modKey, openOverlays, overlayOpen } from '../keyboard';
 import { useRecentsFor } from '../recents';
 import CommandPalette from './CommandPalette.vue';
@@ -296,7 +297,13 @@ function onShortcut(event: KeyboardEvent) {
   }
 }
 
-onMounted(() => document.addEventListener('keydown', onShortcut));
+// The agency's name comes from the signed-in settings rather than the app itself.
+const { businessName, load: loadBusiness } = useBusinessDate();
+
+onMounted(() => {
+  document.addEventListener('keydown', onShortcut);
+  void loadBusiness();
+});
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', onShortcut);
   clearTimeout(goTimer);

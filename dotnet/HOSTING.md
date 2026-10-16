@@ -157,6 +157,7 @@ Travel package images are uploaded through `IObjectStorage`:
 Before certifying the hosted service for capstone research evaluation, complete the following live checks:
 
 - [ ] **Readiness Probe:** Request `GET /health/ready`. Verify it returns `200 OK` with `{"status":"ready"}`. (If the schema is incomplete, it returns `503 Service Unavailable`).
+- [ ] **Nothing Given Away Signed Out:** In a private window, confirm the sign-in page shows only "ProphetOps" and the sign-in form, `GET /robots.txt` answers `Disallow: /`, and responses carry `X-Robots-Tag: noindex, nofollow`. The agency's name appears only after signing in (`Business__Name` overrides the name in `appsettings.json`).
 - [ ] **Liveness Probe:** Request `GET /health/live`. Verify it returns `200 OK` with `{"status":"ok"}`.
 - [ ] **Owner Authentication:** Log in with the bootstrapped owner credentials via `POST /api/auth/login`. Confirm receiving session cookie `prophetops` with `HttpOnly`, `SameSite=Strict`, `Secure`.
 - [ ] **Antiforgery:** Confirm `XSRF-TOKEN` cookie is set on GET requests and required as `X-XSRF-TOKEN` on POST/PUT mutations.

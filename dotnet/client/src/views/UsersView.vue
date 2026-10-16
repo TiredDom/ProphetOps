@@ -62,7 +62,7 @@
               type="email"
               maxlength="160"
               :readonly="isEdit"
-              placeholder="name@renantina.ph"
+              placeholder="name@example.com"
               autocomplete="off"
               required
               :aria-invalid="f.invalid ? 'true' : undefined"
@@ -442,7 +442,7 @@ const {
   email: () => {
     const email = form.email.trim();
     if (!email) return 'Enter the email they will sign in with.';
-    if (!looksLikeEmail(email)) return 'Enter a full email address, such as name@renantina.ph.';
+    if (!looksLikeEmail(email)) return 'Enter a full email address, such as name@example.com.';
     if (!isEdit.value && users.value.some((u) => u.email.toLowerCase() === email.toLowerCase())) {
       return 'That email already has an account. Open it from the list instead.';
     }
@@ -577,7 +577,7 @@ async function retryLoad() {
   if (!(await load())) loadError.value = true;
 }
 
-/** A link such as /team?open=name@renantina.ph (from search) opens that account. */
+/** A link such as /team?open=name@example.com (from search) opens that account. */
 function openFromAddress() {
   const email = typeof route.query.open === 'string' ? route.query.open : '';
   if (!email) return;

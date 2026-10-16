@@ -8,6 +8,8 @@ export interface AuthUser {
 export interface AppConfig {
   today: string;
   timeZone: string;
+  /** The agency's name, from the server's Business:Name; given only to signed-in users. */
+  businessName: string;
 }
 
 export interface DashboardForecast {

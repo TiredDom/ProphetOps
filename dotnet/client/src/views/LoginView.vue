@@ -1,15 +1,9 @@
 <template>
   <main class="login-shell">
     <aside class="login-aside">
+      <!-- Signed out, the page names only the product: not whose system it is or what it holds. -->
       <div class="login-aside-brand">
         <p class="brand-name">ProphetOps</p>
-        <p class="brand-subtitle">Renan-Tina Travels &amp; Tours</p>
-        <p class="login-aside-tagline">Revenue forecasting and decision support</p>
-        <ul class="login-aside-points">
-          <li>Six months of booking revenue forecast from your own records with Holt-Winters</li>
-          <li>A likely range for every month, not a single guess</li>
-          <li>Decisions to review, each shown with the evidence behind it</li>
-        </ul>
       </div>
       <p class="login-aside-foot">Authorized access only</p>
     </aside>
@@ -140,7 +134,7 @@ async function submit() {
   if (loading.value) return;
   error.value = '';
   email.value = normalized.value;
-  emailError.value = emailPattern.test(email.value) ? '' : 'Enter your full email address, such as name@renantina.ph.';
+  emailError.value = emailPattern.test(email.value) ? '' : 'Enter your full email address, such as name@example.com.';
   passwordError.value = password.value ? '' : 'Enter your password.';
   if (emailError.value || passwordError.value) {
     await nextTick();

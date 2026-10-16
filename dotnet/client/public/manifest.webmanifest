@@ -1,7 +1,6 @@
 {
   "name": "ProphetOps",
   "short_name": "ProphetOps",
-  "description": "Bookings, packages, expenses and the Holt-Winters forecast for Renan-Tina Travels & Tours.",
   "id": "/",
   "start_url": "/",
   "scope": "/",
