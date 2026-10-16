@@ -236,6 +236,10 @@ export const helpTopics: HelpTopic[] = [
       },
       {
         kind: 'text',
+        text: 'Gemini’s models are tried strongest first: when one is busy, at its limit or fails, the next is asked, and ProphetOps’ wording is the last resort. The wording names the model that wrote it.',
+      },
+      {
+        kind: 'text',
         text: 'Gemini stays off unless a Gemini API key is set on the server. Its answers are kept for a while, and it is asked at most a set number of times an hour.',
       },
     ],

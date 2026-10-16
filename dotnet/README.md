@@ -122,10 +122,12 @@ figures when a key is set; without one, nothing is sent anywhere.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `Gemini__ApiKey` | empty (off) | Gemini API key. A secret: set it only in the host's dashboard or secret manager. |
-| `Gemini__Model` | `gemini-3.8-flash` | Model name: lowercase letters, digits, dots and hyphens |
-| `Gemini__TimeoutSeconds` | `12` | Time limit for each request, 2 to 60 |
-| `Gemini__MaxRequestsPerHour` | `30` | Requests the whole service may send in an hour, 1 to 1000 |
+| `Gemini__ApiKey` | empty (off) | Gemini API key. A secret: set it only in the host's dashboard or secret manager. `GEMINI_API_KEY` is read when this is absent. |
+| `Gemini__Models` | `gemini-4-argon,gemini-3.8-flash,gemini-3.6-flash,gemini-3.5-flash-lite,gemini-3.1-flash-lite` | The models to try, strongest first, separated by commas (up to 8) |
+| `Gemini__ThinkingLevel` | `low` | How much a model thinks before answering: `minimal`, `low`, `medium`, `high`, or `none` to leave it to the model. Not sent to Gemini 2.5 models. |
+| `Gemini__TimeoutSeconds` | `20` | Time each model gets, 2 to 60 |
+| `Gemini__TotalTimeoutSeconds` | `45` | Time the whole chain gets, up to 120 |
+| `Gemini__MaxRequestsPerHour` | `30` | Calls the whole service may send in an hour, fallbacks included, 1 to 1000 |
 | `Gemini__CacheHours` | `12` | How long a wording is kept for the same figures, 0 to 72 |
 
 - **What is sent:** the agency-wide monthly totals for the chosen measure, the forecast with
@@ -134,10 +136,31 @@ figures when a key is set; without one, nothing is sent anywhere.
   `x-goog-api-key` header, never in the address, and is not logged or returned.
 - **What is checked:** the answer is used only if it is the JSON asked for, within set
   lengths, and every figure in it is one of the forecast's own, as given or rounded.
-  Otherwise, or when Gemini is slow, failing or over the hourly limit, the rules' wording
-  is shown with the reason. The page renders the wording as plain text.
+  The page renders the wording as plain text.
 - **Before setting a key** for the agency's real records, get approval for the spending and
   for sending these figures to Google, and check Google's data terms for the plan in use.
+
+**Fallbacks.** The models are tried in order. A model that answers 429 (rate limit or quota),
+a server error, nothing within its time, or 403/404 (not open to this key) is passed over for
+the next one, and so is an answer that is out of shape or holds a figure the forecast does
+not. A model that was rate-limited rests for as long as Google asks, at least a minute and
+longer each time it happens again (up to an hour); one that failed rests 30 seconds and
+longer on repeats (up to 10 minutes); one not open to the key rests six hours. Later requests
+therefore go straight to a model that is answering. If Google rejects the key itself, the
+chain stops at once and the key is not tried again for ten minutes. Each Gemini wording names
+the model that wrote it and the stronger ones that could not; when no model can give a usable
+wording, ProphetOps' own wording is shown with the reason.
+
+**A key on your own machine.** The API project keeps development secrets outside the
+repository, so for local testing store the key with .NET user secrets. The prompt hides what
+is typed, so the key never reaches the screen or the command history:
+
+```powershell
+dotnet user-secrets set "Gemini:ApiKey" ([System.Net.NetworkCredential]::new('', (Read-Host 'Gemini API key' -AsSecureString)).Password) --project ProphetOps.Api
+```
+
+User secrets are read only in the Development environment. Remove the key with
+`dotnet user-secrets remove "Gemini:ApiKey" --project ProphetOps.Api`.
 
 ## Publish a standalone legacy/local build
 

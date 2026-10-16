@@ -110,8 +110,8 @@ Optional settings, left unset unless the agency approves them:
 | Environment Variable | Value / Description |
 |----------------------|---------------------|
 | `Gemini__ApiKey` | *(Secret: Gemini API key. Unset means the forecast is worded by rules only and nothing is sent to Google.)* |
-| `Gemini__Model` | Defaults to `gemini-3.8-flash` |
-| `Gemini__MaxRequestsPerHour` | Defaults to `30` across the service |
+| `Gemini__Models` | The models to try, strongest first; defaults to `gemini-4-argon,gemini-3.8-flash,gemini-3.6-flash,gemini-3.5-flash-lite,gemini-3.1-flash-lite` |
+| `Gemini__MaxRequestsPerHour` | Defaults to `30` calls an hour across the service, fallbacks included |
 
 What Gemini receives, how its wording is checked, and the approvals needed before setting a key are described in `dotnet/README.md` under "Optional: Gemini wording". Installing ProphetOps as an app needs no settings: the site is already served over HTTPS.
 

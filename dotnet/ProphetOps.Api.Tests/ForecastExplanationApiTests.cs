@@ -24,6 +24,7 @@ public class ForecastExplanationApiTests
     private const string StaffPassword = "staff-explain-1";
 
     private static readonly double[] Season = [0.9, 0.8, 1.0, 1.1, 1.3, 1.2, 0.9, 0.85, 0.95, 1.05, 1.15, 1.4];
+    private static readonly IReadOnlyList<string> Chain = GeminiOptions.DefaultModels;
 
     /// February 2024 onwards, two bookings a month for one client, revenue following a yearly shape.
     private static Action<AppDbContext> Months(int count) => db =>
@@ -64,7 +65,7 @@ public class ForecastExplanationApiTests
         Assert.True(worded.GetProperty("ok").GetBoolean());
         Assert.Equal("rules", worded.GetProperty("source").GetString());
         Assert.False(worded.GetProperty("aiAvailable").GetBoolean());
-        Assert.Equal(JsonValueKind.Null, worded.GetProperty("aiModel").ValueKind);
+        Assert.Empty(worded.GetProperty("aiModels").EnumerateArray());
         Assert.StartsWith("Booking revenue is forecast to", worded.GetProperty("summary").GetString());
         var points = worded.GetProperty("points").EnumerateArray().Select(p => p.GetString()!).ToList();
         Assert.Equal(4, points.Count);
@@ -79,7 +80,7 @@ public class ForecastExplanationApiTests
     }
 
     [Fact]
-    public async Task With_a_key_Gemini_words_the_same_figures_and_is_given_nothing_about_clients()
+    public async Task With_a_key_the_strongest_model_words_the_same_figures_and_is_given_nothing_about_clients()
     {
         var gemini = new StandInGemini { Answer = StandInGemini.WordingFromFacts };
         using var factory = new ExplanationFactory(Months(30), gemini, Key);
@@ -87,20 +88,21 @@ public class ForecastExplanationApiTests
 
         var offered = await Body(await client.GetAsync("/api/forecast/explanation"));
         Assert.True(offered.GetProperty("aiAvailable").GetBoolean());
-        Assert.Equal(GeminiOptions.DefaultModel, offered.GetProperty("aiModel").GetString());
+        Assert.Equal(Chain, offered.GetProperty("aiModels").EnumerateArray().Select(m => m.GetString()));
 
         var worded = await Body(await client.PostAsync("/api/forecast/explanation", null));
 
         Assert.Equal("gemini", worded.GetProperty("source").GetString());
-        Assert.Equal(GeminiOptions.DefaultModel, worded.GetProperty("model").GetString());
+        Assert.Equal(Chain[0], worded.GetProperty("model").GetString());
+        Assert.Empty(worded.GetProperty("passedOver").EnumerateArray());
         Assert.Equal(JsonValueKind.Null, worded.GetProperty("fallbackReason").ValueKind);
         var peak = worded.GetProperty("facts").GetProperty("highestForecastMonth");
         Assert.Equal(
-            $"Booking revenue is forecast to be highest in {peak.GetProperty("month").GetString()}, at about {peak.GetProperty("forecast").GetString()}.",
+            $"The forecast is highest in {peak.GetProperty("month").GetString()}, at about {peak.GetProperty("forecast").GetString()}.",
             worded.GetProperty("summary").GetString());
 
         var sent = Assert.Single(gemini.Requests);
-        Assert.Equal($"https://generativelanguage.googleapis.com/v1beta/models/{GeminiOptions.DefaultModel}:generateContent", sent.Url);
+        Assert.Equal($"https://generativelanguage.googleapis.com/v1beta/models/{Chain[0]}:generateContent", sent.Url);
         Assert.Equal(Key, sent.ApiKey);
         Assert.DoesNotContain(Key, sent.Url, StringComparison.Ordinal);
         Assert.DoesNotContain(Key, sent.Body, StringComparison.Ordinal);
@@ -109,7 +111,10 @@ public class ForecastExplanationApiTests
         Assert.DoesNotContain("Agency owner", sent.Body, StringComparison.Ordinal);
 
         var request = JsonNode.Parse(sent.Body)!;
-        Assert.Equal("application/json", request["generationConfig"]!["responseMimeType"]!.GetValue<string>());
+        var generation = request["generationConfig"]!;
+        Assert.Equal("application/json", generation["responseMimeType"]!.GetValue<string>());
+        Assert.Equal("low", generation["thinkingConfig"]!["thinkingLevel"]!.GetValue<string>());
+        Assert.Null(generation["temperature"]);
         Assert.Contains("Use only the facts you are given", request["systemInstruction"]!["parts"]![0]!["text"]!.GetValue<string>());
     }
 
@@ -128,8 +133,114 @@ public class ForecastExplanationApiTests
         Assert.Single(gemini.Requests);
     }
 
+    [Theory]
+    [InlineData(429)]
+    [InlineData(403)]
+    [InlineData(404)]
+    [InlineData(500)]
+    [InlineData(503)]
+    public async Task A_failing_strongest_model_hands_over_to_the_next_and_then_rests(int status)
+    {
+        var gemini = new StandInGemini
+        {
+            Answer = sent => sent.Model == Chain[0]
+                ? StandInGemini.Error(status, status == 429 ? "RESOURCE_EXHAUSTED" : "UNAVAILABLE", "Not now.", StandInGemini.RetryInfo("30s"))
+                : StandInGemini.WordingFromFacts(sent),
+        };
+        using var factory = new ExplanationFactory(Months(30), gemini, Key);
+        using var client = await AuthenticatedClient.Login(factory);
+
+        var revenue = await Body(await client.PostAsync("/api/forecast/explanation?measure=revenue", null));
+
+        Assert.Equal("gemini", revenue.GetProperty("source").GetString());
+        Assert.Equal(Chain[1], revenue.GetProperty("model").GetString());
+        Assert.Equal(new[] { Chain[0] }, revenue.GetProperty("passedOver").EnumerateArray().Select(m => m.GetString()));
+        Assert.Equal(new[] { Chain[0], Chain[1] }, gemini.Requests.Select(r => r.Model));
+
+        // The next request goes straight to the model that answered.
+        var passengers = await Body(await client.PostAsync("/api/forecast/explanation?measure=passengers", null));
+
+        Assert.Equal(Chain[1], passengers.GetProperty("model").GetString());
+        Assert.Equal(new[] { Chain[0] }, passengers.GetProperty("passedOver").EnumerateArray().Select(m => m.GetString()));
+        Assert.Equal(new[] { Chain[0], Chain[1], Chain[1] }, gemini.Requests.Select(r => r.Model));
+    }
+
     [Fact]
-    public async Task Wording_with_a_figure_the_forecast_does_not_hold_is_set_aside()
+    public async Task Each_kind_of_failure_moves_down_the_chain_until_a_model_answers()
+    {
+        var gemini = new StandInGemini
+        {
+            Answer = sent => sent.Model switch
+            {
+                "gemini-4-argon" => StandInGemini.Error(503, "UNAVAILABLE", "The model is overloaded."),
+                "gemini-3.8-flash" => StandInGemini.WordingFromFacts(sent),
+                "gemini-3.6-flash" => StandInGemini.Raw("Here is your explanation: revenue looks fine."),
+                "gemini-3.5-flash-lite" => StandInGemini.Written("Booking revenue should grow 37% next year.", []),
+                _ => StandInGemini.WordingFromFacts(sent),
+            },
+            DelayFor = sent => sent.Model == "gemini-3.8-flash" ? TimeSpan.FromSeconds(10) : TimeSpan.Zero,
+        };
+        using var factory = new ExplanationFactory(Months(30), gemini, Key, ("Gemini:TimeoutSeconds", "2"));
+        using var client = await AuthenticatedClient.Login(factory);
+
+        var worded = await Body(await client.PostAsync("/api/forecast/explanation", null));
+
+        Assert.Equal("gemini", worded.GetProperty("source").GetString());
+        Assert.Equal("gemini-3.1-flash-lite", worded.GetProperty("model").GetString());
+        Assert.Equal(Chain.Take(4), worded.GetProperty("passedOver").EnumerateArray().Select(m => m.GetString()));
+        Assert.Equal(Chain, gemini.Requests.Select(r => r.Model));
+    }
+
+    [Fact]
+    public async Task When_every_model_fails_the_rules_wording_is_used_with_the_reason()
+    {
+        var gemini = new StandInGemini { Answer = _ => StandInGemini.Error(500, "INTERNAL", "Something went wrong.") };
+        using var factory = new ExplanationFactory(Months(30), gemini, Key);
+        using var client = await AuthenticatedClient.Login(factory);
+
+        var worded = await Body(await client.PostAsync("/api/forecast/explanation", null));
+
+        Assert.Equal("rules", worded.GetProperty("source").GetString());
+        Assert.Equal("unavailable", worded.GetProperty("fallbackReason").GetString());
+        Assert.StartsWith("Booking revenue is forecast to", worded.GetProperty("summary").GetString());
+        Assert.Equal(Chain, gemini.Requests.Select(r => r.Model));
+    }
+
+    [Fact]
+    public async Task When_every_model_is_resting_nothing_more_is_sent()
+    {
+        var gemini = new StandInGemini { Answer = _ => StandInGemini.Error(429, "RESOURCE_EXHAUSTED", "Quota exceeded.") };
+        using var factory = new ExplanationFactory(Months(30), gemini, Key, ("Gemini:Models", "gemini-4-argon, gemini-3.8-flash"));
+        using var client = await AuthenticatedClient.Login(factory);
+
+        var first = await Body(await client.PostAsync("/api/forecast/explanation?measure=revenue", null));
+        var second = await Body(await client.PostAsync("/api/forecast/explanation?measure=passengers", null));
+
+        Assert.Equal("busy", first.GetProperty("fallbackReason").GetString());
+        Assert.Equal("busy", second.GetProperty("fallbackReason").GetString());
+        Assert.Equal(new[] { "gemini-4-argon", "gemini-3.8-flash" }, gemini.Requests.Select(r => r.Model));
+    }
+
+    [Fact]
+    public async Task A_rejected_key_stops_at_once_and_is_not_tried_again_for_a_while()
+    {
+        var gemini = new StandInGemini
+        {
+            Answer = _ => StandInGemini.Error(400, "INVALID_ARGUMENT", "API key not valid. Please pass a valid API key.", StandInGemini.Reason("API_KEY_INVALID")),
+        };
+        using var factory = new ExplanationFactory(Months(30), gemini, Key);
+        using var client = await AuthenticatedClient.Login(factory);
+
+        var first = await Body(await client.PostAsync("/api/forecast/explanation?measure=revenue", null));
+        var second = await Body(await client.PostAsync("/api/forecast/explanation?measure=passengers", null));
+
+        Assert.Equal("key-rejected", first.GetProperty("fallbackReason").GetString());
+        Assert.Equal("key-rejected", second.GetProperty("fallbackReason").GetString());
+        Assert.Single(gemini.Requests);
+    }
+
+    [Fact]
+    public async Task Wording_with_a_figure_the_forecast_does_not_hold_is_set_aside_by_every_model()
     {
         var gemini = new StandInGemini
         {
@@ -143,11 +254,11 @@ public class ForecastExplanationApiTests
         Assert.Equal("rules", worded.GetProperty("source").GetString());
         Assert.Equal("unknown-figure", worded.GetProperty("fallbackReason").GetString());
         Assert.StartsWith("Booking revenue is forecast to", worded.GetProperty("summary").GetString());
+        Assert.Equal(Chain, gemini.Requests.Select(r => r.Model));
     }
 
     public static TheoryData<string> BadAnswers => new()
     {
-        "server-error",
         "not-json",
         "no-summary",
         "too-long",
@@ -157,13 +268,12 @@ public class ForecastExplanationApiTests
 
     [Theory]
     [MemberData(nameof(BadAnswers))]
-    public async Task When_Gemini_fails_or_answers_out_of_shape_the_rules_wording_is_used(string answer)
+    public async Task An_answer_out_of_shape_is_never_shown(string answer)
     {
         var gemini = new StandInGemini
         {
             Answer = _ => answer switch
             {
-                "server-error" => new HttpResponseMessage(HttpStatusCode.InternalServerError),
                 "not-json" => StandInGemini.Raw("Here is your explanation: revenue looks fine."),
                 "no-summary" => StandInGemini.Raw("{\"points\": [\"Each forecast month has an 80% range.\"]}"),
                 "too-long" => StandInGemini.Written(new string('a', ForecastExplainer.SummaryLimit + 1), []),
@@ -171,7 +281,7 @@ public class ForecastExplanationApiTests
                 _ => StandInGemini.Written("Booking revenue follows its season.", ["One.", "Two.", "Three.", "Four.", "Five."]),
             },
         };
-        using var factory = new ExplanationFactory(Months(30), gemini, Key);
+        using var factory = new ExplanationFactory(Months(30), gemini, Key, ("Gemini:Models", "gemini-3.8-flash"));
         using var client = await AuthenticatedClient.Login(factory);
 
         var worded = await Body(await client.PostAsync("/api/forecast/explanation", null));
@@ -181,10 +291,10 @@ public class ForecastExplanationApiTests
     }
 
     [Fact]
-    public async Task A_slow_answer_is_given_up_on()
+    public async Task A_slow_model_is_given_up_on()
     {
-        var gemini = new StandInGemini { Answer = StandInGemini.WordingFromFacts, Delay = TimeSpan.FromSeconds(10) };
-        using var factory = new ExplanationFactory(Months(30), gemini, Key, ("Gemini:TimeoutSeconds", "2"));
+        var gemini = new StandInGemini { Answer = StandInGemini.WordingFromFacts, DelayFor = _ => TimeSpan.FromSeconds(10) };
+        using var factory = new ExplanationFactory(Months(30), gemini, Key, ("Gemini:Models", "gemini-3.8-flash"), ("Gemini:TimeoutSeconds", "2"));
         using var client = await AuthenticatedClient.Login(factory);
 
         var started = DateTime.UtcNow;
@@ -195,20 +305,49 @@ public class ForecastExplanationApiTests
     }
 
     [Fact]
-    public async Task Calls_beyond_the_hourly_limit_wait_and_the_rules_wording_is_used()
+    public async Task The_whole_chain_keeps_to_its_time_limit()
     {
-        var gemini = new StandInGemini { Answer = StandInGemini.WordingFromFacts };
+        var gemini = new StandInGemini { Answer = StandInGemini.WordingFromFacts, DelayFor = _ => TimeSpan.FromSeconds(10) };
+        using var factory = new ExplanationFactory(Months(30), gemini, Key,
+            ("Gemini:Models", "gemini-4-argon,gemini-3.8-flash,gemini-3.6-flash"), ("Gemini:TimeoutSeconds", "2"), ("Gemini:TotalTimeoutSeconds", "4"));
+        using var client = await AuthenticatedClient.Login(factory);
+
+        var started = DateTime.UtcNow;
+        var worded = await Body(await client.PostAsync("/api/forecast/explanation", null));
+
+        Assert.Equal("unavailable", worded.GetProperty("fallbackReason").GetString());
+        Assert.Equal(new[] { "gemini-4-argon", "gemini-3.8-flash" }, gemini.Requests.Select(r => r.Model));
+        Assert.InRange(DateTime.UtcNow - started, TimeSpan.FromSeconds(3.5), TimeSpan.FromSeconds(9));
+    }
+
+    [Fact]
+    public async Task The_hourly_limit_counts_every_call_the_fallbacks_included()
+    {
+        var gemini = new StandInGemini
+        {
+            Answer = sent => sent.Model == Chain[0] ? StandInGemini.Error(429, "RESOURCE_EXHAUSTED", "Quota exceeded.") : StandInGemini.WordingFromFacts(sent),
+        };
         using var factory = new ExplanationFactory(Months(30), gemini, Key, ("Gemini:MaxRequestsPerHour", "1"));
         using var client = await AuthenticatedClient.Login(factory);
 
-        var revenue = await Body(await client.PostAsync("/api/forecast/explanation?measure=revenue", null));
-        var passengers = await Body(await client.PostAsync("/api/forecast/explanation?measure=passengers", null));
+        var worded = await Body(await client.PostAsync("/api/forecast/explanation", null));
 
-        Assert.Equal("gemini", revenue.GetProperty("source").GetString());
-        Assert.Equal("rules", passengers.GetProperty("source").GetString());
-        Assert.Equal("busy", passengers.GetProperty("fallbackReason").GetString());
-        Assert.StartsWith("Passenger numbers are forecast to", passengers.GetProperty("summary").GetString());
-        Assert.Single(gemini.Requests);
+        Assert.Equal("rules", worded.GetProperty("source").GetString());
+        Assert.Equal("busy", worded.GetProperty("fallbackReason").GetString());
+        Assert.Equal(new[] { Chain[0] }, gemini.Requests.Select(r => r.Model));
+    }
+
+    [Fact]
+    public async Task A_gemini_2_5_model_is_sent_no_thinking_level()
+    {
+        var gemini = new StandInGemini { Answer = StandInGemini.WordingFromFacts };
+        using var factory = new ExplanationFactory(Months(30), gemini, Key, ("Gemini:Models", "gemini-2.5-flash"));
+        using var client = await AuthenticatedClient.Login(factory);
+
+        var worded = await Body(await client.PostAsync("/api/forecast/explanation", null));
+
+        Assert.Equal("gemini-2.5-flash", worded.GetProperty("model").GetString());
+        Assert.Null(JsonNode.Parse(Assert.Single(gemini.Requests).Body)!["generationConfig"]!["thinkingConfig"]);
     }
 
     [Fact]
@@ -246,25 +385,45 @@ public class ForecastExplanationApiTests
     }
 
     [Fact]
-    public void The_settings_default_sensibly_and_refuse_a_model_name_that_is_not_one()
+    public void The_settings_default_to_the_strongest_first_chain_and_refuse_what_is_not_a_model()
     {
         static GeminiOptions Read(params (string Key, string Value)[] values) => GeminiOptions.FromConfiguration(
             new ConfigurationBuilder().AddInMemoryCollection(values.ToDictionary(v => v.Key, v => (string?)v.Value)).Build());
 
         var off = Read();
         Assert.False(off.Enabled);
-        Assert.Equal(GeminiOptions.DefaultModel, off.Model);
-        Assert.Equal(TimeSpan.FromSeconds(12), off.Timeout);
+        Assert.Equal(GeminiOptions.DefaultModels, off.Models);
+        Assert.Equal("gemini-4-argon", off.Models[0]);
+        Assert.Equal("low", off.ThinkingLevel);
+        Assert.Equal(TimeSpan.FromSeconds(20), off.Timeout);
+        Assert.Equal(TimeSpan.FromSeconds(45), off.TotalTimeout);
         Assert.Equal(30, off.MaxRequestsPerHour);
 
-        var on = Read(("Gemini:ApiKey", "  abc  "), ("Gemini:Model", "gemini-3.5-flash-lite"), ("Gemini:TimeoutSeconds", "999"));
+        var on = Read(("Gemini:ApiKey", "  abc  "), ("Gemini:Models", "gemini-3.8-flash, gemini-3.5-flash-lite"),
+            ("Gemini:TimeoutSeconds", "999"), ("Gemini:TotalTimeoutSeconds", "1"), ("Gemini:ThinkingLevel", "None"));
         Assert.True(on.Enabled);
         Assert.Equal("abc", on.ApiKey);
-        Assert.Equal("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent", on.GenerateContentUrl.ToString());
+        Assert.Equal(new[] { "gemini-3.8-flash", "gemini-3.5-flash-lite" }, on.Models);
         Assert.Equal(TimeSpan.FromSeconds(60), on.Timeout);
+        Assert.Equal(TimeSpan.FromSeconds(60), on.TotalTimeout);
+        Assert.Null(on.ThinkingLevel);
+        Assert.Equal(
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent",
+            GeminiOptions.GenerateContentUrl("gemini-3.5-flash-lite").ToString());
 
-        Assert.Throws<InvalidOperationException>(() => Read(("Gemini:Model", "../models/other")));
-        Assert.Throws<InvalidOperationException>(() => Read(("Gemini:Model", "gemini?key=x")));
+        Assert.Equal(new[] { "gemini-3.6-flash" }, Read(("Gemini:Model", "gemini-3.6-flash")).Models);
+        Assert.Equal(new[] { "gemini-4-argon", "gemini-3.8-flash" }, Read(("Gemini:Models:0", "gemini-4-argon"), ("Gemini:Models:1", "gemini-3.8-flash")).Models);
+        Assert.Null(Read().ThinkingLevelFor("gemini-2.5-flash"));
+        Assert.Equal("low", Read().ThinkingLevelFor("gemini-3.8-flash"));
+
+        // Google's own variable is used when no Gemini:ApiKey is given, but not over an empty one.
+        Assert.Equal("from-google-variable", Read(("GEMINI_API_KEY", "from-google-variable")).ApiKey);
+        Assert.False(Read(("Gemini:ApiKey", ""), ("GEMINI_API_KEY", "from-google-variable")).Enabled);
+
+        Assert.Throws<InvalidOperationException>(() => Read(("Gemini:Models", "../models/other")));
+        Assert.Throws<InvalidOperationException>(() => Read(("Gemini:Models", "gemini-3.8-flash,gemini?key=x")));
+        Assert.Throws<InvalidOperationException>(() => Read(("Gemini:Models", string.Join(",", Enumerable.Range(1, 9).Select(i => $"gemini-m{i}")))));
+        Assert.Throws<InvalidOperationException>(() => Read(("Gemini:ThinkingLevel", "extreme")));
     }
 
     [Fact]
@@ -337,34 +496,37 @@ public class ForecastExplanationApiTests
     /// Answers in Gemini's place and keeps what each request carried.
     private sealed class StandInGemini : HttpMessageHandler
     {
-        public sealed record Sent(string Url, string? ApiKey, string Body);
+        public sealed record Sent(string Url, string? ApiKey, string Body)
+        {
+            /// The model named in the address, such as gemini-3.8-flash.
+            public string Model => Url[(Url.LastIndexOf('/') + 1)..Url.LastIndexOf(':')];
+        }
 
         public List<Sent> Requests { get; } = [];
-        public Func<string, HttpResponseMessage> Answer { get; init; } = _ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
-        public TimeSpan Delay { get; init; } = TimeSpan.Zero;
+        public Func<Sent, HttpResponseMessage> Answer { get; init; } = _ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
+        public Func<Sent, TimeSpan> DelayFor { get; init; } = _ => TimeSpan.Zero;
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var body = request.Content is null ? "" : await request.Content.ReadAsStringAsync(cancellationToken);
-            lock (Requests)
-            {
-                Requests.Add(new Sent(
-                    request.RequestUri!.ToString(),
-                    request.Headers.TryGetValues("x-goog-api-key", out var keys) ? keys.Single() : null,
-                    body));
-            }
-            if (Delay > TimeSpan.Zero) await Task.Delay(Delay, cancellationToken);
-            return Answer(body);
+            var sent = new Sent(
+                request.RequestUri!.ToString(),
+                request.Headers.TryGetValues("x-goog-api-key", out var keys) ? keys.Single() : null,
+                body);
+            lock (Requests) Requests.Add(sent);
+            var delay = DelayFor(sent);
+            if (delay > TimeSpan.Zero) await Task.Delay(delay, cancellationToken);
+            return Answer(sent);
         }
 
         /// A faithful writer: it repeats the highest month and its figure exactly as given.
-        public static HttpResponseMessage WordingFromFacts(string requestBody)
+        public static HttpResponseMessage WordingFromFacts(Sent sent)
         {
-            var prompt = JsonNode.Parse(requestBody)!["contents"]![0]!["parts"]![0]!["text"]!.GetValue<string>();
+            var prompt = JsonNode.Parse(sent.Body)!["contents"]![0]!["parts"]![0]!["text"]!.GetValue<string>();
             var facts = JsonNode.Parse(prompt[(prompt.IndexOf('\n') + 1)..])!;
             var peak = facts["highestForecastMonth"]!;
             return Written(
-                $"Booking revenue is forecast to be highest in {peak["month"]!.GetValue<string>()}, at about {peak["forecast"]!.GetValue<string>()}.",
+                $"The forecast is highest in {peak["month"]!.GetValue<string>()}, at about {peak["forecast"]!.GetValue<string>()}.",
                 ["Each forecast month has an 80% range: the recorded figure should land inside it about 8 times in 10."]);
         }
 
@@ -394,6 +556,28 @@ public class ForecastExplanationApiTests
                 Content = new StringContent(answer.ToJsonString(), Encoding.UTF8, "application/json"),
             };
         }
+
+        /// An error in Google's shape: {"error": {"code", "message", "status", "details"}}.
+        public static HttpResponseMessage Error(int status, string statusText, string message, params JsonObject[] details) =>
+            new((HttpStatusCode)status)
+            {
+                Content = new StringContent(new JsonObject
+                {
+                    ["error"] = new JsonObject
+                    {
+                        ["code"] = status,
+                        ["message"] = message,
+                        ["status"] = statusText,
+                        ["details"] = new JsonArray(details.Select(d => (JsonNode)d).ToArray()),
+                    },
+                }.ToJsonString(), Encoding.UTF8, "application/json"),
+            };
+
+        public static JsonObject RetryInfo(string delay) =>
+            new() { ["@type"] = "type.googleapis.com/google.rpc.RetryInfo", ["retryDelay"] = delay };
+
+        public static JsonObject Reason(string reason) =>
+            new() { ["@type"] = "type.googleapis.com/google.rpc.ErrorInfo", ["reason"] = reason, ["domain"] = "googleapis.com" };
     }
 
     private sealed class ExplanationFactory : WebApplicationFactory<Program>

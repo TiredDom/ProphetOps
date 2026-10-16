@@ -29,7 +29,9 @@
       <div class="explain-foot">
         <p class="explain-source">
           <template v-if="shown.source === 'gemini'">
-            Worded by Gemini ({{ shown.model }}) and checked: every figure in it is one of the forecast's own.
+            Worded by Gemini ({{ shown.model }}<template v-if="shown.passedOver.length">, after
+            {{ listModels(shown.passedOver) }} could not answer</template>) and checked: every figure in it is one of the
+            forecast's own.
           </template>
           <template v-else>Worded by ProphetOps from the forecast's own figures.</template>
         </p>
@@ -86,12 +88,19 @@ const written = computed(() => theirs[props.measure] ?? null);
 const shown = computed(() => (view.value === 'gemini' && written.value ? written.value : rules.value));
 const notice = computed(() => (view.value === 'rules' ? notices[props.measure] ?? '' : ''));
 
+// Each Gemini model is tried, strongest first, before any of these.
 const fallbackNotices: Record<string, string> = {
-  busy: 'Gemini has been asked often in the last hour, so this is ProphetOps’ own wording. Try again later.',
-  unavailable: 'Gemini could not be reached or did not answer as asked, so this is ProphetOps’ own wording.',
+  busy: 'Gemini’s models are at their limits right now, so this is ProphetOps’ own wording. Try again in a while.',
+  unavailable: 'None of Gemini’s models could answer as asked just now, so this is ProphetOps’ own wording.',
   'unknown-figure': 'Gemini’s wording held a figure that is not in the forecast, so it was set aside. This is ProphetOps’ own wording.',
+  'key-rejected': 'Gemini did not accept the API key set for this agency, so this is ProphetOps’ own wording. The key needs checking on the server.',
   'not-configured': 'Gemini is not set up for this agency, so this is ProphetOps’ own wording.',
 };
+
+function listModels(models: string[]): string {
+  if (models.length <= 1) return models[0] ?? '';
+  return `${models.slice(0, -1).join(', ')} and ${models[models.length - 1]}`;
+}
 
 async function loadRules() {
   const measure = props.measure;

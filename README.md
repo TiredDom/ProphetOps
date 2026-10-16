@@ -45,8 +45,9 @@ each month with an 80% prediction range.
   against its open slots, and prices to consider. A suggested price only fills in the
   package form; a person reviews and saves it.
 - **In plain words:** ProphetOps words the forecast by rules from its own figures. Where
-  the agency sets a Gemini API key, Gemini can reword the same figures; it is given only
-  monthly totals, the forecast and its accuracy test, and its wording is shown only if
+  the agency sets a Gemini API key, Gemini can reword the same figures, trying its models
+  strongest first and stepping down when one is busy, at its limit or failing. It is given
+  only monthly totals, the forecast and its accuracy test, and its wording is shown only if
   every figure in it is one of the forecast's own.
 
 The forecast itself is deterministic classical statistics: no machine learning and no

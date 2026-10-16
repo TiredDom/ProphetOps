@@ -274,11 +274,11 @@ public class ForecastController : ControllerBase
         return Ok(ExplanationBody(chosen, facts, facts is null ? null : ForecastExplainer.Rules(facts), explainer));
     }
 
-    /// Asks Gemini to word the forecast, when the agency has set it up. Gemini is given only the
-    /// agency's monthly totals, the forecast and its accuracy test, never a client, a booking or a
-    /// person, and its wording is used only if every figure in it is one of the forecast's own.
-    /// Otherwise, or when Gemini is not set up, busy or unreachable, the rules' wording comes back
-    /// with the reason.
+    /// Asks Gemini to word the forecast, when the agency has set it up, trying its models strongest
+    /// first. Gemini is given only the agency's monthly totals, the forecast and its accuracy test,
+    /// never a client, a booking or a person, and a wording is used only if every figure in it is
+    /// one of the forecast's own. When no model can give one, or Gemini is not set up or rejects
+    /// the key, the rules' wording comes back with the reason.
     [HttpPost("explanation")]
     public async Task<IActionResult> ExplainWithGemini(
         [FromQuery] string? measure,
@@ -302,11 +302,12 @@ public class ForecastController : ControllerBase
             : null,
         source = explanation?.Source,
         model = explanation?.Model,
+        passedOver = explanation?.PassedOver ?? [],
         fallbackReason = explanation?.FallbackReason,
         summary = explanation?.Summary,
         points = explanation?.Points ?? [],
         aiAvailable = explainer.AiAvailable,
-        aiModel = explainer.Model,
+        aiModels = explainer.Models,
         facts = facts?.ForWriter(),
     };
 

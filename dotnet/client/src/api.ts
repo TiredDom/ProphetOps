@@ -367,8 +367,11 @@ export interface ForecastEvaluation {
   points: ForecastEvaluationPoint[];
 }
 
-/** Why Gemini's wording is not the one given: not set up, asked too often, unreachable or out of shape, or holding a figure the forecast does not. */
-export type ExplanationFallback = 'not-configured' | 'busy' | 'unavailable' | 'unknown-figure';
+/**
+ * Why no Gemini wording is given: not set up, every model at its limits, no model could answer,
+ * the last answer held a figure the forecast does not, or Google rejected the key.
+ */
+export type ExplanationFallback = 'not-configured' | 'busy' | 'unavailable' | 'unknown-figure' | 'key-rejected';
 
 /** The forecast in plain words, by ProphetOps' own rules or, when the agency has set it up, by Gemini. */
 export interface ForecastExplanation {
@@ -376,13 +379,15 @@ export interface ForecastExplanation {
   ok: boolean;
   reason: string | null;
   source: 'rules' | 'gemini' | null;
+  /** The Gemini model that wrote it, and the stronger ones tried first that could not. */
   model: string | null;
+  passedOver: string[];
   fallbackReason: ExplanationFallback | null;
   summary: string | null;
   points: string[];
-  /** Whether Gemini is set up for this agency, and with which model. */
+  /** Whether Gemini is set up for this agency, and its models, strongest first. */
   aiAvailable: boolean;
-  aiModel: string | null;
+  aiModels: string[];
   /** The facts the wording speaks from: what Gemini is given when it is asked. */
   facts: Record<string, unknown> | null;
 }

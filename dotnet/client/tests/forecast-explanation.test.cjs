@@ -104,19 +104,24 @@ function explanation(measure, extra = {}) {
     reason: null,
     source: 'rules',
     model: null,
+    passedOver: [],
     fallbackReason: null,
     summary: measure === 'revenue' ? ownWording.summary : 'Passenger numbers are forecast to rise about 8.4% from October 2026 to March 2027.',
     points: ownWording.points,
     aiAvailable: false,
-    aiModel: null,
+    aiModels: [],
     facts: { lastRecordedMonth: 'September 2026' },
     ...extra,
   };
 }
 
+const chain = ['gemini-4-argon', 'gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'];
+
+// Written by the second model, after the flagship could not answer.
 const geminiWording = {
   source: 'gemini',
   model: 'gemini-3.8-flash',
+  passedOver: ['gemini-4-argon'],
   summary: 'Bookings should pick up towards March 2027, the busiest forecast month at about ₱182,000. <b>Plan for it.</b>',
   points: ['Each month has an 80% range around its forecast.', 'These figures come from the agency’s recorded bookings up to September 2026.'],
 };
@@ -217,8 +222,8 @@ test('The forecast in plain words', async (t) => {
   await t.test('2. With Gemini set up, its wording replaces the rules on request and can be switched back', async () => {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     const asked = await routeHome(page, {
-      own: (measure) => explanation(measure, { aiAvailable: true, aiModel: 'gemini-3.8-flash' }),
-      gemini: (measure) => explanation(measure, { aiAvailable: true, aiModel: 'gemini-3.8-flash', ...geminiWording }),
+      own: (measure) => explanation(measure, { aiAvailable: true, aiModels: chain }),
+      gemini: (measure) => explanation(measure, { aiAvailable: true, aiModels: chain, ...geminiWording }),
     });
 
     await page.goto(`${BASE_URL}/home#forecast-details`);
@@ -233,7 +238,10 @@ test('The forecast in plain words', async (t) => {
     assert.equal(await text(block.locator('.explain-by')), 'Written by Gemini');
     assert.equal(await text(block.locator('.explain-summary')), geminiWording.summary, 'Shown as plain text, markup and all');
     assert.equal(await block.locator('.explain-summary b').count(), 0, 'Nothing in the wording is read as markup');
-    assert.equal(await text(block.locator('.explain-source')), 'Worded by Gemini (gemini-3.8-flash) and checked: every figure in it is one of the forecast\'s own.');
+    assert.equal(
+      await text(block.locator('.explain-source')),
+      'Worded by Gemini (gemini-3.8-flash, after gemini-4-argon could not answer) and checked: every figure in it is one of the forecast\'s own.',
+    );
     assert.equal(await block.locator('.explain-privacy').count(), 0);
 
     await block.getByRole('button', { name: 'Show ProphetOps\' wording' }).click();
@@ -247,8 +255,8 @@ test('The forecast in plain words', async (t) => {
   await t.test('3. When Gemini’s wording is set aside, the rules stay and the reason is given', async () => {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     await routeHome(page, {
-      own: (measure) => explanation(measure, { aiAvailable: true, aiModel: 'gemini-3.8-flash' }),
-      gemini: (measure) => explanation(measure, { aiAvailable: true, aiModel: 'gemini-3.8-flash', fallbackReason: 'unknown-figure' }),
+      own: (measure) => explanation(measure, { aiAvailable: true, aiModels: chain }),
+      gemini: (measure) => explanation(measure, { aiAvailable: true, aiModels: chain, fallbackReason: 'unknown-figure' }),
     });
 
     await page.goto(`${BASE_URL}/home#forecast-details`);
@@ -260,6 +268,23 @@ test('The forecast in plain words', async (t) => {
     assert.equal(await text(block.locator('.explain-summary')), ownWording.summary);
     assert.equal(await block.locator('.explain-by').count(), 0);
     assert.equal(await block.getByRole('button', { name: 'Word it with Gemini' }).count(), 1, 'It can be asked again');
+    await page.close();
+  });
+
+  await t.test('3b. A rejected key is named as the reason', async () => {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    await routeHome(page, {
+      own: (measure) => explanation(measure, { aiAvailable: true, aiModels: chain }),
+      gemini: (measure) => explanation(measure, { aiAvailable: true, aiModels: chain, fallbackReason: 'key-rejected' }),
+    });
+
+    await page.goto(`${BASE_URL}/home#forecast-details`);
+    const block = page.locator('.explain-block');
+    await block.getByRole('button', { name: 'Word it with Gemini' }).click();
+    const notice = block.getByRole('status');
+    await notice.waitFor();
+    assert.match(await text(notice), /^Gemini did not accept the API key set for this agency/);
+    assert.equal(await text(block.locator('.explain-summary')), ownWording.summary);
     await page.close();
   });
 
@@ -287,7 +312,7 @@ test('The forecast in plain words', async (t) => {
   await t.test('5. On a phone the block keeps to the screen', async () => {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await routeHome(page, {
-      own: (measure) => explanation(measure, { aiAvailable: true, aiModel: 'gemini-3.8-flash' }),
+      own: (measure) => explanation(measure, { aiAvailable: true, aiModels: chain }),
       gemini: () => ({ status: 500, body: {} }),
     });
 
