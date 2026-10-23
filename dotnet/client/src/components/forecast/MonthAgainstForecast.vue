@@ -1,9 +1,10 @@
 <template>
   <ForecastBand
-    v-if="visible"
+    v-if="visible || pending"
     :title="`${monthLabel} against the forecast`"
-    subtitle="Bookings recorded so far, beside what Holt-Winters expects for the whole month"
+    subtitle="Recorded so far, beside the forecast for the whole month"
     :summary="summary"
+    :pending="pending"
   >
     <template #action>
       <RouterLink to="/home" class="band-link">See the forecast <UiIcon name="arrow-right" /></RouterLink>
@@ -87,6 +88,7 @@ const step = computed(() => stepForMonth(forecast.value, monthKey.value));
 const bookingStep = computed(() => stepForMonth(bookingForecast.state.data, monthKey.value));
 const gap = computed(() => unrecordedMonths(forecast.value, props.today));
 const visible = computed(() => allowed.value && !!forecast.value?.ok && !!props.today);
+const pending = computed(() => allowed.value && !state.data && !state.error);
 
 const day = computed(() => Number(props.today.slice(8, 10)) || 1);
 const daysInMonth = computed(() => {

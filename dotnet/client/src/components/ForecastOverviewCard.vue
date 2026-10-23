@@ -44,21 +44,13 @@
           </div>
           <div class="legend-item">
             <span class="legend-swatch-band" aria-hidden="true"></span>
-            <span>80% prediction range</span>
+            <span>Likely range</span>
           </div>
         </div>
         <div class="overview-header-actions">
           <button type="button" class="compact-action-link view-full-link read-help-link" @click="openHelp('read-forecast')">
             <UiIcon name="help" /> How to read this
           </button>
-          <a
-            v-if="detailsTarget"
-            :href="`#${detailsTarget}`"
-            class="compact-action-link view-full-link"
-            @click.prevent="emit('details')"
-          >
-            Monthly figures <UiIcon name="arrow-down" />
-          </a>
           <div class="history-toggle-group" role="group" aria-label="Recorded history display range">
             <button
               type="button"
@@ -327,7 +319,7 @@
               <text :x="tooltipWidth - 14" y="55" font-size="14" font-weight="600" fill="var(--color-text-primary)" text-anchor="end">
                 {{ tip(activeEntry.value) }}
               </text>
-              <text x="14" y="81" font-size="13" fill="var(--color-text-muted)">Range (approx. 80%)</text>
+              <text x="14" y="81" font-size="13" fill="var(--color-text-muted)">Likely range</text>
               <text x="14" y="102" font-size="13" fill="var(--color-text-primary)">
                 {{ tip(activeEntry.lower ?? activeEntry.value) }} – {{ tip(activeEntry.upper ?? activeEntry.value) }}
               </text>
@@ -376,7 +368,7 @@
           Decisions to review
           <span class="rec-section-count">{{ recommendations.length }}</span>
         </h3>
-        <p class="rec-section-note">Suggested from the forecast. Select one to see its months on the chart. The decision is yours.</p>
+        <p class="rec-section-note">Select one to see it on the chart. The decision is yours.</p>
       </div>
       <div
         v-for="rec in recommendations"
@@ -492,8 +484,6 @@ import { openHelp } from '../composables/useHelp';
 export interface ForecastOverviewCardProps {
   data: ForecastData;
   showRecommendations?: boolean;
-  /** Id of the element holding the monthly figures; shows a link to it when set. */
-  detailsTarget?: string;
   title?: string;
   /** How the forecast was made, under the title. */
   subtitle?: string;
@@ -506,7 +496,6 @@ export interface ForecastOverviewCardProps {
 
 const props = withDefaults(defineProps<ForecastOverviewCardProps>(), {
   showRecommendations: true,
-  detailsTarget: '',
   title: 'Overview',
   subtitle: '',
   idPrefix: 'foc',
@@ -518,7 +507,7 @@ const noun = computed(() => measureNoun(props.measure));
 const axisTitle = computed(() => {
   if (props.measure === 'bookings') return 'Bookings per month';
   if (props.measure === 'passengers') return 'Passengers per month';
-  return 'Revenue (PHP)';
+  return 'Revenue per month';
 });
 
 /** Tooltip figures: full pesos, or a bare count since the label already names the unit. */
@@ -529,8 +518,6 @@ function tip(value: number): string {
 function short(value: number): string {
   return formatShort(value, props.measure);
 }
-
-const emit = defineEmits<{ details: [] }>();
 
 const chartBox = ref<HTMLElement | null>(null);
 const { width: chartWidth, attach: attachChart } = useContentWidth(chartBox, 760);
@@ -737,7 +724,8 @@ const sourceNote = computed(() => {
       ? ` (${s.filledMonths} month${s.filledMonths === 1 ? '' : 's'} had no bookings and counted as zero)`
       : '';
     const basis = props.measure === 'revenue' ? 'booking revenue' : props.measure === 'bookings' ? 'bookings' : 'passenger numbers';
-    return `Based on recorded ${basis}, by booking date — ${s.liveMonthsAvailable} months recorded${gaps}.`;
+    // The number of months is already in the line under the title.
+    return `From recorded ${basis}, by booking date${gaps}.`;
   }
   if (s.usingSample) {
     return 'Demonstration data, not a live forecast.';

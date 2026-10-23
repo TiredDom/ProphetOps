@@ -1,5 +1,10 @@
 <template>
-  <section class="forecast-band" :class="{ folded }" :aria-labelledby="titleId">
+  <section
+    class="forecast-band"
+    :class="{ folded: folded || pending }"
+    :aria-labelledby="titleId"
+    :aria-busy="pending ? 'true' : undefined"
+  >
     <div class="band-head">
       <span class="band-mark" aria-hidden="true"><UiIcon name="forecast" :stroke-width="2" /></span>
       <div class="band-titles">
@@ -10,7 +15,7 @@
         <slot name="action" />
       </div>
       <button
-        v-if="summary && !compact && !folded"
+        v-if="summary && !pending && !compact && !folded"
         type="button"
         class="band-toggle"
         aria-expanded="true"
@@ -22,9 +27,15 @@
       </button>
     </div>
 
-    <!-- Folded to one line: on phones by default, so the list below stays within reach, and on
-         wide screens when someone chooses to (remembered for every band). -->
-    <div v-if="summary && (compact || folded)" class="band-fold">
+    <!-- While the forecast loads, a line the size of the folded summary holds its place, so the
+         list below does not jump when it arrives. -->
+    <div v-if="pending" class="band-fold" aria-hidden="true">
+      <span class="band-pending"></span>
+    </div>
+
+    <!-- Folded to one line by default, so the list below comes first. On wide screens opening one
+         band opens them on every page, and the choice is remembered. -->
+    <div v-else-if="summary && (compact || folded)" class="band-fold">
       <p class="band-summary">{{ summary }}</p>
       <button
         type="button"
@@ -38,7 +49,7 @@
       </button>
     </div>
 
-    <div v-show="!folded" :id="bodyId" class="band-body">
+    <div v-if="!pending" v-show="!folded" :id="bodyId" class="band-body">
       <slot />
       <button type="button" class="band-help" @click="openHelp(helpTopic)">
         <UiIcon name="help" /> {{ helpTopic === 'forecast-decisions' ? 'How to use these suggestions' : 'How the forecast works' }}
@@ -55,13 +66,13 @@ const FOLD_KEY = 'prophetops.forecastBands';
 
 function readFolded(): boolean {
   try {
-    return localStorage.getItem(FOLD_KEY) === 'folded';
+    return localStorage.getItem(FOLD_KEY) !== 'open';
   } catch {
-    return false;
+    return true;
   }
 }
 
-// One choice for every band on wide screens, so folding one folds them on every page.
+// One choice for every band on wide screens: folded until someone opens one, then open on every page.
 const wideFolded = sharedRef(readFolded());
 </script>
 
@@ -71,9 +82,10 @@ import { useMediaQuery } from '../../composables/useMediaQuery';
 import UiIcon from '../UiIcon.vue';
 import { openHelp } from '../../composables/useHelp';
 
+/** `pending` is set while the forecast is still on its way: the band keeps its place without figures. */
 const props = withDefaults(
-  defineProps<{ title: string; subtitle?: string; summary?: string; helpTopic?: string }>(),
-  { subtitle: '', summary: '', helpTopic: 'read-forecast' },
+  defineProps<{ title: string; subtitle?: string; summary?: string; helpTopic?: string; pending?: boolean }>(),
+  { subtitle: '', summary: '', helpTopic: 'read-forecast', pending: false },
 );
 
 const id = ++nextId;
@@ -166,6 +178,16 @@ function toggle() {
   color: var(--color-on-shell-soft);
   font-size: var(--text-sm);
   font-variant-numeric: lining-nums tabular-nums;
+}
+
+/* As tall as the folded summary's toggle, so the band keeps its height when the figures arrive. */
+.band-pending {
+  display: block;
+  width: min(320px, 70%);
+  height: 14px;
+  margin: 11px 0;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .band-toggle {

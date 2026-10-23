@@ -1,10 +1,11 @@
 <template>
   <ForecastBand
     help-topic="forecast-decisions"
-    v-if="visible"
+    v-if="visible || pending"
     title="What the forecast suggests for spending"
-    subtitle="Revenue only; expenses are not forecast. The decision is yours."
+    subtitle="From the revenue forecast. The decision is yours."
     :summary="`${items.length} ${items.length === 1 ? 'decision' : 'decisions'} on spending, from the forecast`"
+    :pending="pending"
   >
     <template #action>
       <RouterLink to="/home" class="band-link">See the forecast <UiIcon name="arrow-right" /></RouterLink>
@@ -63,6 +64,7 @@ const items = computed(() => {
 });
 
 const visible = computed(() => allowed.value && items.value.length > 0);
+const pending = computed(() => allowed.value && !state.data && !state.error);
 
 onMounted(() => {
   void load();

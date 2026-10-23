@@ -721,10 +721,12 @@ function mayRunShort(p: PackageRow): boolean {
   return status === 'likely-short' || status === 'could-short';
 }
 
+// The list flags only what is likely. The weaker "could", which a wide forecast range puts on many
+// packages, shows once someone asks for the packages that may run short.
 function shortFlag(p: PackageRow): string {
   const status = demandOf(p)?.status;
   if (status === 'likely-short') return 'Likely to run short';
-  if (status === 'could-short') return 'Could run short';
+  if (status === 'could-short' && shortOnly.value) return 'Could run short';
   return '';
 }
 

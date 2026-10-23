@@ -255,7 +255,7 @@ test('The forecast leads Home and follows into the record pages', async (t) => {
     await route(page);
     await page.goto(`${BASE_URL}/bookings`);
     const band = page.locator('.forecast-band');
-    await band.waitFor();
+    await band.getByRole('button', { name: 'Show details' }).click();
     const text = squash(await band.innerText());
     assert.ok(text.includes('October 2026 against the forecast'), text);
     assert.ok(text.includes('₱12,000 recorded so far'), 'Only the active October booking counts: ' + text);
@@ -284,7 +284,7 @@ test('The forecast leads Home and follows into the record pages', async (t) => {
     await route(page);
     await page.goto(`${BASE_URL}/packages`);
     const band = page.locator('.forecast-band');
-    await band.waitFor();
+    await band.getByRole('button', { name: 'Show details' }).click();
     const text = squash(await band.innerText());
     assert.ok(text.includes('Demand outlook'), text);
     assert.ok(text.includes('Passenger numbers are forecast to peak in January 2027 at about 105'), text);
@@ -306,8 +306,8 @@ test('The forecast leads Home and follows into the record pages', async (t) => {
     await route(page);
     await page.goto(`${BASE_URL}/expenses`);
     const band = page.locator('.forecast-band');
-    await band.waitFor();
-    assert.ok(squash(await band.innerText()).includes('expenses are not forecast'));
+    await band.getByRole('button', { name: 'Show details' }).click();
+    assert.ok(squash(await band.innerText()).includes('From the revenue forecast'));
 
     const button = band.locator('.guide-button', { hasText: 'January 2026' });
     assert.equal(squash(await button.innerText()), 'Show January 2026');
@@ -332,8 +332,9 @@ test('The forecast leads Home and follows into the record pages', async (t) => {
       'Passenger numbers are forecast to peak in January 2027 at about 105.',
       'A dip on the way means a peak, not a steady climb',
     );
-    assert.ok((await page.locator('.overview-subtitle').innerText()).includes('passengers by booking date'));
-    assert.ok(squash(await page.locator('.forecast-subline').innerText()).includes('About 528 passengers'));
+    assert.ok((await page.locator('.overview-subtitle').innerText()).includes('Holt-Winters'));
+    const subline = squash(await page.locator('.forecast-subline').innerText());
+    assert.ok(subline.includes('About 528 passengers') && subline.includes('counted by booking date'), subline);
     assert.equal(await page.getByRole('button', { name: 'Passengers', exact: true }).getAttribute('aria-pressed'), 'true');
 
     // Demand decisions open the bookings of the same month last year, never spending.
@@ -393,24 +394,22 @@ test('The forecast leads Home and follows into the record pages', async (t) => {
     await page.close();
   });
 
-  await t.test('12. On wide screens a band folds on request, and every band stays folded after', async () => {
+  await t.test('12. On wide screens a band starts folded, opens on request, and every band stays open after', async () => {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const page = await context.newPage();
     await route(page);
     await page.goto(`${BASE_URL}/expenses`);
     const band = page.locator('.forecast-band');
-    await band.waitFor();
-    assert.equal(await band.locator('.guide').isVisible(), true, 'Open by default on wide screens');
-    await band.getByRole('button', { name: 'Hide details' }).click();
-    assert.equal(await band.locator('.guide').isVisible(), false);
     assert.ok(squash(await band.locator('.band-summary').innerText()).includes('3 decisions on spending'));
+    assert.equal(await band.locator('.guide').isVisible(), false, 'Folded by default, so the list comes first');
+    await band.getByRole('button', { name: 'Show details' }).click();
+    assert.equal(await band.locator('.guide').isVisible(), true);
 
     await page.goto(`${BASE_URL}/bookings`);
     const bookingsBand = page.locator('.forecast-band');
-    await bookingsBand.waitFor();
-    assert.ok(await bookingsBand.getByRole('button', { name: 'Show details' }).isVisible(), 'The choice holds on the next page');
-    await bookingsBand.getByRole('button', { name: 'Show details' }).click();
-    assert.ok(await bookingsBand.getByRole('button', { name: 'Hide details' }).isVisible());
+    await bookingsBand.getByRole('button', { name: 'Hide details' }).waitFor();
+    await bookingsBand.getByRole('button', { name: 'Hide details' }).click();
+    assert.ok(await bookingsBand.getByRole('button', { name: 'Show details' }).isVisible());
     await context.close();
   });
 });

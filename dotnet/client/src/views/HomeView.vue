@@ -30,11 +30,9 @@
           :data="forecast"
           :measure="measure"
           :show-recommendations="true"
-          details-target="forecast-details"
           :title="forecastTitle(measure)"
           :subtitle="forecastBasis"
           :decision-link="decisionLink"
-          @details="openDetails"
         >
           <template #controls>
             <div class="measure-switch" role="group" aria-label="What to forecast">
@@ -54,12 +52,11 @@
             <p class="forecast-headline"><template v-for="(part, index) in headline" :key="index"><strong v-if="part.strong">{{ part.text }}</strong><template v-else>{{ part.text }}</template></template></p>
             <p class="forecast-subline">
               <template v-if="measure === 'revenue'">
-                About <strong>{{ formatConcisePeso(sixMonthTotal) }}</strong> in booking revenue across {{ forecastMonths }},
-                each month with an 80% range.
+                About <strong>{{ formatConcisePeso(sixMonthTotal) }}</strong> in booking revenue across {{ forecastMonths }}.
               </template>
               <template v-else>
                 About <strong>{{ withUnit(sixMonthTotal, measure) }}</strong> across {{ forecastMonths }}, counted by
-                booking date, each month with an 80% range.
+                booking date.
               </template>
             </p>
           </template>
@@ -131,9 +128,6 @@
                 <span class="details-chip-label">Highest</span> {{ peak.month }} ·
                 {{ measure === 'revenue' ? pesoCompact(peak.value) : withUnit(peak.value, measure) }}
               </span>
-              <span v-if="forecast.metrics?.mape != null" class="details-chip">
-                <span class="details-chip-label">Average miss</span> {{ forecast.metrics.mape.toFixed(1) }}%
-              </span>
             </span>
             <UiIcon name="chevron-down" class="details-chevron" />
           </summary>
@@ -181,7 +175,7 @@ import {
 import { useForecast } from '../composables/useForecast';
 import { useQueryState } from '../composables/useQueryState';
 import type { ForecastMeasure } from '../api';
-import { forecastTitle, isMeasure, measureNoun, measureOf, measures, withUnit } from '../forecastUnits';
+import { forecastTitle, isMeasure, measureOf, measures, withUnit } from '../forecastUnits';
 
 const DETAILS_HASH = '#forecast-details';
 
@@ -228,10 +222,10 @@ const gap = computed(() => unrecordedMonths(forecast.value, today.value));
 const forecastBasis = computed(() => {
   const source = forecast.value?.dataSource;
   if (!source) return '';
-  if (source.usingSample) return 'Holt-Winters · 6 months ahead · sample series, not recorded bookings';
+  // Plain words first; the method's name closes the line for anyone who wants to look it up.
+  if (source.usingSample) return 'Next 6 months · sample figures, not recorded bookings · Holt-Winters';
   const until = source.lastRecordedMonth ? ` to ${source.lastRecordedMonth}` : '';
-  const what = measure.value === 'revenue' ? '' : ` · ${measureNoun(measure.value)} by booking date`;
-  return `Holt-Winters${what} · 6 months ahead · learned from ${source.liveMonthsAvailable} months of bookings${until}`;
+  return `Next 6 months · based on ${source.liveMonthsAvailable} months of bookings${until} · Holt-Winters`;
 });
 
 /**

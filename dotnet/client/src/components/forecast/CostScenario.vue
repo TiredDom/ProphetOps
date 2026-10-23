@@ -3,7 +3,7 @@
     <summary class="scenario-summary">
       <span class="summary-text">
         <span class="scenario-title">What the coming months could leave after costs</span>
-        <span class="summary-meta">A scenario on the revenue forecast; spending itself is not forecast</span>
+        <span class="summary-meta">An estimate from the revenue forecast and past spending</span>
       </span>
       <span v-if="preview" class="summary-preview">
         <span class="summary-chip"><span class="chip-label">After costs</span> {{ preview }}</span>

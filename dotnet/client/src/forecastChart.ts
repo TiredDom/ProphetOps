@@ -506,11 +506,10 @@ export function buildForecastDecisions(params: {
       const diffPercent = ((peakStep.value - prior.value) / prior.value) * 100;
       if (diffPercent >= 0.5) {
         const peakMonth = extractMonthName(peakStep);
-        const diffStr = `+${diffPercent.toFixed(1)}%`;
         results.push({
           id: 'peak',
           action: words.peak(peakMonth),
-          finding: `${peakMonth} peak / ${diffStr} versus ${prior.label}`,
+          finding: `Highest in ${peakMonth}, ${diffPercent.toFixed(1)}% above ${prior.label}`,
           kind: 'increase',
           stepNumbers: prior.step !== undefined ? [prior.step, peakStep.step] : [peakStep.step],
           evidence: {
@@ -552,7 +551,7 @@ export function buildForecastDecisions(params: {
     results.push({
       id: 'range',
       action: words.range(month),
-      finding: `${month} uncertainty / approx. 80% range`,
+      finding: `${month} could come in higher or lower`,
       kind: 'uncertainty',
       stepNumbers: [rangeCandidate.step],
       evidence: {
@@ -599,12 +598,11 @@ export function buildForecastDecisions(params: {
   if (dropPrior && dropTarget) {
     const targetMonth = extractMonthName(dropTarget);
     const priorMonth = extractMonthName(dropPrior);
-    const dropStr = `${maxDropPercent.toFixed(1)}%`;
 
     results.push({
       id: 'drop',
       action: words.drop(targetMonth),
-      finding: `${targetMonth} decrease / ${dropStr} versus ${priorMonth}`,
+      finding: `Lower in ${targetMonth}, ${Math.abs(maxDropPercent).toFixed(1)}% below ${priorMonth}`,
       kind: 'decrease',
       stepNumbers: [dropPrior.step, dropTarget.step],
       evidence: {
@@ -623,7 +621,7 @@ export function buildForecastDecisions(params: {
     results.push({
       id: 'steady',
       action: words.steady,
-      finding: 'Steady horizon / minimal projected variation',
+      finding: 'Little change expected',
       kind: 'uncertainty',
       stepNumbers: [s1.step],
       evidence: {

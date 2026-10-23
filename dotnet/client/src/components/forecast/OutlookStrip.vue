@@ -1,9 +1,10 @@
 <template>
   <ForecastBand
-    v-if="visible"
+    v-if="visible || pending"
     title="Demand outlook"
-    :subtitle="`Holt-Winters forecast of passengers, by booking date, for ${forecastSpan(forecast)}`"
+    :subtitle="pending ? 'Passengers expected over the coming months' : `Passengers expected, ${forecastSpan(forecast)}`"
     :summary="summary"
+    :pending="pending"
   >
     <template #action>
       <RouterLink :to="{ path: '/home', query: { measure: 'passengers' } }" class="band-link">
@@ -121,6 +122,7 @@ const forecast = computed(() => state.data);
 const steps = computed(() => usableSteps(forecast.value));
 const peak = computed(() => peakStep(forecast.value));
 const visible = computed(() => allowed.value && steps.value.length > 0);
+const pending = computed(() => allowed.value && !state.data && !state.error);
 const currentKey = computed(() => today.value.slice(0, 7));
 const top = computed(() => Math.max(...steps.value.map((s) => s.value), 1));
 

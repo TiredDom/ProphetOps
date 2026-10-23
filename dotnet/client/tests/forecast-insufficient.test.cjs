@@ -286,10 +286,8 @@ test('Home forecast, insufficient history and mobile UX', async (t) => {
     const chartBox = await page.locator('.forecast-chart').boundingBox();
     assert.ok(chartBox !== null && chartBox.y < 600, `Chart should start high on an 844px screen (y=${chartBox && chartBox.y})`);
 
-    const detailsLink = page.locator('.overview-header-actions a[href="#forecast-details"]');
-    assert.equal(await detailsLink.count(), 1, 'Forecast card links to the monthly figures');
     assert.equal(await page.locator('#forecast-details[open]').count(), 0, 'Monthly figures start closed');
-    await detailsLink.click();
+    await page.locator('#forecast-details summary').click();
     await page.waitForSelector('#forecast-details[open] .step-panel');
     assert.ok(await page.locator('.step-panel').isVisible(), 'Monthly breakdown opens in place');
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'Opening the details must not cause sideways scrolling');

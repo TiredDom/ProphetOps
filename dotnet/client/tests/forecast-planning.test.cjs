@@ -386,6 +386,7 @@ test('Planning with the forecast: the cost scenario and package demand', async (
     await routePages(page, owner, scenarioWorld());
     await page.goto(`${BASE_URL}/packages`);
 
+    await page.locator('.forecast-band').getByRole('button', { name: 'Show details' }).click();
     const band = page.locator('.outlook-text');
     await band.getByText('run short of slots by December 2026').waitFor();
     assert.match(await text(band), /1 package is likely to run short of slots by December 2026, and 1 more could\./);
@@ -395,8 +396,9 @@ test('Planning with the forecast: the cost scenario and package demand', async (
     assert.equal(await text(chip), 'May run short 2');
     assert.equal(await chip.getAttribute('aria-pressed'), 'false');
 
+    // Unfiltered, the list flags only the likely one; the "could" joins it once the list is filtered.
     const flags = await page.locator('.packages-table .demand-flag').allInnerTexts();
-    assert.deepEqual(flags.map((f) => f.trim()), ['Likely to run short', 'Could run short']);
+    assert.deepEqual(flags.map((f) => f.trim()), ['Likely to run short']);
 
     // The low-on-slots line has its own Show them; this is the one on the demand line.
     const demandLine = band.locator('.outlook-line', { hasText: 'run short of slots' });
@@ -404,6 +406,8 @@ test('Planning with the forecast: the cost scenario and package demand', async (
     await page.waitForURL(/demand=short/);
     const names = await page.locator('.packages-table .row-open').allInnerTexts();
     assert.deepEqual(names, ['Alpha Escape', 'Beta Retreat']);
+    const filteredFlags = await page.locator('.packages-table .demand-flag').allInnerTexts();
+    assert.deepEqual(filteredFlags.map((f) => f.trim()), ['Likely to run short', 'Could run short']);
     assert.equal(await chip.getAttribute('aria-pressed'), 'true');
     assert.match(await text(page.locator('.records-summary')), /May run short/);
     assert.equal(await demandLine.getByRole('button').count(), 0, 'The band’s button goes once the list is filtered');
@@ -530,7 +534,7 @@ test('Planning with the forecast: the cost scenario and package demand', async (
 
     await page.goto(`${BASE_URL}/packages`);
     await page.locator('.record-list .demand-flag').first().waitFor();
-    assert.equal(await page.locator('.record-list .demand-flag').count(), 2);
+    assert.equal(await page.locator('.record-list .demand-flag').count(), 1, 'Unfiltered, only the likely one is flagged');
     overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     assert.ok(overflow <= 0, `Packages scrolls sideways by ${overflow}px`);
     await page.close();

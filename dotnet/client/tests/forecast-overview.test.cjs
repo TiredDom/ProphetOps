@@ -105,7 +105,7 @@ test('2. Real live forecast steps generate data-derived actions and matching ind
   assert.ok(peak);
   assert.equal(peak.kind, 'increase');
   assert.equal(peak.action, 'Review expenses before approving new spending');
-  assert.equal(peak.finding, 'December peak / +30.3% versus November');
+  assert.equal(peak.finding, 'Highest in December, 30.3% above November');
   assert.equal(JSON.stringify(peak.stepNumbers), JSON.stringify([4, 5]));
   assert.equal(peak.evidence.type, 'comparison');
   assert.equal(peak.evidence.changePercent, 30.3);
@@ -117,7 +117,7 @@ test('2. Real live forecast steps generate data-derived actions and matching ind
   assert.ok(range);
   assert.equal(range.kind, 'uncertainty');
   assert.equal(range.action, 'Keep December commitments flexible');
-  assert.equal(range.finding, 'December uncertainty / approx. 80% range');
+  assert.equal(range.finding, 'December could come in higher or lower');
   assert.equal(JSON.stringify(range.stepNumbers), JSON.stringify([5]));
   assert.equal(range.evidence.type, 'range');
   assert.equal(formatConcisePeso(range.evidence.lower), '₱1.12M');
@@ -129,7 +129,7 @@ test('2. Real live forecast steps generate data-derived actions and matching ind
   assert.ok(drop);
   assert.equal(drop.kind, 'decrease');
   assert.equal(drop.action, 'Review expense categories before January');
-  assert.equal(drop.finding, 'January decrease / -35.9% versus December');
+  assert.equal(drop.finding, 'Lower in January, 35.9% below December');
   assert.equal(JSON.stringify(drop.stepNumbers), JSON.stringify([5, 6]));
   assert.equal(drop.evidence.type, 'comparison');
   assert.equal(drop.evidence.changePercent, -35.9);
@@ -224,7 +224,7 @@ test('6. Tied peaks select first occurrence deterministically', () => {
   const peak = decisions.find((d) => d.id === 'peak');
   assert.ok(peak);
   // Must pick step 2 (September), not step 4
-  assert.ok(peak.finding.includes('September peak'));
+  assert.ok(peak.finding.includes('Highest in September'));
   assert.equal(JSON.stringify(peak.stepNumbers), JSON.stringify([1, 2]));
 });
 

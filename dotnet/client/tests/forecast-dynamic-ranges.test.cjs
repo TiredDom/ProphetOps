@@ -420,7 +420,7 @@ test('9. Recommendation selection & evidence: rising, falling, flat, tied peaks,
   assert.equal(peakRec.evidence.type, 'comparison');
   assert.equal(peakRec.evidence.current.label, 'Sep');
   assert.equal(peakRec.evidence.changePercent, 10);
-  assert.ok(peakRec.finding.includes('+10.0%'));
+  assert.ok(peakRec.finding.includes('10.0% above'));
 
   // 9B: Falling drop (-4.5%)
   const dropRec = recsRising.find((r) => r.id === 'drop');
@@ -451,7 +451,7 @@ test('9. Recommendation selection & evidence: rising, falling, flat, tied peaks,
   assert.equal(recsSteady.length, 1);
   assert.equal(recsSteady[0].id, 'steady');
   assert.equal(recsSteady[0].kind, 'uncertainty');
-  assert.ok(recsSteady[0].finding.includes('Steady horizon'));
+  assert.ok(recsSteady[0].finding.includes('Little change expected'));
 
   // 9D: Tied peaks (Step 2 and Step 4 both 1,500,000) -> Selects first occurrence deterministically
   const tiedSteps = [
