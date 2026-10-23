@@ -28,7 +28,7 @@
       <div v-else class="detail-quick" role="group" aria-label="Quick updates">
         <button
           v-if="user.status === 'Active'"
-          class="secondary-button compact-button"
+          class="danger-outline-button compact-button"
           type="button"
           :disabled="busy !== '' || askSuspend"
           @click="askSuspend = true"

@@ -863,7 +863,8 @@ html {
 
 .primary-button,
 .secondary-button,
-.danger-button {
+.danger-button,
+.danger-outline-button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -938,6 +939,24 @@ html {
     cursor: default;
 }
 
+/* Starts something that cannot be taken lightly (void, suspend) but asks before it happens, so it
+   stays quieter than the red button that confirms it. */
+.danger-outline-button {
+    background: var(--color-surface);
+    border: 1px solid var(--tone-danger-border);
+    color: var(--color-danger-ink);
+}
+
+.danger-outline-button:hover {
+    border-color: var(--color-danger);
+    background: var(--tone-danger-surface);
+}
+
+.danger-outline-button:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
 .compact-button {
     min-height: 31px;
     padding: 5px 12px;
@@ -946,7 +965,8 @@ html {
 
 .primary-button .ui-icon,
 .secondary-button .ui-icon,
-.danger-button .ui-icon {
+.danger-button .ui-icon,
+.danger-outline-button .ui-icon {
     margin-inline: -2px 0;
     font-size: 16px;
 }
@@ -1916,12 +1936,11 @@ th.num .sort-button {
     flex: 1;
 }
 
-.danger-link {
-    color: var(--color-danger-ink);
-}
-
-.danger-link:hover {
-    color: var(--color-danger);
+/* The narrowest phones: the label alone keeps the void and edit buttons on one row. */
+@media (max-width: 340px) {
+    .slide-drawer-footer .danger-outline-button .ui-icon {
+        display: none;
+    }
 }
 
 /* File import drawers (bookings and packages) */
@@ -2518,7 +2537,8 @@ input[type='checkbox']:focus-visible {
 
     .primary-button,
     .secondary-button,
-    .danger-button {
+    .danger-button,
+    .danger-outline-button {
         min-height: 44px;
     }
 

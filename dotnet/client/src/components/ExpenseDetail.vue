@@ -80,7 +80,8 @@
         </button>
       </template>
       <template v-else>
-        <button class="table-link danger-link" type="button" :disabled="busy !== '' || askVoid" @click="askVoid = true">
+        <button class="danger-outline-button" type="button" :disabled="busy !== '' || askVoid" @click="askVoid = true">
+          <UiIcon name="void" />
           Void expense
         </button>
         <span class="footer-spacer"></span>
