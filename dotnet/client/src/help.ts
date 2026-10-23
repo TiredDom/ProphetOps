@@ -399,7 +399,8 @@ export const helpTopics: HelpTopic[] = [
         items: [
           'Bookings: More, then Export bookings. Every booking, with voided ones marked.',
           'Packages: More, then Export packages.',
-          'Expenses and Reports, for owners and admins: Export CSV, for the period chosen on the page.',
+          'Expenses, for owners and admins: More, then Export expenses, for the period chosen on the page.',
+          'Reports, for owners and admins: Export CSV, for the period chosen on the page.',
         ],
       },
     ],

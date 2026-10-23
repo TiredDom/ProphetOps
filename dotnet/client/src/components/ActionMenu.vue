@@ -242,6 +242,16 @@ defineExpose({ hide });
   font-size: var(--text-xs);
 }
 
+/* On phones the menu button starts the actions row at the left edge, so the list opens from its
+   left side instead of running off the screen. */
+@media (max-width: 640px) {
+  .action-menu-list {
+    right: auto;
+    left: 0;
+    transform-origin: top left;
+  }
+}
+
 .action-menu-enter-active,
 .action-menu-leave-active {
   transition: opacity 140ms var(--ease-out), transform 140ms var(--ease-out);

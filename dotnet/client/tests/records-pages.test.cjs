@@ -289,6 +289,9 @@ test('Bookings, Packages and Expenses lists', async (t) => {
         (await menu.getByRole('menuitem').allInnerTexts()).map((text) => text.split('\n')[0]),
         ['Export bookings', 'Import from a file'],
       );
+      // The More button starts the row at the left edge, so the menu has to open towards the right.
+      const box = await menu.boundingBox();
+      assert.ok(box.x >= 0 && box.x + box.width <= width, `The More menu at ${width}px runs from ${Math.round(box.x)} to ${Math.round(box.x + box.width)}`);
       await page.keyboard.press('Escape');
       await page.getByRole('menu').waitFor({ state: 'detached' });
       assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-haspopup')), 'menu', 'Focus returns to the More button');
@@ -314,7 +317,8 @@ test('Bookings, Packages and Expenses lists', async (t) => {
 
     await page.goto(`${BASE_URL}/expenses?period=month`);
     await page.waitForSelector('.records-table');
-    const href = await page.locator('a[href*="/api/export/expenses.csv"]').getAttribute('href');
+    await page.getByRole('button', { name: 'More', exact: true }).click();
+    const href = await page.getByRole('menuitem', { name: /Export expenses/ }).getAttribute('href');
     assert.equal(href, '/api/export/expenses.csv?from=2026-10-01&to=2026-10-31');
     assert.ok((await summary(page)).includes('₱350,000 total'));
     await page.close();

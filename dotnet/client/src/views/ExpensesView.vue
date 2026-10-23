@@ -1,14 +1,7 @@
 <template>
   <AppShell title="Expenses">
     <template #actions>
-      <a
-        class="secondary-button"
-        :href="exportHref"
-        :title="range ? `Download the expenses for ${describeRange(range)} as a CSV file` : 'Download every expense as a CSV file'"
-      >
-        <UiIcon name="download" />
-        Export CSV
-      </a>
+      <ActionMenu :items="menuItems" />
       <button class="primary-button" type="button" aria-keyshortcuts="N" @click="openForm">
         <UiIcon name="plus" />
         Add expense
@@ -381,6 +374,7 @@ import EmptyState from '../components/EmptyState.vue';
 import SearchField from '../components/SearchField.vue';
 import ListFooter from '../components/ListFooter.vue';
 import SelectionBar from '../components/SelectionBar.vue';
+import ActionMenu, { type ActionMenuItem } from '../components/ActionMenu.vue';
 import PeriodSelect from '../components/PeriodSelect.vue';
 import SortHeader from '../components/SortHeader.vue';
 import UiIcon from '../components/UiIcon.vue';
@@ -481,6 +475,16 @@ const exportHref = computed(() => {
   const query = params.toString();
   return '/api/export/expenses.csv' + (query ? '?' + query : '');
 });
+
+// Export sits in the More menu, as it does on Bookings and Packages, and follows the period chosen.
+const menuItems = computed<ActionMenuItem[]>(() => [
+  {
+    label: 'Export expenses',
+    hint: range.value ? `The expenses for ${describeRange(range.value)}, as a CSV file` : 'Every expense, as a CSV file',
+    icon: 'download',
+    href: exportHref.value,
+  },
+]);
 
 const searched = computed(() => {
   const term = filters.q.trim().toLowerCase();
