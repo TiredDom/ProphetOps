@@ -535,4 +535,21 @@ test('Planning with the forecast: the cost scenario and package demand', async (
     assert.ok(overflow <= 0, `Packages scrolls sideways by ${overflow}px`);
     await page.close();
   });
+
+  await t.test('13. On the narrowest phones the assumed spending folds under the revenue', async () => {
+    const page = await browser.newPage({ viewport: { width: 320, height: 568 } });
+    await routePages(page, owner, scenarioWorld());
+
+    await page.goto(`${BASE_URL}/expenses`);
+    const panel = await openScenario(page);
+    const headings = (await panel.locator('thead th:visible').allInnerTexts()).map((h) => h.trim());
+    assert.deepEqual(headings, ['Month', 'Revenue', 'After costs']);
+    assert.equal(await text(panel.locator('tbody td.model-figure').first()), '₱148.5k spending ₱62.2k');
+    const table = await panel.locator('.scenario-table').boundingBox();
+    const frame = await panel.locator('.table-scroll').boundingBox();
+    assert.ok(table.width <= frame.width + 1, `The table is ${table.width}px in a ${frame.width}px space`);
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    assert.ok(overflow <= 0, `Expenses scrolls sideways by ${overflow}px`);
+    await page.close();
+  });
 });

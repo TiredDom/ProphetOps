@@ -297,4 +297,35 @@ test('Forecast accuracy on months it had not seen', async (t) => {
     assert.ok(table.width <= box.width + 1, 'The table fits inside its section');
     await page.close();
   });
+
+  await t.test('6. On the narrowest phones a secondary column folds under the figure beside it', async () => {
+    const page = await browser.newPage({ viewport: { width: 320, height: 568 } });
+    await routeHome(page, (measure) => evaluationFor(measure, 1));
+
+    await page.goto(`${BASE_URL}/home#forecast-details`);
+    const section = page.locator('.accuracy-block');
+    await section.locator('.accuracy-table').waitFor();
+
+    const headings = (await section.locator('thead th:visible').allInnerTexts()).map((h) => h.trim());
+    assert.deepEqual(headings, ['Months ahead', 'Forecast', 'Last year']);
+    const first = (await section.locator('tbody tr').first().innerText()).replace(/\s+/g, ' ').trim();
+    assert.equal(first, '1 month 6.2% 11 of 13 in range 10.9%');
+
+    // The monthly breakdown above it folds the change under the forecast the same way.
+    const breakdown = page.locator('.breakdown-table');
+    const breakdownHeadings = (await breakdown.locator('thead th:visible').allInnerTexts()).map((h) => h.trim());
+    assert.deepEqual(breakdownHeadings, ['Month', 'Forecast revenue']);
+    assert.match((await breakdown.locator('tbody tr').first().innerText()).replace(/\s+/g, ' '), /\+2\.4%/);
+
+    for (const selector of ['.breakdown-table', '.accuracy-table']) {
+      const extra = await page.evaluate((s) => {
+        const frame = document.querySelector(s).parentElement;
+        return frame.scrollWidth - frame.clientWidth;
+      }, selector);
+      assert.ok(extra <= 1, `${selector} is wider than its frame by ${extra}px`);
+    }
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    assert.ok(overflow <= 0, `The page scrolls sideways by ${overflow}px`);
+    await page.close();
+  });
 });

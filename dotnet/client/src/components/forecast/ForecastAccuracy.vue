@@ -62,7 +62,7 @@
                 <span class="label-full">Same month last year</span>
                 <span class="label-short">Last year</span>
               </th>
-              <th scope="col" class="num">
+              <th scope="col" class="num range-col">
                 <span class="label-full">Inside the range</span>
                 <span class="label-short">In range</span>
               </th>
@@ -73,11 +73,12 @@
               <th scope="row">{{ row.step }} {{ row.step === 1 ? 'month' : 'months' }}</th>
               <td class="num model-figure" :class="{ smaller: smaller(row.mape, row.seasonalNaiveMape) }">
                 {{ percent(row.mape) }}
+                <span class="fold-line">{{ row.insideRange }}&nbsp;of&nbsp;{{ row.forecasts }} in&nbsp;range</span>
               </td>
               <td class="num" :class="{ smaller: smaller(row.seasonalNaiveMape, row.mape) }">
                 {{ percent(row.seasonalNaiveMape) }}
               </td>
-              <td class="num">{{ row.insideRange }} of {{ row.forecasts }}</td>
+              <td class="num range-col">{{ row.insideRange }} of {{ row.forecasts }}</td>
             </tr>
           </tbody>
         </table>
@@ -252,7 +253,8 @@ function smaller(value: number | null, other: number | null): boolean {
   font-weight: 600;
 }
 
-.label-short {
+.label-short,
+.fold-line {
   display: none;
 }
 
@@ -289,6 +291,26 @@ function smaller(value: number | null, other: number | null): boolean {
 
   .accuracy-lead {
     font-size: var(--text-sm);
+  }
+}
+
+/* The narrowest phones: how often the figure landed in the range goes under the forecast's miss. */
+@media (max-width: 380px) {
+  .accuracy-table .range-col {
+    display: none;
+  }
+
+  .accuracy-table th:nth-child(3),
+  .accuracy-table td:nth-child(3) {
+    padding-right: 0;
+  }
+
+  .fold-line {
+    display: block;
+    margin-top: 1px;
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    font-weight: 400;
   }
 }
 </style>

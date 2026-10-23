@@ -75,7 +75,7 @@
                 <th scope="col" class="num">
                   <span class="label-full">Revenue forecast</span><span class="label-short">Revenue</span>
                 </th>
-                <th scope="col" class="num">
+                <th scope="col" class="num spend-col">
                   <span class="label-full">Spending, assumed</span><span class="label-short">Spending</span>
                 </th>
                 <th scope="col" class="num">After costs</th>
@@ -88,8 +88,9 @@
                 </th>
                 <td class="num model-figure">
                   <span class="label-full">{{ peso(m.revenue) }}</span><span class="label-short">{{ pesoCompact(m.revenue) }}</span>
+                  <span class="fold-line">spending {{ pesoCompact(m.costs) }}</span>
                 </td>
-                <td class="num">
+                <td class="num spend-col">
                   <span class="label-full">{{ peso(m.costs) }}</span><span class="label-short">{{ pesoCompact(m.costs) }}</span>
                 </td>
                 <td class="num after" :class="{ loss: m.afterCosts < 0 }">
@@ -533,7 +534,8 @@ function joinNames(names: string[]): string {
   white-space: nowrap;
 }
 
-.label-short {
+.label-short,
+.fold-line {
   display: none;
 }
 
@@ -597,6 +599,21 @@ function joinNames(names: string[]): string {
 
   .share-input {
     font-size: 16px;
+  }
+}
+
+/* The narrowest phones: the assumed spending goes under the revenue it is set against. */
+@media (max-width: 380px) {
+  .scenario-table .spend-col {
+    display: none;
+  }
+
+  .fold-line {
+    display: block;
+    margin-top: 1px;
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    font-weight: 400;
   }
 }
 </style>

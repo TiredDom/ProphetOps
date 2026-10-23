@@ -13,7 +13,7 @@
               <th scope="col" class="num">Forecast {{ noun }}</th>
               <th scope="col" class="num wide-only">Lower estimate</th>
               <th scope="col" class="num wide-only">Upper estimate</th>
-              <th scope="col" class="num">Change</th>
+              <th scope="col" class="num change-col">Change</th>
             </tr>
           </thead>
           <tbody>
@@ -28,10 +28,18 @@
               <td class="num">
                 <strong>{{ full(row.value) }}</strong>
                 <span class="narrow-range">{{ short(row.lower) }} – {{ short(row.upper) }}</span>
+                <span v-if="row.changePercent != null" class="narrow-change change" :class="row.changeDirection">
+                  <UiIcon
+                    v-if="row.changeDirection !== 'flat'"
+                    :name="row.changeDirection === 'up' ? 'up' : 'down'"
+                    class="change-mark"
+                  />
+                  {{ row.changePercent > 0 ? '+' : '' }}{{ row.changePercent.toFixed(1) }}%
+                </span>
               </td>
               <td class="num wide-only">{{ full(row.lower) }}</td>
               <td class="num wide-only">{{ full(row.upper) }}</td>
-              <td class="num change" :class="row.changeDirection">
+              <td class="num change change-col" :class="row.changeDirection">
                 <span v-if="row.changePercent != null" class="change-value">
                   <UiIcon
                     v-if="row.changeDirection !== 'flat'"
@@ -256,7 +264,8 @@ function shortMonth(label: string): string {
   font-weight: 600;
 }
 
-.narrow-range {
+.narrow-range,
+.narrow-change {
   display: none;
 }
 
@@ -393,6 +402,27 @@ function shortMonth(label: string): string {
 
   .model-row {
     font-size: var(--text-sm);
+  }
+}
+
+/* The narrowest phones: the change joins the range under the forecast figure. */
+@media (max-width: 380px) {
+  .breakdown-table .change-col {
+    display: none;
+  }
+
+  .breakdown-table th:nth-child(2),
+  .breakdown-table td:nth-child(2) {
+    padding-right: 0;
+  }
+
+  .narrow-change {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    margin-top: 2px;
+    font-size: var(--text-xs);
   }
 }
 </style>

@@ -60,7 +60,7 @@
                     <span class="figure-short">{{ data.previous ? 'This period' : 'Total' }}</span>
                   </th>
                   <th v-if="data.previous" scope="col" class="num previous-col">{{ shortRange(data.previous.from, data.previous.to) }}</th>
-                  <th v-if="data.previous" scope="col" class="num">Change</th>
+                  <th v-if="data.previous" scope="col" class="num change-col">Change</th>
                 </tr>
               </thead>
               <tbody>
@@ -69,9 +69,18 @@
                     {{ row.label }}
                     <span v-if="row.note" class="row-subtext">{{ row.note }}</span>
                   </th>
-                  <td class="num" :class="{ 'is-loss': row.loss }"><strong>{{ row.current }}</strong></td>
+                  <td class="num" :class="{ 'is-loss': row.loss }">
+                    <strong>{{ row.current }}</strong>
+                    <span v-if="data.previous" class="change-inline">
+                      <span class="change" :class="row.change.tone">
+                        <UiIcon v-if="row.change.icon" :name="row.change.icon" class="change-icon" />
+                        {{ row.change.text }}
+                      </span>
+                      <span class="change-from">from {{ row.previousShort }}</span>
+                    </span>
+                  </td>
                   <td v-if="data.previous" class="num previous-col">{{ row.previous }}</td>
-                  <td v-if="data.previous" class="num">
+                  <td v-if="data.previous" class="num change-col">
                     <span class="change" :class="row.change.tone">
                       <UiIcon v-if="row.change.icon" :name="row.change.icon" class="change-icon" />
                       {{ row.change.text }}
@@ -127,7 +136,7 @@
                   <th scope="col" class="num count-col">Bookings</th>
                   <th scope="col" class="num count-col">Passengers</th>
                   <th scope="col" class="num">Revenue</th>
-                  <th scope="col" class="num">Costs</th>
+                  <th scope="col" class="num cost-col">Costs</th>
                   <th scope="col" class="num">After costs</th>
                 </tr>
               </thead>
@@ -136,8 +145,11 @@
                   <th scope="row">{{ m.label }}</th>
                   <td class="num count-col">{{ count(m.bookings) }}</td>
                   <td class="num count-col">{{ count(m.passengers) }}</td>
-                  <td class="num"><span class="figure-full">{{ peso(m.revenue) }}</span><span class="figure-short">{{ pesoCompact(m.revenue) }}</span></td>
-                  <td class="num"><span class="figure-full">{{ peso(m.costs) }}</span><span class="figure-short">{{ pesoCompact(m.costs) }}</span></td>
+                  <td class="num">
+                    <span class="figure-full">{{ peso(m.revenue) }}</span><span class="figure-short">{{ pesoCompact(m.revenue) }}</span>
+                    <span class="fold-line">costs {{ pesoCompact(m.costs) }}</span>
+                  </td>
+                  <td class="num cost-col"><span class="figure-full">{{ peso(m.costs) }}</span><span class="figure-short">{{ pesoCompact(m.costs) }}</span></td>
                   <td class="num" :class="{ 'is-loss': m.afterCosts < 0 }"><span class="figure-full">{{ peso(m.afterCosts) }}</span><span class="figure-short">{{ pesoCompact(m.afterCosts) }}</span></td>
                 </tr>
               </tbody>
@@ -146,8 +158,11 @@
                   <th scope="row">Total</th>
                   <td class="num count-col">{{ count(data.counts.bookings) }}</td>
                   <td class="num count-col">{{ count(data.counts.passengers) }}</td>
-                  <td class="num"><span class="figure-full">{{ peso(data.revenue) }}</span><span class="figure-short">{{ pesoCompact(data.revenue) }}</span></td>
-                  <td class="num"><span class="figure-full">{{ peso(data.costs) }}</span><span class="figure-short">{{ pesoCompact(data.costs) }}</span></td>
+                  <td class="num">
+                    <span class="figure-full">{{ peso(data.revenue) }}</span><span class="figure-short">{{ pesoCompact(data.revenue) }}</span>
+                    <span class="fold-line">costs {{ pesoCompact(data.costs) }}</span>
+                  </td>
+                  <td class="num cost-col"><span class="figure-full">{{ peso(data.costs) }}</span><span class="figure-short">{{ pesoCompact(data.costs) }}</span></td>
                   <td class="num" :class="{ 'is-loss': data.profit < 0 }"><span class="figure-full">{{ peso(data.profit) }}</span><span class="figure-short">{{ pesoCompact(data.profit) }}</span></td>
                 </tr>
               </tfoot>
@@ -843,6 +858,53 @@ onMounted(load);
   .report-bar-row {
     grid-template-columns: minmax(0, 6.5rem) minmax(32px, 1fr) auto;
     gap: 8px;
+  }
+}
+
+.change-inline,
+.fold-line {
+  display: none;
+}
+
+/* Narrow phones: the change moves under the period's figure instead of needing a column of its own. */
+@media (max-width: 420px) {
+  .statement-table .change-col {
+    display: none;
+  }
+
+  .statement-table th:nth-child(2),
+  .statement-table td:nth-child(2) {
+    padding-right: 0;
+  }
+
+  .statement-table .change-inline {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0 6px;
+    margin-top: 2px;
+    font-size: var(--text-xs);
+  }
+
+  .change-from {
+    color: var(--color-text-muted);
+    font-weight: 400;
+    white-space: nowrap;
+  }
+}
+
+/* The narrowest phones: costs go under revenue, so the month, revenue and what is left fit. */
+@media (max-width: 380px) {
+  .month-table .cost-col {
+    display: none;
+  }
+
+  .month-table .fold-line {
+    display: block;
+    margin-top: 1px;
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    font-weight: 400;
   }
 }
 

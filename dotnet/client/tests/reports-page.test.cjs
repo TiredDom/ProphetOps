@@ -158,7 +158,10 @@ test('Reports', async (t) => {
     assert.equal(await page.evaluate(() => window.__printed), 1);
 
     const header = squash(await page.locator('.statement-table thead').innerText());
-    assert.ok(header.includes('This period') && header.includes('Change'), header);
+    assert.ok(header.includes('This period') && !header.includes('Change'), header);
+    // The change and the earlier figure sit under this period's figure instead of in columns of their own.
+    const revenueRow = squash(await page.locator('.statement-table tbody tr').first().innerText());
+    assert.ok(revenueRow.includes('₱5,100') && revenueRow.includes('+45.7%') && revenueRow.includes('from ₱3.5k'), revenueRow);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     assert.ok(overflow <= 0, `Scrolls sideways by ${overflow}px`);
     const tableOverflow = await page.evaluate(() => {
@@ -166,6 +169,31 @@ test('Reports', async (t) => {
       return box.scrollWidth - box.clientWidth;
     });
     assert.ok(tableOverflow <= 1, `The summary table is wider than its panel by ${tableOverflow}px`);
+    await page.close();
+  });
+
+  await t.test('5. On the narrowest phones costs fold under revenue, and no table scrolls sideways', async () => {
+    const page = await browser.newPage({ viewport: { width: 320, height: 568 } });
+    await route(page);
+    await page.goto(`${BASE_URL}/reports`);
+    await page.waitForSelector('.month-table');
+
+    const headings = (await page.locator('.month-table thead th:visible').allInnerTexts()).map((h) => h.trim());
+    assert.deepEqual(headings, ['Month', 'Revenue', 'After costs']);
+    const rows = await page.locator('.month-table tbody tr').allInnerTexts();
+    assert.equal(squash(rows[1]), 'Feb 2026 ₱0 costs ₱600 −₱600');
+    const total = squash(await page.locator('.month-table tfoot').innerText());
+    assert.ok(total.includes('₱5.1k costs ₱700'), total);
+
+    for (const table of ['.statement-table', '.month-table']) {
+      const extra = await page.evaluate((selector) => {
+        const box = document.querySelector(selector).parentElement;
+        return box.scrollWidth - box.clientWidth;
+      }, table);
+      assert.ok(extra <= 1, `${table} is wider than its panel by ${extra}px`);
+    }
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    assert.ok(overflow <= 0, `Scrolls sideways by ${overflow}px`);
     await page.close();
   });
 });
