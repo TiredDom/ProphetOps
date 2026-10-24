@@ -103,7 +103,13 @@ test('Reports', async (t) => {
 
     const revenueRow = squash(await page.locator('.statement-table tbody tr').first().innerText());
     assert.ok(revenueRow.includes('₱5,100') && revenueRow.includes('₱3,500') && revenueRow.includes('+45.7%'), revenueRow);
-    assert.ok((await page.locator('.report-headline').innerText()).includes('Revenue is up 45.7%'));
+    const findings = (await page.getByRole('list', { name: 'In short' }).locator('li').allInnerTexts()).map(squash);
+    assert.deepEqual(findings, [
+      'Revenue came to ₱5,100, 45.7% more than the same days last year.',
+      'After costs, ₱4,400 was left, 41.9% more than the same days last year. February 2026 ended with costs above revenue.',
+      'Revenue was highest in March 2026, at ₱3,600.',
+      'All revenue came from Boracay Group Package.',
+    ]);
 
     // A month that lost money reads with the sign before the peso.
     assert.ok((await page.locator('.month-table').innerText()).includes('−₱600'));
@@ -192,6 +198,49 @@ test('Reports', async (t) => {
       }, table);
       assert.ok(extra <= 1, `${table} is wider than its panel by ${extra}px`);
     }
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    assert.ok(overflow <= 0, `Scrolls sideways by ${overflow}px`);
+    await page.close();
+  });
+
+  await t.test('6. Revenue reads by package or by destination with each share, and bookings sit in one panel', async () => {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    await route(page);
+    await page.goto(`${BASE_URL}/reports`);
+    const sources = page.getByRole('region', { name: 'Where revenue came from' });
+    await sources.waitFor();
+
+    assert.equal(squash(await sources.locator('.report-bar-row').innerText()), 'Boracay Group Package ₱5,100 100% · 4 bookings');
+    const destinations = sources.getByRole('button', { name: 'Destinations' });
+    await destinations.click();
+    assert.equal(await destinations.getAttribute('aria-pressed'), 'true');
+    assert.equal(squash(await sources.locator('.report-bar-row').innerText()), 'Boracay ₱5,100 100% · 4 bookings');
+
+    const spending = page.getByRole('region', { name: 'Spending by category' });
+    assert.equal(squash(await spending.locator('.report-bar-row').innerText()), 'Transport ₱700 100% · 2 expenses');
+
+    const bookings = page.getByRole('region', { name: 'Bookings', exact: true });
+    assert.deepEqual((await bookings.locator('h3').allInnerTexts()).map(squash), ['Payment status', 'Booking status']);
+    assert.deepEqual((await bookings.locator('.report-bar-row').allInnerTexts()).map(squash), ['Paid 3 ₱4,300', 'Pending 1 ₱800', 'Confirmed 4']);
+    // Every bar in a list is drawn on the same full length, whatever the width of its figures.
+    const tracks = await bookings.locator('#breakdown-payment .report-bar-track').evaluateAll((bars) => bars.map((bar) => Math.round(bar.getBoundingClientRect().width)));
+    assert.equal(new Set(tracks).size, 1, `Bars of different lengths: ${tracks.join(', ')}`);
+    await page.close();
+  });
+
+  await t.test('7. On a phone each name sits whole on its own line, above a bar that keeps its width', async () => {
+    const page = await browser.newPage({ viewport: { width: 320, height: 568 } });
+    await route(page);
+    await page.goto(`${BASE_URL}/reports`);
+    const row = page.getByRole('region', { name: 'Where revenue came from' }).locator('.report-bar-row').first();
+    await row.waitFor();
+
+    const layout = await row.evaluate((element) => {
+      const label = element.querySelector('.report-bar-label');
+      const track = element.querySelector('.report-bar-track').getBoundingClientRect();
+      return { cut: label.scrollWidth - label.clientWidth, gap: track.top - label.getBoundingClientRect().bottom, bar: Math.round(track.width) };
+    });
+    assert.ok(layout.cut <= 0 && layout.gap >= 0 && layout.bar >= 100, JSON.stringify(layout));
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     assert.ok(overflow <= 0, `Scrolls sideways by ${overflow}px`);
     await page.close();

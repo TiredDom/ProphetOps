@@ -270,7 +270,7 @@ test('Search, help and keyboard shortcuts', async (t) => {
       }),
     }));
     await page.goto(`${BASE_URL}/reports`);
-    const panel = page.getByRole('region', { name: 'Revenue by package' });
+    const panel = page.getByRole('region', { name: 'Where revenue came from' });
     await panel.waitFor();
     assert.equal(await panel.locator('.report-bar-row:visible').count(), 5);
     await panel.getByRole('button', { name: 'Show all 7' }).click();

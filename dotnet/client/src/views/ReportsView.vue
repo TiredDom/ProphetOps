@@ -47,8 +47,12 @@
             <div class="panel-title-group">
               <h2 id="summary-title">Summary</h2>
             </div>
-            <span v-if="headline" class="panel-meta report-headline">{{ headline }}</span>
           </div>
+
+          <!-- The period in a few plain sentences, before the table that holds the figures -->
+          <ul v-if="findings.length" class="report-findings" aria-label="In short">
+            <li v-for="(finding, index) in findings" :key="index"><template v-for="(part, partIndex) in finding" :key="partIndex"><strong v-if="part.strong" :class="part.tone">{{ part.text }}</strong><template v-else>{{ part.text }}</template></template></li>
+          </ul>
 
           <div class="table-scroll">
             <table class="dss-table statement-table">
@@ -172,44 +176,56 @@
           <p v-else class="report-empty">Nothing is recorded in this period.</p>
         </section>
 
-        <!-- 3. Where it came from and where it went: revenue on the left, spending and bookings on the right -->
+        <!-- 3. Where the money came from and where it went, side by side, then the bookings behind it -->
         <div class="report-grid">
-          <div v-for="(column, index) in breakdownColumns" :key="index" class="report-column">
-          <section v-for="panel in column" :key="panel.title" class="content-panel" :aria-label="panel.title">
-            <div class="panel-header">
+          <section
+            v-for="panel in breakdownPanels"
+            :key="panel.id"
+            class="content-panel"
+            :class="{ 'report-wide': panel.wide }"
+            :aria-labelledby="`${panel.id}-title`"
+          >
+            <div class="panel-header report-panel-header">
               <div class="panel-title-group">
-                <h2>{{ panel.title }}</h2>
+                <h2 :id="`${panel.id}-title`">{{ panel.title }}</h2>
               </div>
-              <span class="panel-meta">{{ panel.meta }}</span>
+              <div v-if="panel.id === 'sources'" class="report-switch" role="group" aria-label="Show revenue by">
+                <button type="button" class="filter-chip" :aria-pressed="source === 'package'" @click="source = 'package'">Packages</button>
+                <button type="button" class="filter-chip" :aria-pressed="source === 'destination'" @click="source = 'destination'">Destinations</button>
+              </div>
             </div>
-            <ul v-if="panel.rows.length" :id="panelId(panel.title)" class="report-bars" :class="panel.tone">
-              <li
-                v-for="(row, rowIndex) in panel.rows"
-                :key="row.label"
-                class="report-bar-row"
-                :class="{ 'is-extra': rowIndex >= TOP_ROWS, 'is-hidden': rowIndex >= TOP_ROWS && !expanded.has(panel.title) }"
-              >
-                <span class="report-bar-label" :title="row.label">{{ row.label }}</span>
-                <span class="report-bar-track"><i :style="{ width: row.width }"></i></span>
-                <span class="report-bar-value">
-                  <strong>{{ row.value }}</strong>
-                  <span v-if="row.detail" class="report-bar-detail">{{ row.detail }}</span>
-                </span>
-              </li>
-            </ul>
-            <p v-else class="report-empty">{{ panel.empty }}</p>
-            <button
-              v-if="panel.rows.length > TOP_ROWS"
-              type="button"
-              class="report-more"
-              :aria-expanded="expanded.has(panel.title)"
-              :aria-controls="panelId(panel.title)"
-              @click="toggleRows(panel.title)"
-            >
-              {{ expanded.has(panel.title) ? 'Show the top five' : `Show all ${panel.rows.length}` }}
-            </button>
+            <div class="report-groups">
+              <div v-for="group in panel.groups" :key="group.key" class="report-group">
+                <h3 v-if="group.heading" class="report-group-title">{{ group.heading }}</h3>
+                <ul v-if="group.rows.length" :id="`breakdown-${group.key}`" class="report-bars" :class="group.tone">
+                  <li
+                    v-for="(row, rowIndex) in group.rows"
+                    :key="row.label"
+                    class="report-bar-row"
+                    :class="{ 'is-hidden': rowIndex >= TOP_ROWS && !expanded.has(group.key) }"
+                  >
+                    <span class="report-bar-label">{{ row.label }}</span>
+                    <span class="report-bar-track"><i :style="{ width: row.width }"></i></span>
+                    <span class="report-bar-value">
+                      <strong>{{ row.value }}</strong>
+                      <span v-if="row.detail" class="report-bar-detail">{{ row.detail }}</span>
+                    </span>
+                  </li>
+                </ul>
+                <p v-else class="report-empty">{{ group.empty }}</p>
+                <button
+                  v-if="group.rows.length > TOP_ROWS"
+                  type="button"
+                  class="report-more"
+                  :aria-expanded="expanded.has(group.key)"
+                  :aria-controls="`breakdown-${group.key}`"
+                  @click="toggleRows(group.key)"
+                >
+                  {{ expanded.has(group.key) ? 'Show the top five' : `Show all ${group.rows.length}` }}
+                </button>
+              </div>
+            </div>
           </section>
-          </div>
         </div>
 
         <p class="report-foot">
@@ -315,14 +331,109 @@ const statement = computed(() => {
   ];
 });
 
-/** One plain sentence about revenue against the earlier period. */
-const headline = computed(() => {
+// ----- In short: the period in a few plain sentences -----
+
+interface Part {
+  text: string;
+  strong?: boolean;
+  tone?: string;
+}
+
+const longMonthFormat = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+
+/** "2026-03" reads "March 2026". */
+function longMonth(month: string): string {
+  const [year, number] = month.split('-').map(Number);
+  return longMonthFormat.format(new Date(Date.UTC(year, number - 1, 1)));
+}
+
+/** The same day some months earlier, held inside a shorter month the way the server holds it. */
+function monthsBefore(date: string, months: number): string {
+  const [year, month, day] = date.split('-').map(Number);
+  const first = new Date(Date.UTC(year, month - 1 - months, 1));
+  const last = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth(), Math.min(day, last))).toISOString().slice(0, 10);
+}
+
+/** What follows "than": "the same days last year", "in 2025", or the earlier period's dates. */
+function earlierPeriod(d: ReportsData): string {
+  const p = d.previous;
+  if (!p?.from || !p.to) return 'the earlier period';
+  const { from, to, through } = d.period;
+  if (from && through && through !== to) {
+    if (p.from === monthsBefore(from, 12) && p.to === monthsBefore(through, 12)) return 'the same days last year';
+    if (p.from === monthsBefore(from, 1) && p.to === monthsBefore(through, 1)) return 'the same days last month';
+  }
+  const label = describeRange({ from: p.from, to: p.to });
+  return /^(\d{4}|[A-Z][a-z]+ \d{4})$/.test(label) ? `in ${label}` : label;
+}
+
+/** "45.7% more than the same days last year", the change coloured as the summary table colours it. */
+function against(current: number, previous: number, than: string): Part[] {
+  const percent = ((current - previous) / previous) * 100;
+  if (Math.abs(percent) < 0.05) return [{ text: `level with ${than.replace(/^in /, '')}.` }];
+  return [
+    { text: `${Math.abs(percent).toFixed(1)}% ${percent > 0 ? 'more' : 'less'}`, strong: true, tone: percent > 0 ? 'up' : 'down' },
+    { text: ` than ${than}.` },
+  ];
+}
+
+/** "March", "March and June", "March, June and July". */
+function listOf(items: string[]): string {
+  return items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
+function plural(n: number, word: string): string {
+  return `${count(n)} ${word}${n === 1 ? '' : 's'}`;
+}
+
+/** Up to four sentences: revenue, what was left after costs, the best month, and the leading package. */
+const findings = computed<Part[][]>(() => {
   const d = data.value;
-  if (!d?.previous) return '';
-  const c = change(d.revenue, d.previous.revenue);
-  if (c.tone === 'flat') return 'Revenue is level with the earlier period.';
-  if (c.text === 'New this period') return 'Revenue is new this period; the earlier period recorded none.';
-  return `Revenue is ${c.tone === 'up' ? 'up' : 'down'} ${c.text.replace(/^[+−]/, '')} on the earlier period.`;
+  if (!d) return [];
+  if (!d.revenue && !d.costs && !d.counts.bookings) return [[{ text: 'No bookings or expenses were recorded in this period.' }]];
+
+  const p = d.previous;
+  const than = earlierPeriod(d);
+  const lines: Part[][] = [];
+
+  if (d.revenue > 0) {
+    const line: Part[] = [{ text: 'Revenue came to ' }, { text: peso(d.revenue), strong: true }];
+    if (!p) line.push({ text: ` from ${plural(d.counts.bookings, 'booking')}.` });
+    else if (p.revenue > 0) line.push({ text: ', ' }, ...against(d.revenue, p.revenue, than));
+    else line.push({ text: '; the earlier period had none.' });
+    lines.push(line);
+  } else {
+    lines.push([{ text: 'No booking revenue was recorded in this period.' }]);
+  }
+
+  const kept: Part[] = d.profit < 0
+    ? [{ text: 'Costs were ' }, { text: peso(-d.profit), strong: true, tone: 'down' }, { text: ' more than revenue.' }]
+    : [{ text: 'After costs, ' }, { text: peso(d.profit), strong: true }, { text: ' was left' }];
+  if (d.profit >= 0) {
+    if (p && p.profit > 0 && d.profit > 0) kept.push({ text: ', ' }, ...against(d.profit, p.profit, than));
+    else kept.push({ text: '.' });
+  }
+  const losses = d.monthly.filter((m) => m.afterCosts < 0);
+  if (d.monthly.length > 1 && losses.length) {
+    if (losses.length === d.monthly.length) kept.push({ text: ' Every month ended with costs above revenue.' });
+    else if (losses.length <= 3) kept.push({ text: ' ' }, { text: listOf(losses.map((m) => longMonth(m.month))), strong: true }, { text: ` ended with costs above revenue.` });
+    else kept.push({ text: ` ${losses.length} months ended with costs above revenue; the table below shows which.` });
+  }
+  if (d.revenue > 0 || d.costs > 0) lines.push(kept);
+
+  if (d.monthly.length > 1 && d.revenue > 0) {
+    const best = d.monthly.reduce((a, b) => (b.revenue > a.revenue ? b : a));
+    lines.push([{ text: 'Revenue was highest in ' }, { text: longMonth(best.month), strong: true }, { text: `, at ${peso(best.revenue)}.` }]);
+  }
+
+  const top = d.revenueByPackage[0];
+  if (top && d.revenue > 0) {
+    lines.push(d.revenueByPackage.length === 1
+      ? [{ text: 'All revenue came from ' }, { text: top.label, strong: true }, { text: '.' }]
+      : [{ text: top.label, strong: true }, { text: ` brought in the most revenue: ${peso(top.value)}, ${share(top.value, d.revenue)} of the total.` }]);
+  }
+  return lines;
 });
 
 // ----- Month by month chart -----
@@ -403,70 +514,83 @@ function widths(rows: ReportLine[], pick: (row: ReportLine) => number) {
   return (row: ReportLine) => `${Math.max(1.5, Math.min(100, (pick(row) / max) * 100))}%`;
 }
 
-// Each breakdown shows its top five; the rest are a click away on screen, and always printed.
+/** A line's share of its total, as a whole percentage. */
+function share(value: number, total: number): string {
+  if (total <= 0) return '';
+  const percent = (value / total) * 100;
+  return percent > 0 && percent < 1 ? 'under 1%' : `${Math.round(percent)}%`;
+}
+
+function barRows(
+  lines: ReportLine[],
+  value: (line: ReportLine) => string,
+  detail: (line: ReportLine) => string,
+  label: (line: ReportLine) => string = (line) => line.label,
+) {
+  const width = widths(lines, (line) => line.value);
+  return lines.map((line) => ({ label: label(line), value: value(line), detail: detail(line), width: width(line) }));
+}
+
+// Each list shows its top five; the rest are a click away on screen, and always printed.
 const TOP_ROWS = 5;
 const expanded = reactive(new Set<string>());
 
-function toggleRows(title: string) {
-  if (expanded.has(title)) expanded.delete(title);
-  else expanded.add(title);
+function toggleRows(key: string) {
+  if (expanded.has(key)) expanded.delete(key);
+  else expanded.add(key);
 }
 
-function panelId(title: string): string {
-  return 'breakdown-' + title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-}
+// Revenue reads by package first, as the agency sells it, or by destination.
+const source = ref<'package' | 'destination'>('package');
 
-const breakdowns = computed(() => {
+const breakdownPanels = computed(() => {
   const d = data.value;
   if (!d) return [];
-  const revenueWidth = widths(d.revenueByPackage, (r) => r.value);
-  const destinationWidth = widths(d.revenueByDestination, (r) => r.value);
-  const categoryWidth = widths(d.expensesByCategory, (r) => r.value);
-  const paymentWidth = widths(d.bookingsByPayment, (r) => r.value);
-  const stageWidth = widths(d.bookingsByStatus, (r) => r.value);
-  const plural = (n: number, word: string) => `${count(n)} ${word}${n === 1 ? '' : 's'}`;
+  const byPackage = source.value === 'package';
+  const noBookings = 'No bookings in this period.';
+  const shareOf = (line: ReportLine, total: number, word: string) =>
+    [share(line.value, total), plural(line.count ?? 0, word)].filter(Boolean).join(' · ');
   return [
     {
-      title: 'Revenue by package',
-      meta: 'Gross booking revenue',
-      tone: 'tone-primary',
-      empty: 'No bookings in this period.',
-      rows: d.revenueByPackage.slice(0, 10).map((r) => ({ label: r.label, value: peso(r.value), detail: plural(r.count ?? 0, 'booking'), width: revenueWidth(r) })),
+      id: 'sources',
+      title: 'Where revenue came from',
+      wide: false,
+      groups: [{
+        key: byPackage ? 'packages' : 'destinations',
+        heading: '',
+        tone: 'tone-primary',
+        empty: noBookings,
+        rows: barRows(byPackage ? d.revenueByPackage : d.revenueByDestination, (line) => peso(line.value),
+          (line) => shareOf(line, d.revenue, 'booking')),
+      }],
     },
     {
+      id: 'spending',
       title: 'Spending by category',
-      meta: 'Recorded expenses',
-      tone: 'tone-data',
-      empty: 'No expenses in this period.',
-      rows: d.expensesByCategory.map((r) => ({ label: r.label, value: peso(r.value), detail: plural(r.count ?? 0, 'expense'), width: categoryWidth(r) })),
+      wide: false,
+      groups: [{
+        key: 'categories',
+        heading: '',
+        tone: 'tone-data',
+        empty: 'No expenses in this period.',
+        rows: barRows(d.expensesByCategory, (line) => peso(line.value),
+          (line) => shareOf(line, d.costs, 'expense')),
+      }],
     },
     {
-      title: 'Revenue by destination',
-      meta: 'Gross booking revenue',
-      tone: 'tone-primary',
-      empty: 'No bookings in this period.',
-      rows: d.revenueByDestination.slice(0, 10).map((r) => ({ label: r.label, value: peso(r.value), detail: plural(r.count ?? 0, 'booking'), width: destinationWidth(r) })),
-    },
-    {
-      title: 'Bookings by payment',
-      meta: 'Count and booked value',
-      tone: 'tone-data',
-      empty: 'No bookings in this period.',
-      rows: d.bookingsByPayment.map((r) => ({ label: stateLabel(r.label), value: count(r.value), detail: peso(r.revenue ?? 0), width: paymentWidth(r) })),
-    },
-    {
-      title: 'Bookings by stage',
-      meta: 'How far each booking has gone',
-      tone: 'tone-data',
-      empty: 'No bookings in this period.',
-      rows: d.bookingsByStatus.map((r) => ({ label: stateLabel(r.label), value: count(r.value), detail: '', width: stageWidth(r) })),
+      id: 'bookings',
+      title: 'Bookings',
+      wide: true,
+      groups: d.counts.bookings
+        ? [
+            { key: 'payment', heading: 'Payment status', tone: 'tone-data', empty: noBookings,
+              rows: barRows(d.bookingsByPayment, (line) => count(line.value), (line) => peso(line.revenue ?? 0), (line) => stateLabel(line.label)) },
+            { key: 'stage', heading: 'Booking status', tone: 'tone-data', empty: noBookings,
+              rows: barRows(d.bookingsByStatus, (line) => count(line.value), () => '', (line) => stateLabel(line.label)) },
+          ]
+        : [{ key: 'payment', heading: '', tone: 'tone-data', empty: noBookings, rows: [] }],
     },
   ];
-});
-
-const breakdownColumns = computed(() => {
-  const [byPackage, byCategory, byDestination, byPayment, byStage] = breakdowns.value;
-  return byPackage ? [[byPackage, byDestination], [byCategory, byPayment, byStage]] : [];
 });
 
 // ----- Loading, print -----
@@ -515,8 +639,49 @@ onMounted(load);
   font-weight: 600;
 }
 
-.report-headline {
-  white-space: normal;
+.report-findings {
+  display: grid;
+  gap: 6px;
+  max-width: 72ch;
+  margin: 0 0 20px;
+  padding: 0;
+  list-style: none;
+  color: var(--color-text-secondary);
+  font-size: var(--text-base);
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.report-findings li {
+  position: relative;
+  padding-left: 18px;
+}
+
+.report-findings li::before {
+  content: '';
+  position: absolute;
+  top: 0.65em;
+  left: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
+.report-findings strong {
+  color: var(--color-text-primary);
+  font-weight: 650;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.report-findings strong.up {
+  color: var(--color-success-ink);
+}
+
+.report-findings strong.down {
+  color: var(--color-danger-ink);
 }
 
 /* These tables are sized for phones too, so the shared 720px minimum does not apply. */
@@ -660,17 +825,36 @@ onMounted(load);
   font-weight: 650;
 }
 
+/* Revenue and spending sit side by side; the bookings panel spans both, its two lists in columns. */
 .report-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: start;
   gap: 20px;
 }
 
-.report-column {
-  display: grid;
-  gap: 20px;
+.report-grid > .content-panel {
   min-width: 0;
+}
+
+.report-wide {
+  grid-column: 1 / -1;
+}
+
+.report-groups {
+  display: grid;
+  gap: 24px;
+}
+
+.report-wide .report-groups {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 40px;
+}
+
+.report-group-title {
+  margin-bottom: 12px;
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 600;
 }
 
 @media (max-width: 1100px) {
@@ -679,9 +863,24 @@ onMounted(load);
   }
 }
 
+.report-panel-header {
+  flex-wrap: wrap;
+  align-items: center;
+  row-gap: 10px;
+}
+
+.report-switch {
+  display: flex;
+  gap: 6px;
+}
+
+/* The name sits above its bar, so a long package name reads in full at any width; the figure
+   lines up with the name and its detail with the bar. The rows share one pair of columns, so
+   every bar in a list has the same full length and the bars compare fairly. */
 .report-bars {
   display: grid;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px 16px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -689,9 +888,10 @@ onMounted(load);
 
 .report-bar-row {
   display: grid;
-  grid-template-columns: minmax(0, 12rem) minmax(40px, 1fr) auto;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
   align-items: center;
-  gap: 12px;
+  row-gap: 6px;
 }
 
 .report-bar-row.is-hidden {
@@ -718,16 +918,18 @@ onMounted(load);
 }
 
 .report-bar-label {
-  overflow: hidden;
+  grid-column: 1;
+  grid-row: 1;
   color: var(--color-text-primary);
   font-size: var(--text-sm);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .report-bar-track {
+  grid-column: 1;
+  grid-row: 2;
   position: relative;
-  height: 9px;
+  height: 8px;
   overflow: hidden;
   border-radius: var(--radius-pill);
   background: var(--color-surface-sunken);
@@ -747,12 +949,13 @@ onMounted(load);
 }
 
 .report-bar-value {
-  display: grid;
-  justify-items: end;
-  text-align: right;
+  display: contents;
 }
 
 .report-bar-value strong {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
   color: var(--color-text-primary);
   font-size: var(--text-sm);
   font-weight: 650;
@@ -761,9 +964,13 @@ onMounted(load);
 }
 
 .report-bar-detail {
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: end;
   color: var(--color-text-muted);
   font-size: var(--text-xs);
   white-space: nowrap;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
 .report-empty {
@@ -855,9 +1062,18 @@ onMounted(load);
     padding-right: 0;
   }
 
-  .report-bar-row {
-    grid-template-columns: minmax(0, 6.5rem) minmax(32px, 1fr) auto;
-    gap: 8px;
+  .report-wide .report-groups {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .report-switch {
+    width: 100%;
+  }
+
+  .report-switch .filter-chip {
+    flex: 1;
+    justify-content: center;
+    min-height: 40px;
   }
 }
 
@@ -929,11 +1145,17 @@ onMounted(load);
      there, so the report prints on fewer pages, and no panel splits across a page break. */
   .report-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
     gap: 12px;
   }
 
-  .report-column > .content-panel {
+  .report-grid > .content-panel {
     break-inside: avoid;
+  }
+
+  /* On paper the switch only names the list that is shown. */
+  .report-switch .filter-chip[aria-pressed='false'] {
+    display: none;
   }
 
   .report-bar-row.is-hidden {
