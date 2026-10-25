@@ -190,9 +190,13 @@ public sealed class AwsS3BackupClient : IS3BackupClient
     public AwsS3BackupClient(S3BackupStorageOptions options)
     {
         _options = options;
+        _client = new AmazonS3Client(new BasicAWSCredentials(options.AccessKeyId, options.SecretAccessKey), CreateConfig(options));
+    }
+
+    public static AmazonS3Config CreateConfig(S3BackupStorageOptions options)
+    {
         var config = new AmazonS3Config
         {
-            ServiceURL = options.Endpoint.ToString().TrimEnd('/'),
             ForcePathStyle = options.ForcePathStyle,
             Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds),
         };
@@ -206,7 +210,8 @@ public sealed class AwsS3BackupClient : IS3BackupClient
             config.AuthenticationRegion = "auto";
         }
 
-        _client = new AmazonS3Client(new BasicAWSCredentials(options.AccessKeyId, options.SecretAccessKey), config);
+        config.ServiceURL = options.Endpoint.ToString().TrimEnd('/');
+        return config;
     }
 
     public async Task PutAsync(string key, BackupPackage package, CancellationToken cancellationToken)

@@ -24,10 +24,16 @@ public class ForecastController : ControllerBase
         _environment = environment;
     }
 
+    /// The same Holt-Winters forecast for one of three monthly measures: booking revenue (the
+    /// default and the study's main measure), the number of bookings, or the number of passengers.
+    /// Counts are by booking date; no departure dates are recorded.
     [HttpGet]
-    public IActionResult Get()
+    public IActionResult Get([FromQuery] string? measure)
     {
-        var demand = DemandSeriesBuilder.Build(_db, _clock.Today, AllowSampleFallback());
+        if (!TryReadMeasure(measure, out var chosen))
+            return BadRequest(new Dictionary<string, string> { ["measure"] = ForecastMeasures.Choices });
+
+        var demand = DemandSeriesBuilder.Build(_db, _clock.Today, AllowSampleFallback(), chosen);
         var anchor = demand.LastMonth;
         var series = demand.Values.ToList();
 
@@ -36,6 +42,8 @@ public class ForecastController : ControllerBase
             return Ok(new
             {
                 method = "Holt-Winters",
+                measure = MeasureName(chosen),
+                unit = UnitName(chosen),
                 seasonLength = 12,
                 horizon = 6,
                 ok = false,
@@ -86,18 +94,15 @@ public class ForecastController : ControllerBase
             })
             .ToList();
 
-        var recentMean = series.Count > 0 ? series.Skip(Math.Max(0, series.Count - 6)).Average() : 0;
-        var forecastMean = forecastSteps.Count > 0 ? forecastSteps.Average(s => s.Value) : recentMean;
-        var changePercent = recentMean != 0 ? Math.Round((forecastMean - recentMean) / recentMean * 100, 1) : 0;
-        var direction = changePercent > 1 ? "up" : changePercent < -1 ? "down" : "flat";
+        var (direction, changePercent) = ForecastTrend.Of(series, forecastSteps);
 
-        var peak = forecastSteps.OrderByDescending(s => s.Value).FirstOrDefault();
+        var peak = ForecastTrend.Peak(forecastSteps);
         var peakMonth = peak is not null
             ? anchor.AddMonths(peak.Step).ToString("MMMM yyyy", CultureInfo.InvariantCulture)
             : "";
         var peakValue = peak?.Value ?? 0;
 
-        var notes = forecast.Ok
+        var notes = forecast.Ok && chosen == DemandMeasure.Revenue
             ? TrajectoryInsights.Build(new TrajectoryInput
             {
                 Steps = forecastSteps
@@ -127,6 +132,8 @@ public class ForecastController : ControllerBase
         return Ok(new
         {
             method = "Holt-Winters",
+            measure = MeasureName(chosen),
+            unit = UnitName(chosen),
             seasonLength = 12,
             horizon = 6,
             ok = forecast.Ok,
@@ -163,8 +170,261 @@ public class ForecastController : ControllerBase
         });
     }
 
-    private bool AllowSampleFallback() =>
-        _configuration.GetValue<bool>("Demo:Enabled") && !_environment.IsProduction();
+    /// How the forecast has done on recorded months it had not seen. The test stands at each past
+    /// month in turn, forecasts the following months from the earlier ones with the same Holt-Winters
+    /// method, and compares each forecast with what was recorded, beside repeating the same month a
+    /// year earlier. It reads the same monthly series the forecast does.
+    [HttpGet("evaluation")]
+    public IActionResult Evaluation([FromQuery] string? measure)
+    {
+        if (!TryReadMeasure(measure, out var chosen))
+            return BadRequest(new Dictionary<string, string> { ["measure"] = ForecastMeasures.Choices });
+
+        var demand = DemandSeriesBuilder.Build(_db, _clock.Today, AllowSampleFallback(), chosen);
+        var usable = demand.UsingLiveRecords || demand.UsingSample;
+        var test = usable
+            ? RollingOriginEvaluation.Evaluate(demand.Values, DemandSeriesBuilder.SeasonLength, 6)
+            : null;
+
+        var first = demand.LastMonth.AddMonths(-(demand.Values.Count - 1));
+        string Month(int index) => first.AddMonths(index).ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+
+        if (test is null || !test.Ok)
+        {
+            return Ok(new
+            {
+                method = "Rolling-origin test",
+                measure = MeasureName(chosen),
+                unit = UnitName(chosen),
+                ok = false,
+                reason = test?.Reason ?? "Holt-Winters needs at least two full years of recorded months before it can be tested.",
+                seasonLength = DemandSeriesBuilder.SeasonLength,
+                horizon = 6,
+                monthsAvailable = test?.MonthsAvailable ?? demand.RecordedMonths,
+                monthsRequired = test?.MonthsRequired ?? DemandSeriesBuilder.MinimumMonths + 1,
+                origins = 0,
+                dataSource = DataSource(demand),
+                byHorizon = Array.Empty<object>(),
+                overall = (object?)null,
+                points = Array.Empty<object>(),
+            });
+        }
+
+        return Ok(new
+        {
+            method = "Rolling-origin test",
+            measure = MeasureName(chosen),
+            unit = UnitName(chosen),
+            ok = true,
+            reason = (string?)null,
+            seasonLength = test.SeasonLength,
+            horizon = test.Horizon,
+            monthsAvailable = test.MonthsAvailable,
+            monthsRequired = test.MonthsRequired,
+            origins = test.Origins,
+            firstTestedMonth = Month(test.FirstOrigin),
+            lastTestedMonth = Month(test.MonthsAvailable - 1),
+            dataSource = DataSource(demand),
+            byHorizon = test.ByHorizon.Select(h => new
+            {
+                step = h.Step,
+                forecasts = h.Forecasts,
+                mae = h.Mae,
+                mape = h.Mape,
+                seasonalNaiveMae = h.SeasonalNaiveMae,
+                seasonalNaiveMape = h.SeasonalNaiveMape,
+                insideRange = h.InsideRange,
+                coverage = h.Coverage,
+            }),
+            overall = new
+            {
+                forecasts = test.Overall!.Forecasts,
+                mae = test.Overall.Mae,
+                mape = test.Overall.Mape,
+                seasonalNaiveMae = test.Overall.SeasonalNaiveMae,
+                seasonalNaiveMape = test.Overall.SeasonalNaiveMape,
+                insideRange = test.Overall.InsideRange,
+                coverage = test.Overall.Coverage,
+                skillVsSeasonalNaive = test.Overall.SkillVsSeasonalNaive,
+            },
+            points = test.Points.Select(p => new
+            {
+                madeAfter = Month(p.Origin - 1),
+                month = Month(p.Target),
+                step = p.Step,
+                actual = p.Actual,
+                forecast = p.Forecast,
+                lower = p.Lower,
+                upper = p.Upper,
+                sameMonthLastYear = p.SeasonalNaive,
+                insideRange = p.InsideRange,
+            }),
+        });
+    }
+
+    /// The forecast in plain words, as ProphetOps words it by rules from the forecast's own figures.
+    /// It says whether Gemini is set up to word the same figures instead (the POST below).
+    [HttpGet("explanation")]
+    public IActionResult Explanation([FromQuery] string? measure, [FromServices] ForecastExplainer explainer)
+    {
+        if (!TryReadMeasure(measure, out var chosen))
+            return BadRequest(new Dictionary<string, string> { ["measure"] = ForecastMeasures.Choices });
+
+        var facts = ForecastFacts.Build(_db, _clock.Today, AllowSampleFallback(), chosen);
+        return Ok(ExplanationBody(chosen, facts, facts is null ? null : ForecastExplainer.Rules(facts), explainer));
+    }
+
+    /// Asks Gemini to word the forecast, when the agency has set it up, trying its models strongest
+    /// first. Gemini is given only the agency's monthly totals, the forecast and its accuracy test,
+    /// never a client, a booking or a person, and a wording is used only if every figure in it is
+    /// one of the forecast's own. When no model can give one, or Gemini is not set up or rejects
+    /// the key, the rules' wording comes back with the reason.
+    [HttpPost("explanation")]
+    public async Task<IActionResult> ExplainWithGemini(
+        [FromQuery] string? measure,
+        [FromServices] ForecastExplainer explainer,
+        CancellationToken cancellationToken)
+    {
+        if (!TryReadMeasure(measure, out var chosen))
+            return BadRequest(new Dictionary<string, string> { ["measure"] = ForecastMeasures.Choices });
+
+        var facts = ForecastFacts.Build(_db, _clock.Today, AllowSampleFallback(), chosen);
+        var explanation = facts is null ? null : await explainer.WithGeminiAsync(facts, cancellationToken);
+        return Ok(ExplanationBody(chosen, facts, explanation, explainer));
+    }
+
+    private static object ExplanationBody(DemandMeasure measure, ForecastFacts? facts, Explanation? explanation, ForecastExplainer explainer) => new
+    {
+        measure = MeasureName(measure),
+        ok = explanation is not null,
+        reason = explanation is null
+            ? "The forecast needs two full years of recorded months before it can be put into words."
+            : null,
+        source = explanation?.Source,
+        model = explanation?.Model,
+        passedOver = explanation?.PassedOver ?? [],
+        fallbackReason = explanation?.FallbackReason,
+        summary = explanation?.Summary,
+        points = explanation?.Points ?? [],
+        aiAvailable = explainer.AiAvailable,
+        aiModels = explainer.Models,
+        facts = facts?.ForWriter(),
+    };
+
+    /// What the coming months could leave after costs under one stated spending assumption:
+    /// spending keeps a share of the revenue forecast ("share", by default the share it took over
+    /// the last 12 recorded months, or the one given), or repeats the same month a year earlier
+    /// ("last-year"). Spending itself is not forecast.
+    [HttpGet("scenario")]
+    [Authorize(Policy = "Expenses")]
+    public IActionResult Scenario([FromQuery] string? basis, [FromQuery] string? share)
+    {
+        var errors = new Dictionary<string, string>();
+        var chosen = string.IsNullOrWhiteSpace(basis) ? "share" : basis.Trim().ToLowerInvariant();
+        if (chosen is not ("share" or "last-year")) errors["basis"] = "Use share or last-year.";
+
+        double? kept = null;
+        if (!string.IsNullOrWhiteSpace(share))
+        {
+            if (double.TryParse(share, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
+                && double.IsFinite(value) && value is >= 0 and <= 2)
+                kept = value;
+            else
+                errors["share"] = "Use a share of revenue between 0 and 2, that is 0% to 200%.";
+        }
+        if (errors.Count > 0) return BadRequest(errors);
+
+        var s = ForecastPlanning.CostScenario(_db, _clock.Today, chosen, kept);
+        object? period = s.BasisFrom is DateOnly from && s.BasisTo is DateOnly to
+            ? new { from = ForecastPlanning.Label(from), to = ForecastPlanning.Label(to), revenue = s.BasisRevenue, costs = s.BasisCosts }
+            : null;
+        object? total = s.Ok
+            ? new
+            {
+                revenue = s.Months.Sum(m => m.Revenue.Value),
+                costs = s.Months.Sum(m => m.Costs),
+                afterCosts = s.Months.Sum(m => m.AfterCosts.Value),
+                afterCostsLower = s.Months.Sum(m => m.AfterCosts.Lower),
+                afterCostsUpper = s.Months.Sum(m => m.AfterCosts.Upper),
+            }
+            : null;
+
+        return Ok(new
+        {
+            ok = s.Ok,
+            reason = s.Reason,
+            basis = s.Basis,
+            share = s.Share is double used ? Math.Round(used, 4) : (double?)null,
+            recordedShare = s.RecordedShare is double recorded ? Math.Round(recorded, 4) : (double?)null,
+            basisPeriod = period,
+            passedMonths = s.PassedMonths.Select(ForecastPlanning.Label),
+            months = s.Months.Select(m => new
+            {
+                month = ForecastPlanning.Label(m.Month),
+                revenue = m.Revenue.Value,
+                revenueLower = m.Revenue.Lower,
+                revenueUpper = m.Revenue.Upper,
+                costs = m.Costs,
+                afterCosts = m.AfterCosts.Value,
+                afterCostsLower = m.AfterCosts.Lower,
+                afterCostsUpper = m.AfterCosts.Upper,
+            }),
+            total,
+            dataSource = DataSource(s.Demand),
+        });
+    }
+
+    /// Each package's expected passengers over the coming months (1 to 6, default 3) against the
+    /// slots it has open, from its share of the passengers booked over the last 12 recorded months,
+    /// with a price worth considering where demand clearly outruns or undershoots the slots.
+    [HttpGet("packages")]
+    public IActionResult Packages([FromQuery] string? months)
+    {
+        var horizon = 3;
+        if (!string.IsNullOrWhiteSpace(months) && (!int.TryParse(months, NumberStyles.None, CultureInfo.InvariantCulture, out horizon) || horizon is < 1 or > 6))
+            return BadRequest(new Dictionary<string, string> { ["months"] = "Use 1 to 6 months." });
+
+        var o = ForecastPlanning.PackageOutlook(_db, _clock.Today, horizon);
+        object? period = o.BasisFrom is DateOnly from && o.BasisTo is DateOnly to
+            ? new { from = ForecastPlanning.Label(from), to = ForecastPlanning.Label(to), passengers = o.BasisPassengers }
+            : null;
+        object? agency = o.Agency is { } a ? new { value = a.Value, lower = a.Lower, upper = a.Upper } : null;
+
+        return Ok(new
+        {
+            ok = o.Ok,
+            reason = o.Reason,
+            monthsAhead = horizon,
+            months = o.Months.Select(ForecastPlanning.Label),
+            passedMonths = o.PassedMonths.Select(ForecastPlanning.Label),
+            basisPeriod = period,
+            agency,
+            packages = o.Packages.Select(p => new
+            {
+                code = p.Code,
+                name = p.Name,
+                destination = p.Destination,
+                openSlots = p.OpenSlots,
+                passengersInBasis = p.PassengersInBasis,
+                share = p.Share,
+                expected = new { value = p.Expected.Value, lower = p.Expected.Lower, upper = p.Expected.Upper },
+                status = p.Status,
+                price = p.Price is { } x
+                    ? new { kind = x.Kind, currentPrice = x.CurrentPrice, suggestedPrice = x.SuggestedPrice, changePercent = x.ChangePercent, reason = x.Reason }
+                    : null,
+            }),
+            dataSource = DataSource(o.Demand),
+        });
+    }
+
+    private static bool TryReadMeasure(string? value, out DemandMeasure measure) =>
+        ForecastMeasures.TryRead(value, out measure);
+
+    private static string MeasureName(DemandMeasure measure) => ForecastMeasures.Name(measure);
+
+    private static string UnitName(DemandMeasure measure) => ForecastMeasures.Unit(measure);
+
+    private bool AllowSampleFallback() => ForecastMeasures.AllowSampleFallback(_configuration, _environment);
 
     private static object DataSource(DemandSeries demand) => new
     {

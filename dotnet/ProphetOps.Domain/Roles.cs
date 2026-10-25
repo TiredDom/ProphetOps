@@ -17,8 +17,8 @@ public static class Roles
 
     private static readonly Dictionary<string, string> DefaultPaths = new()
     {
-        [OwnerManagement] = "/dashboard",
-        [Admin] = "/dashboard",
+        [OwnerManagement] = "/home",
+        [Admin] = "/home",
         [Staff] = "/bookings",
     };
 
@@ -26,7 +26,7 @@ public static class Roles
     {
         [OwnerManagement] = "Full access, including managing accounts.",
         [Admin] = "Everything except managing accounts.",
-        [Staff] = "Bookings and package catalog only.",
+        [Staff] = "Bookings and packages only.",
     };
 
     public static bool CanAccess(string? role, string label) =>

@@ -18,7 +18,14 @@ public sealed class CloudflareAccessMiddleware(RequestDelegate next)
             return;
         }
 
-        if (context.Request.Path == CloudflareAccessOptions.HealthPath)
+        if (!options.Enabled)
+        {
+            await next(context);
+            return;
+        }
+
+        if (context.Request.Path == CloudflareAccessOptions.HealthPath
+            || context.Request.Path == CloudflareAccessOptions.ReadyPath)
         {
             await next(context);
             return;
@@ -111,6 +118,7 @@ public sealed class CloudflareAccessSessionBindingMiddleware(RequestDelegate nex
     public async Task InvokeAsync(HttpContext context)
     {
         if (!HostedRuntime.IsEnabled(context.RequestServices.GetRequiredService<IConfiguration>())
+            || !context.RequestServices.GetRequiredService<CloudflareAccessOptions>().Enabled
             || context.User.Identity?.IsAuthenticated != true)
         {
             await next(context);
@@ -137,6 +145,8 @@ public static class CloudflareAccessLogin
     public static bool MatchesAccessEmail(HttpContext context, string appEmail)
     {
         if (!HostedRuntime.IsEnabled(context.RequestServices.GetRequiredService<IConfiguration>()))
+            return true;
+        if (!context.RequestServices.GetRequiredService<CloudflareAccessOptions>().Enabled)
             return true;
         var accessEmail = context.Items[CloudflareAccessOptions.ContextEmailKey] as string;
         return !string.IsNullOrWhiteSpace(accessEmail)

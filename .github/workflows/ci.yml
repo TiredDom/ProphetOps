@@ -6,14 +6,33 @@ on:
     branches:
       - main
       - feature/**
-      - codex/**
 
 jobs:
   build-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres-version: ["17", "18"]
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres-version }}
+        env:
+          POSTGRES_DB: prophetops_ci
+          POSTGRES_USER: prophetops
+          POSTGRES_PASSWORD: prophetops
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U prophetops -d prophetops_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
       DOTNET_NOLOGO: true
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+      PROPHETOPS_TEST_POSTGRES: Host=localhost;Port=5432;Database=prophetops_ci;Username=prophetops;Password=prophetops
+      PROPHETOPS_REQUIRE_POSTGRES: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,7 +50,14 @@ jobs:
           cache-dependency-path: dotnet/client/package-lock.json
 
       - name: Install restore dependencies
-        run: sudo apt-get update && sudo apt-get install -y sqlite3
+        run: |
+          sudo install -d -m 0755 /etc/apt/keyrings
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/keyrings/postgresql.gpg
+          sudo chmod a+r /etc/apt/keyrings/postgresql.gpg
+          echo "deb [signed-by=/etc/apt/keyrings/postgresql.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y sqlite3 postgresql-client-18
+          echo "/usr/lib/postgresql/18/bin" >> $GITHUB_PATH
 
       - name: Restore API
         run: dotnet restore dotnet/ProphetOps.Api.Tests/ProphetOps.Api.Tests.csproj
@@ -42,7 +68,12 @@ jobs:
       - name: Test API
         env:
           RUN_OPERATOR_RESTORE_TESTS: "true"
-        run: dotnet test dotnet/ProphetOps.Api.Tests/ProphetOps.Api.Tests.csproj --configuration Release --no-build --logger trx --results-directory artifacts/test-results/api
+          PROPHETOPS_TEST_POSTGRES: ${{ env.PROPHETOPS_TEST_POSTGRES }}
+          PROPHETOPS_REQUIRE_POSTGRES: ${{ env.PROPHETOPS_REQUIRE_POSTGRES }}
+          Backup__Postgres__ClientToolsPath: /usr/lib/postgresql/18/bin
+          NO_COLOR: "1"
+          COLUMNS: "1000"
+        run: dotnet test dotnet/ProphetOps.Api.Tests/ProphetOps.Api.Tests.csproj --configuration Release --no-build --logger trx --results-directory artifacts/test-results/api-pg${{ matrix.postgres-version }}
 
       - name: Test data layer
         run: dotnet test dotnet/ProphetOps.Data.Tests/ProphetOps.Data.Tests.csproj --configuration Release --logger trx --results-directory artifacts/test-results/data
@@ -64,6 +95,50 @@ jobs:
 
       - name: Docker build
         run: docker build -f dotnet/Dockerfile dotnet -t prophetops-ci
+
+      - name: Docker client tools smoke
+        run: |
+          docker run --rm --entrypoint /usr/lib/postgresql/18/bin/pg_dump prophetops-ci --version
+          docker run --rm --entrypoint /usr/lib/postgresql/18/bin/pg_restore prophetops-ci --version
+          docker run --rm --entrypoint /usr/lib/postgresql/18/bin/psql prophetops-ci --version
+
+      - name: Docker secret permissions smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/render-secret-smoke
+          trap 'sudo rm -rf /tmp/render-secret-smoke' EXIT
+          echo "synthetic-ca-secret-data" > /tmp/render-secret-smoke/supabase-prod-ca.crt
+          sudo chown 0:1000 /tmp/render-secret-smoke/supabase-prod-ca.crt
+          sudo chmod 0440 /tmp/render-secret-smoke/supabase-prod-ca.crt
+
+          # Reproduce failure under original configuration (APP_UID without group 1000)
+          APP_UID=$(docker run --rm --entrypoint /usr/bin/id prophetops-ci -u)
+          if docker run --rm --user "${APP_UID}:${APP_UID}" \
+            -v /tmp/render-secret-smoke:/etc/secrets:ro \
+            --entrypoint /bin/sh prophetops-ci \
+            -c 'cat /etc/secrets/supabase-prod-ca.crt >/dev/null 2>&1'; then
+            echo "Expected permission failure under original user configuration (${APP_UID}:${APP_UID}), but file read succeeded." >&2
+            exit 1
+          fi
+
+          # Verify readability under container default non-root user and group 1000 without printing contents
+          docker run --rm \
+            -v /tmp/render-secret-smoke:/etc/secrets:ro \
+            --entrypoint /bin/sh prophetops-ci \
+            -c 'test -r /etc/secrets/supabase-prod-ca.crt && cat /etc/secrets/supabase-prod-ca.crt >/dev/null'
+
+          # Verify container user is non-root and primary group is 1000
+          CONTAINER_UID=$(docker run --rm --entrypoint /usr/bin/id prophetops-ci -u)
+          CONTAINER_GID=$(docker run --rm --entrypoint /usr/bin/id prophetops-ci -g)
+          if [ "$CONTAINER_UID" = "0" ]; then
+            echo "Container must not run as root." >&2
+            exit 1
+          fi
+          if [ "$CONTAINER_GID" != "1000" ]; then
+            echo "Container primary GID must be 1000, got ${CONTAINER_GID}." >&2
+            exit 1
+          fi
 
       - name: Docker preview smoke
         shell: bash

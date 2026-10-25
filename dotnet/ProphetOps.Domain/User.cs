@@ -9,5 +9,6 @@ public class User
     public string Role { get; set; } = "";
     public string Status { get; set; } = "Active";
     public int SessionVersion { get; set; } = 1;
+    public Guid SecurityStamp { get; set; } = Guid.NewGuid();
     public DateTime? LastLoginAt { get; set; }
 }

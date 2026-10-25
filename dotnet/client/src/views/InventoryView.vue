@@ -1,62 +1,256 @@
 <template>
-  <AppShell title="Package Catalog" description="Travel packages and available slots.">
+  <AppShell title="Packages">
     <template #actions>
-      <a class="secondary-button" href="/api/export/packages.csv">Export CSV</a>
-      <button class="secondary-button" type="button" @click="openImport">Import from file</button>
-      <button class="primary-button" type="button" @click="openForm">Add package</button>
+      <ActionMenu :items="menuItems" />
+      <button class="primary-button" type="button" aria-keyshortcuts="N" @click="openForm">
+        <UiIcon name="plus" />
+        Add package
+      </button>
     </template>
 
     <section class="dss-page">
-      <Drawer :open="showForm" :title="editingCode ? 'Edit package' : 'New package'" @close="onDrawerClose">
-        <p v-if="formError" class="drawer-form-error" role="alert">{{ formError }}</p>
-        <div class="form-grid">
-          <label class="account-field field-wide">
-            <span>Package name</span>
-            <input v-model.trim="form.packageName" maxlength="120" />
-          </label>
-          <label class="account-field">
-            <span>Package code</span>
-            <input v-model.trim="form.id" maxlength="40" />
-          </label>
-          <label class="account-field">
-            <span>Status</span>
-            <select v-model="form.status">
-              <option>Normal</option>
-              <option>Low</option>
-              <option>Critical</option>
-            </select>
-          </label>
-          <label class="account-field field-wide">
-            <span>Destination</span>
-            <input v-model.trim="form.destination" maxlength="120" />
-          </label>
-          <label class="account-field field-wide">
-            <span>Duration</span>
-            <input v-model.trim="form.duration" maxlength="80" />
-          </label>
-          <label class="account-field">
-            <span>Base price</span>
-            <MoneyField v-model="form.basePrice" />
-          </label>
-          <label class="account-field">
-            <span>Available slots</span>
-            <input v-model.number="form.availableSlots" type="number" min="0" />
-          </label>
-          <label class="account-field">
-            <span>Sold slots</span>
-            <input v-model.number="form.soldCount" type="number" min="0" />
-          </label>
-          <label class="account-field">
-            <span>Reserved slots</span>
-            <input v-model.number="form.reservedCount" type="number" min="0" />
-          </label>
-          <label class="account-field field-wide">
-            <span>Inclusions</span>
-            <input v-model.trim="form.inclusions" maxlength="420" />
-          </label>
+      <PackageDetail
+        :open="detailOpen"
+        :pkg="detailPackage"
+        :can-see-history="canSeeHistory"
+        :can-book="canBook"
+        :history-version="historyVersion"
+        :demand="detailPackage ? demandOf(detailPackage) : null"
+        :demand-months="outlook?.months ?? []"
+        :basis="outlook?.basisPeriod ?? null"
+        @close="detailOpen = false"
+        @edit="editFromDetail"
+        @view-photo="detailPackage && openLightbox(detailPackage)"
+        @use-price="usePrice"
+      />
 
-          <div class="account-field field-wide">
-            <span>Package photo</span>
+      <Drawer :open="showForm" :title="editingCode ? 'Edit package' : 'New package'" :dirty="formDirty" @close="closeForm">
+        <p v-if="formError" class="drawer-form-error" role="alert">{{ formError }}</p>
+        <p v-if="mergeNotice" class="drawer-form-merge" role="status">{{ mergeNotice }}</p>
+        <p v-if="prefillNotice" class="drawer-form-merge" role="status">{{ prefillNotice }}</p>
+        <p v-if="!editingCode && draftRestoredAt" class="drawer-form-merge" role="status">
+          Restored the package you started {{ draftStartedLabel() }}; nothing was lost.
+          <button type="button" class="field-note-action" @click="startOver">Start over</button>
+        </p>
+        <FormProblems :problems="attempted ? problems : []" @focus="focusField" />
+
+        <div class="form-grid">
+          <FormField
+            :id="fieldId('packageName')"
+            label="Package name"
+            wide
+            :error="errors.packageName"
+            :note="theirNote('packageName') || sameNameNote"
+            :note-action="theirNote('packageName') ? 'Use saved value' : undefined"
+            @note-action="useTheirs('packageName')"
+            v-slot="f"
+          >
+            <input
+              :id="f.id"
+              v-model.trim="form.packageName"
+              maxlength="120"
+              required
+              :aria-invalid="f.invalid ? 'true' : undefined"
+              :aria-describedby="f.describedBy"
+              @blur="touch('packageName')"
+            />
+          </FormField>
+
+          <FormField
+            :id="fieldId('id')"
+            label="Package ID"
+            :error="errors.id"
+            :hint="editingCode ? 'Fixed once saved' : 'Shown on bookings and exports'"
+            v-slot="f"
+          >
+            <input
+              :id="f.id"
+              v-model.trim="form.id"
+              maxlength="40"
+              :readonly="!!editingCode"
+              required
+              :aria-invalid="f.invalid ? 'true' : undefined"
+              :aria-describedby="f.describedBy"
+              @blur="touch('id')"
+            />
+          </FormField>
+
+          <FormField
+            :id="fieldId('status')"
+            label="Status"
+            hint="Low and Critical put it on Home's attention list"
+            :note="theirNote('status')"
+            :note-action="theirNote('status') ? 'Use saved value' : undefined"
+            @note-action="useTheirs('status')"
+            v-slot="f"
+          >
+            <select :id="f.id" v-model="form.status" :aria-describedby="f.describedBy">
+              <option value="Normal">Normal</option>
+              <option value="Low">Low</option>
+              <option value="Critical">Critical</option>
+            </select>
+          </FormField>
+
+          <FormField
+            :id="fieldId('destination')"
+            label="Destination"
+            wide
+            :error="errors.destination"
+            :note="theirNote('destination')"
+            :note-action="theirNote('destination') ? 'Use saved value' : undefined"
+            @note-action="useTheirs('destination')"
+            v-slot="f"
+          >
+            <input
+              :id="f.id"
+              v-model.trim="form.destination"
+              maxlength="120"
+              list="package-destinations"
+              autocomplete="off"
+              required
+              :aria-invalid="f.invalid ? 'true' : undefined"
+              :aria-describedby="f.describedBy"
+              @blur="touch('destination')"
+            />
+            <datalist id="package-destinations">
+              <option v-for="place in destinationNames" :key="place" :value="place"></option>
+            </datalist>
+          </FormField>
+
+          <FormField
+            :id="fieldId('duration')"
+            label="Duration"
+            optional
+            wide
+            :note="theirNote('duration')"
+            :note-action="theirNote('duration') ? 'Use saved value' : undefined"
+            @note-action="useTheirs('duration')"
+            v-slot="f"
+          >
+            <input
+              :id="f.id"
+              v-model.trim="form.duration"
+              maxlength="80"
+              placeholder="e.g. 3 days, 2 nights"
+              :aria-describedby="f.describedBy"
+            />
+          </FormField>
+
+          <FormField
+            :id="fieldId('basePrice')"
+            label="Price per passenger"
+            wide
+            :error="errors.basePrice"
+            hint="New bookings on this package start from this price"
+            :note="theirNote('basePrice')"
+            :note-action="theirNote('basePrice') ? 'Use saved value' : undefined"
+            @note-action="useTheirs('basePrice')"
+            v-slot="f"
+          >
+            <MoneyField
+              :id="f.id"
+              v-model="form.basePrice"
+              :invalid="f.invalid"
+              :described-by="f.describedBy"
+              @blur="touch('basePrice')"
+            />
+          </FormField>
+
+          <FormField
+            :id="fieldId('availableSlots')"
+            label="Open slots"
+            :error="errors.availableSlots"
+            hint="Still for sale. A booking moves its passengers from here to sold."
+            :note="theirNote('availableSlots')"
+            :note-action="theirNote('availableSlots') ? 'Use saved value' : undefined"
+            @note-action="useTheirs('availableSlots')"
+            v-slot="f"
+          >
+            <input
+              :id="f.id"
+              v-model.number="form.availableSlots"
+              type="number"
+              min="0"
+              step="1"
+              inputmode="numeric"
+              :aria-invalid="f.invalid ? 'true' : undefined"
+              :aria-describedby="f.describedBy"
+              @blur="touch('availableSlots')"
+            />
+          </FormField>
+
+          <FormField
+            :id="fieldId('soldCount')"
+            label="Sold slots"
+            :error="errors.soldCount"
+            hint="Kept up to date by bookings. Change it only to correct a mistake."
+            :note="theirNote('soldCount')"
+            :note-action="theirNote('soldCount') ? 'Use saved value' : undefined"
+            @note-action="useTheirs('soldCount')"
+            v-slot="f"
+          >
+            <input
+              :id="f.id"
+              v-model.number="form.soldCount"
+              type="number"
+              min="0"
+              step="1"
+              inputmode="numeric"
+              :aria-invalid="f.invalid ? 'true' : undefined"
+              :aria-describedby="f.describedBy"
+              @blur="touch('soldCount')"
+            />
+          </FormField>
+
+          <FormField
+            :id="fieldId('reservedCount')"
+            label="Reserved slots"
+            :error="errors.reservedCount"
+            hint="Held without a booking, such as an unconfirmed group"
+            :note="theirNote('reservedCount')"
+            :note-action="theirNote('reservedCount') ? 'Use saved value' : undefined"
+            @note-action="useTheirs('reservedCount')"
+            v-slot="f"
+          >
+            <input
+              :id="f.id"
+              v-model.number="form.reservedCount"
+              type="number"
+              min="0"
+              step="1"
+              inputmode="numeric"
+              :aria-invalid="f.invalid ? 'true' : undefined"
+              :aria-describedby="f.describedBy"
+              @blur="touch('reservedCount')"
+            />
+          </FormField>
+
+          <p class="slot-total field-wide" aria-live="polite">
+            {{ count(slotTotal) }} {{ slotTotal === 1 ? 'slot' : 'slots' }} in all
+          </p>
+
+          <FormField
+            :id="fieldId('inclusions')"
+            label="Inclusions"
+            optional
+            wide
+            :note="theirNote('inclusions')"
+            :note-action="theirNote('inclusions') ? 'Use saved value' : undefined"
+            @note-action="useTheirs('inclusions')"
+            v-slot="f"
+          >
+            <textarea
+              :id="f.id"
+              v-model.trim="form.inclusions"
+              maxlength="420"
+              rows="3"
+              placeholder="Hotel, transfers, tours, meals"
+              :aria-describedby="f.describedBy"
+            ></textarea>
+          </FormField>
+
+          <div class="form-field field-wide">
+            <span class="form-field-label">Package photo</span>
 
             <p v-if="!editingCode" class="image-hint">
               Save the package first, then reopen it to add a photo.
@@ -73,9 +267,6 @@
                 >
                   <img :src="editingImage" alt="" />
                 </button>
-                <span v-else class="image-preview">
-                  <span class="image-preview-empty">No photo</span>
-                </span>
 
                 <div class="image-actions">
                   <input
@@ -91,7 +282,8 @@
                     :disabled="imageBusy"
                     @click="fileInput?.click()"
                   >
-                    {{ imageBusy ? 'Uploading…' : editingImage ? 'Replace photo' : 'Upload photo' }}
+                    <UiIcon name="image" />
+                    {{ imageBusy ? 'Uploading…' : editingImage ? 'Replace photo' : 'Add a photo' }}
                   </button>
                   <button
                     v-if="editingImage"
@@ -110,8 +302,9 @@
             </template>
           </div>
         </div>
-        <template #footer>
-          <button class="secondary-button" type="button" :disabled="saving" @click="showForm = false">Cancel</button>
+
+        <template #footer="{ requestClose }">
+          <button class="secondary-button" type="button" :disabled="saving" @click="requestClose">Cancel</button>
           <button class="primary-button" type="button" :disabled="saving" @click="save">
             {{ saving ? 'Saving…' : editingCode ? 'Save changes' : 'Save package' }}
           </button>
@@ -121,8 +314,8 @@
       <Drawer :open="showImport" title="Import packages from a file" @close="showImport = false">
         <p class="import-hint">
           Export the sheet as a CSV file with the columns package, destination, and price.
-          Code, duration, inclusions, slots, and status are optional, and extra columns
-          are ignored.
+          The columns code (the package ID), duration, inclusions, slots, and status are
+          optional, and extra columns are ignored.
         </p>
 
         <p v-if="importError" class="drawer-form-error" role="alert">{{ importError }}</p>
@@ -210,16 +403,28 @@
         </template>
       </Drawer>
 
+      <OutlookStrip
+        v-if="!loading && packages.length"
+        :low-count="lowPackages.length"
+        :low-active="lowOnly"
+        :open-slots="allOpenSlots"
+        :short-count="demandReady ? shortPackages.length : null"
+        :likely-count="likelyCount"
+        :short-active="shortOnly"
+        :short-by="shortBy"
+        @show-low="filters.stock = 'low'"
+        @show-short="filters.demand = 'short'"
+      />
+
       <div v-if="loading" class="content-panel">
-        <div class="panel-header">
-          <div class="panel-title-group">
-            <h2>Package catalog</h2>
-          </div>
-          <span class="panel-meta">Loading…</span>
-        </div>
-        <Skeleton :rows="6" />
+        <Skeleton :rows="8" />
       </div>
 
+      <div v-else-if="loadError" class="content-panel load-error" role="alert">
+        <p class="load-error-title">The packages could not be loaded</p>
+        <p class="load-error-text">Check the connection, then try again. Nothing has been changed.</p>
+        <button class="secondary-button" type="button" @click="retryLoad">Try again</button>
+      </div>
       <EmptyState
         v-else-if="packages.length === 0"
         title="No packages yet"
@@ -230,146 +435,203 @@
         </template>
       </EmptyState>
 
-      <template v-else>
-        <section class="stat-band" aria-label="Package catalog totals">
-          <div class="stat-cell">
-            <span class="stat-label">Total packages</span>
-            <strong class="stat-value">{{ packages.length }}</strong>
-            <span class="stat-note">In catalog</span>
-          </div>
-          <div class="stat-cell">
-            <span class="stat-label">Available slots</span>
-            <strong class="stat-value">{{ totalAvailable }}</strong>
-            <span class="stat-note">Open across packages</span>
-          </div>
-          <div class="stat-cell">
-            <span class="stat-label">Sold slots</span>
-            <strong class="stat-value">{{ totalSold }}</strong>
-            <span class="stat-note">Booked to date</span>
-          </div>
-        </section>
-
-        <div class="catalog-toolbar">
-          <div class="catalog-toolbar-heading">
-            <span class="catalog-toolbar-title">Every package</span>
-            <span class="catalog-toolbar-count">{{ resultLabel }}</span>
-          </div>
-          <SearchField v-model="query" placeholder="Search packages or destinations" />
+      <section v-else class="content-panel records-panel" aria-label="Packages">
+        <div class="records-tools">
+          <SearchField v-model="filters.q" placeholder="Search name, destination or ID" />
+          <button
+            type="button"
+            class="filter-chip"
+            :aria-pressed="lowOnly"
+            @click="filters.stock = lowOnly ? '' : 'low'"
+          >
+            Low on slots
+            <span class="chip-count">{{ count(lowPackages.length) }}</span>
+          </button>
+          <button
+            v-if="demandReady"
+            type="button"
+            class="filter-chip"
+            :aria-pressed="shortOnly"
+            @click="filters.demand = shortOnly ? '' : 'short'"
+          >
+            May run short
+            <span class="chip-count">{{ count(shortPackages.length) }}</span>
+          </button>
+          <label v-if="stacked" class="records-sort">
+            <span class="visually-hidden">Sort packages</span>
+            <select v-model="filters.sort">
+              <option v-for="option in sortOptions" :key="option.key" :value="option.key">{{ option.label }}</option>
+            </select>
+          </label>
         </div>
 
+        <p class="records-summary" aria-live="polite">
+          <span class="summary-figure"><strong>{{ count(filtered.length) }}</strong> {{ filtered.length === 1 ? 'package' : 'packages' }}</span>
+          <span class="summary-figure"><strong>{{ count(openSlots) }}</strong> open slots</span>
+          <span class="summary-figure"><strong>{{ count(soldSlots) }}</strong> sold</span>
+          <span v-if="scopeText" class="summary-scope">{{ scopeText }}</span>
+          <button v-if="isFiltered" class="table-link" type="button" @click="clearFilters">Clear filters</button>
+        </p>
+
         <template v-if="filtered.length > 0">
-          <div class="package-grid">
-            <article v-for="p in visiblePackages" :key="p.id" class="package-card">
-              <button
-                v-if="p.imageUrl"
-                type="button"
-                class="package-figure package-figure-zoom"
-                :aria-label="'View photo of ' + p.packageName"
-                @click="openLightbox(p)"
-              >
-                <img :src="p.imageUrl" alt="" loading="lazy" decoding="async" />
+          <ul v-if="stacked" class="record-list">
+            <li v-for="p in visiblePackages" :key="p.id">
+              <button class="record-item" type="button" @click="openDetail(p)">
+                <span class="record-item-top">
+                  <span class="record-item-title">{{ p.packageName }}</span>
+                  <span class="record-item-figure">{{ peso(p.basePrice) }}</span>
+                </span>
+                <span class="record-item-sub">{{ placeLabel(p) }}</span>
+                <span class="slot-line">
+                  <span class="slot-meter" aria-hidden="true">
+                    <span class="slot-sold" :style="{ width: share(p, p.soldCount) }"></span>
+                    <span class="slot-reserved" :style="{ width: share(p, p.reservedCount) }"></span>
+                  </span>
+                </span>
+                <span class="record-item-meta">
+                  <span>
+                    <span class="slots-left" :class="tone(p)">{{ slotsLeft(p) }}</span>
+                    · {{ count(p.soldCount) }} sold · {{ p.id }}
+                  </span>
+                  <span class="record-badge" :class="badge(p.status)">{{ stateLabel(p.status) }}</span>
+                </span>
+                <span v-if="shortFlag(p)" class="demand-flag">
+                  <UiIcon name="forecast" />{{ shortFlag(p) }}
+                </span>
               </button>
-              <span v-else class="package-figure">
-                <svg
-                  class="package-figure-mark"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.3"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M3.5 6.5h17v13h-17z" />
-                  <path d="M3.5 16 8 11.5l3.5 3 3-2.5 6 5" />
-                  <circle cx="9" cy="9.75" r="1.25" />
-                </svg>
-              </span>
+            </li>
+          </ul>
 
-              <button type="button" class="package-body" @click="openEdit(p)">
-              <span class="package-head">
-                <span class="package-title">
-                  <span class="package-name">{{ p.packageName }}</span>
-                  <span class="package-code">{{ p.id }}</span>
-                </span>
-                <span class="record-badge" :class="badge(p.status)">{{ p.status }}</span>
-              </span>
-
-              <span class="package-meta">
-                <span class="package-dest">
-                  <svg class="package-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M12 21s7-5.686 7-11a7 7 0 1 0-14 0c0 5.314 7 11 7 11z" />
-                    <circle cx="12" cy="10" r="2.5" />
-                  </svg>
-                  {{ p.destination }}
-                </span>
-                <span v-if="p.duration" class="package-duration">{{ p.duration }}</span>
-              </span>
-
-              <strong class="package-price">{{ peso(p.basePrice) }}</strong>
-
-              <span class="package-slots">
-                <span class="slots-meter">
-                  <span
-                    class="slots-meter-fill"
-                    :class="fillModifier(p.status)"
-                    :style="{ width: slotsPercent(p) + '%' }"
-                  ></span>
-                </span>
-                <span class="slots-caption">{{ p.availableSlots }} slots left · {{ p.soldCount }} sold</span>
-              </span>
-              </button>
-            </article>
+          <div v-else class="dss-table-frame">
+            <table class="dss-table records-table packages-table">
+              <thead>
+                <tr>
+                  <SortHeader label="Package" field="name" :sort="filters.sort" @sort="sortBy" />
+                  <th scope="col">Destination</th>
+                  <SortHeader label="Price" field="price" align="right" :sort="filters.sort" @sort="sortBy" />
+                  <SortHeader label="Slots" field="slots" :sort="filters.sort" @sort="sortBy" />
+                  <th scope="col">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="p in visiblePackages" :key="p.id" class="record-row" @click="openDetail(p)">
+                  <td>
+                    <span class="package-cell">
+                      <button
+                        v-if="p.imageUrl"
+                        type="button"
+                        class="package-thumb"
+                        :aria-label="'View photo of ' + p.packageName"
+                        @click.stop="openLightbox(p)"
+                      >
+                        <img :src="p.imageUrl" alt="" loading="lazy" decoding="async" />
+                      </button>
+                      <span v-else-if="anyPhotos" class="package-thumb-space" aria-hidden="true"></span>
+                      <span class="package-names">
+                        <button class="row-open" type="button" @click.stop="openDetail(p)">{{ p.packageName }}</button>
+                        <span class="row-subtext">{{ p.id }}</span>
+                      </span>
+                    </span>
+                  </td>
+                  <td>
+                    <span class="place-name">{{ p.destination }}</span>
+                    <span v-if="p.duration" class="row-subtext">{{ p.duration }}</span>
+                  </td>
+                  <td class="num"><strong>{{ peso(p.basePrice) }}</strong></td>
+                  <td class="slots-cell">
+                    <span class="slot-meter" aria-hidden="true">
+                      <span class="slot-sold" :style="{ width: share(p, p.soldCount) }"></span>
+                      <span class="slot-reserved" :style="{ width: share(p, p.reservedCount) }"></span>
+                    </span>
+                    <span class="slot-text">
+                      <span class="slots-left" :class="tone(p)">{{ slotsLeft(p) }}</span>
+                      <span class="slot-detail">{{ slotDetail(p) }}</span>
+                    </span>
+                  </td>
+                  <td>
+                    <span class="record-badge" :class="badge(p.status)">{{ stateLabel(p.status) }}</span>
+                    <span v-if="shortFlag(p)" class="demand-flag">
+                      <UiIcon name="forecast" />{{ shortFlag(p) }}
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
 
           <ListFooter
             :shown="shown"
             :total="total"
+            :page-size="PAGE"
             noun="packages"
             @more="loadMore"
             @all="showAll"
           />
         </template>
 
-        <EmptyState
-          v-else
-          title="No matches"
-          :message="`No packages match “${query.trim()}”. Try a different name, code, or destination.`"
-        >
-          <template #action>
-            <button class="secondary-button" type="button" @click="query = ''">Clear search</button>
-          </template>
-        </EmptyState>
-      </template>
+        <div v-else class="records-empty">
+          <strong>No packages match</strong>
+          <span>{{ emptyMessage }}</span>
+          <button class="table-link" type="button" @click="clearFilters">Show all packages</button>
+        </div>
+      </section>
+
       <Lightbox :url="lightboxUrl" :caption="lightboxName" @close="lightboxUrl = null" />
     </section>
   </AppShell>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import AppShell from '../components/AppShell.vue';
+import ActionMenu, { type ActionMenuItem } from '../components/ActionMenu.vue';
 import Drawer from '../components/Drawer.vue';
 import Skeleton from '../components/Skeleton.vue';
 import EmptyState from '../components/EmptyState.vue';
 import SearchField from '../components/SearchField.vue';
 import ListFooter from '../components/ListFooter.vue';
 import Lightbox from '../components/Lightbox.vue';
-import { usePaged } from '../composables/usePaged';
-import { useToast } from '../composables/useToast';
-import { api, ApiError, type PackageImportPreview, type PackageRow, type PackageInput } from '../api';
-import { count, peso } from '../format';
+import PackageDetail from '../components/PackageDetail.vue';
+import SortHeader from '../components/SortHeader.vue';
+import UiIcon from '../components/UiIcon.vue';
 import MoneyField from '../components/MoneyField.vue';
+import FormField from '../components/FormField.vue';
+import FormProblems from '../components/FormProblems.vue';
+import OutlookStrip from '../components/forecast/OutlookStrip.vue';
+import { usePaged } from '../composables/usePaged';
+import { undoAction, useToast } from '../composables/useToast';
+import { useMediaQuery } from '../composables/useMediaQuery';
+import { useQueryState } from '../composables/useQueryState';
+import { useFieldErrors } from '../composables/useFieldErrors';
+import { useFormDraft } from '../composables/useDraft';
+import { useAuth } from '../stores/auth';
+import { canAccess, canSeeForecast } from '../nav';
+import {
+  api,
+  ApiError,
+  type PackageDemand,
+  type PackageImportPreview,
+  type PackageOutlook,
+  type PackageRow,
+  type PackageInput,
+} from '../api';
+import { count, peso, stateLabel } from '../format';
+import { compareText, nextSort, sortParts, type SortDirection } from '../listing';
+import { listNames, mergeDraft, nextCode, suggestions } from '../records';
+import { rememberRecent } from '../recents';
 
-type PackageRecovery =
-  | { kind: 'create'; payload: PackageInput }
-  | { kind: 'stale-edit'; message: string };
+type PackageRecovery = { kind: 'create'; payload: PackageInput } | { kind: 'stale-edit' };
+
+const PAGE = 50;
 
 const toast = useToast();
+const route = useRoute();
+const router = useRouter();
+const { state: auth } = useAuth();
 
 const packages = ref<PackageRow[]>([]);
 const loading = ref(true);
-const query = ref('');
 const showForm = ref(false);
 const saving = ref(false);
 const formError = ref('');
@@ -377,6 +639,10 @@ const editingCode = ref<string | null>(null);
 const pendingRecovery = ref<PackageRecovery | null>(null);
 const createRecoveryError = 'Could not confirm whether this package was saved. Check your connection, then try again before changing this form.';
 const staleRecoveryError = 'Could not reload the latest package after a conflict. Check your connection, then try again before saving.';
+const historyVersion = ref(0);
+// The change history comes from the activity log, which Owner and Admin can read.
+const canSeeHistory = computed(() => canAccess(auth.user?.role, '/reports'));
+const canBook = computed(() => canAccess(auth.user?.role, '/bookings'));
 
 const form = reactive<PackageInput>(blank());
 
@@ -395,30 +661,284 @@ const importable = computed(() => {
   return p ? Math.max(0, p.valid - p.duplicates) : 0;
 });
 
-const totalAvailable = computed(() => packages.value.reduce((sum, p) => sum + p.availableSlots, 0));
-const totalSold = computed(() => packages.value.reduce((sum, p) => sum + p.soldCount, 0));
+const menuItems: ActionMenuItem[] = [
+  { label: 'Export packages', hint: 'The whole catalog as a CSV file', icon: 'download', href: '/api/export/packages.csv' },
+  { label: 'Import from a file', hint: 'Add packages from a CSV sheet', icon: 'upload', run: openImport },
+];
+
+// ----- Filters, kept in the address -----
+
+const sortOptions = [
+  { key: 'name-asc', label: 'Name A to Z' },
+  { key: 'name-desc', label: 'Name Z to A' },
+  { key: 'slots-asc', label: 'Fewest slots left' },
+  { key: 'slots-desc', label: 'Most slots left' },
+  { key: 'price-desc', label: 'Highest price' },
+  { key: 'price-asc', label: 'Lowest price' },
+];
+
+const firstDirection: Record<string, SortDirection> = { name: 'asc', price: 'desc', slots: 'asc' };
+
+const filters = useQueryState(
+  { q: '', stock: '', demand: '', sort: 'name-asc' },
+  {
+    stock: (value) => value === 'low',
+    demand: (value) => value === 'short',
+    sort: (value) => sortOptions.some((option) => option.key === value),
+  },
+);
+
+const lowOnly = computed(() => filters.stock === 'low');
+const stacked = useMediaQuery('(max-width: 860px)');
+
+// Same rule as the Home attention list: packages flagged Low or Critical, or, when none are
+// flagged, any package with five or fewer slots.
+const lowPackages = computed(() => {
+  const flagged = packages.value.filter((p) => p.status === 'Low' || p.status === 'Critical');
+  return flagged.length > 0 ? flagged : packages.value.filter((p) => p.availableSlots <= 5);
+});
+
+// ----- Expected demand, for Owner and Admin -----
+
+// Each package's share of the passenger forecast against its open slots. It is read again whenever
+// the packages are, since a save or a booking changes the slots it is compared with.
+const outlook = ref<PackageOutlook | null>(null);
+let outlookRequest = 0;
+
+const demandReady = computed(() => outlook.value?.ok === true);
+const demandByCode = computed(() => new Map((outlook.value?.packages ?? []).map((d) => [d.code, d])));
+const shortBy = computed(() => {
+  const months = outlook.value?.months ?? [];
+  return months.length > 0 ? months[months.length - 1] : '';
+});
+
+function demandOf(p: PackageRow): PackageDemand | null {
+  return demandReady.value ? demandByCode.value.get(p.id) ?? null : null;
+}
+
+function mayRunShort(p: PackageRow): boolean {
+  const status = demandOf(p)?.status;
+  return status === 'likely-short' || status === 'could-short';
+}
+
+// The list flags only what is likely. The weaker "could", which a wide forecast range puts on many
+// packages, shows once someone asks for the packages that may run short.
+function shortFlag(p: PackageRow): string {
+  const status = demandOf(p)?.status;
+  if (status === 'likely-short') return 'Likely to run short';
+  if (status === 'could-short' && shortOnly.value) return 'Could run short';
+  return '';
+}
+
+const shortPackages = computed(() => packages.value.filter(mayRunShort));
+const likelyCount = computed(() => shortPackages.value.filter((p) => demandOf(p)?.status === 'likely-short').length);
+const shortOnly = computed(() => filters.demand === 'short' && demandReady.value);
+
+async function loadOutlook() {
+  if (!canSeeForecast(auth.user?.role)) return;
+  const request = ++outlookRequest;
+  try {
+    const answer = await api.packageOutlook(3);
+    if (request === outlookRequest) outlook.value = answer;
+  } catch {
+    // The demand view is extra: the packages work without it.
+    if (request === outlookRequest) outlook.value = null;
+  }
+}
 
 const filtered = computed(() => {
-  const q = query.value.trim().toLowerCase();
-  if (!q) return packages.value;
-  return packages.value.filter((p) =>
+  const q = filters.q.trim().toLowerCase();
+  let pool = lowOnly.value ? lowPackages.value : packages.value;
+  if (shortOnly.value) pool = pool.filter(mayRunShort);
+  if (!q) return pool;
+  return pool.filter((p) =>
     p.packageName.toLowerCase().includes(q) ||
     p.id.toLowerCase().includes(q) ||
     (p.destination ?? '').toLowerCase().includes(q)
   );
 });
 
-const { visible: visiblePackages, total, shown, loadMore, showAll } = usePaged(filtered);
-
-const resultLabel = computed(() => {
-  const count = packages.value.length;
-  if (query.value.trim()) return `${filtered.value.length} of ${count} shown`;
-  return count === 1 ? '1 package' : `${count} packages`;
+const sorted = computed(() => {
+  const { field, direction } = sortParts(filters.sort);
+  const sign = direction === 'asc' ? 1 : -1;
+  return [...filtered.value].sort((a, b) => {
+    let order = 0;
+    if (field === 'price') order = a.basePrice - b.basePrice;
+    else if (field === 'slots') order = a.availableSlots - b.availableSlots;
+    if (order === 0) order = compareText(a.packageName, b.packageName);
+    return order * sign;
+  });
 });
+
+const { visible: visiblePackages, total, shown, loadMore, showAll } = usePaged(sorted, PAGE);
+
+const openSlots = computed(() => filtered.value.reduce((sum, p) => sum + p.availableSlots, 0));
+const allOpenSlots = computed(() => packages.value.reduce((sum, p) => sum + p.availableSlots, 0));
+const soldSlots = computed(() => filtered.value.reduce((sum, p) => sum + p.soldCount, 0));
+const anyPhotos = computed(() => visiblePackages.value.some((p) => p.imageUrl));
+
+const isFiltered = computed(() => filters.q.trim() !== '' || lowOnly.value || shortOnly.value);
+
+const scopeText = computed(() => {
+  const parts: string[] = [];
+  if (lowOnly.value) parts.push('Low on slots');
+  if (shortOnly.value) parts.push('May run short');
+  const term = filters.q.trim();
+  if (term) parts.push(`matching “${term}”`);
+  return parts.join(' · ');
+});
+
+const emptyMessage = computed(() => {
+  const q = filters.q.trim();
+  if (shortOnly.value) {
+    if (q) return `No package that may run short matches “${q}”.`;
+    if (lowOnly.value) return 'No package is both low on slots and expected to run short.';
+    return `No package is expected to run short of slots by ${shortBy.value}.`;
+  }
+  if (q && lowOnly.value) return `No package low on slots matches “${q}”.`;
+  if (q) return `Nothing matches “${q}”. Try a different name, ID or destination.`;
+  return 'Every package has slots available.';
+});
+
+function sortBy(field: string) {
+  filters.sort = nextSort(filters.sort, field, firstDirection[field] ?? 'asc');
+}
+
+function clearFilters() {
+  filters.q = '';
+  filters.stock = '';
+  filters.demand = '';
+}
+
+function capacity(p: PackageRow): number {
+  return p.availableSlots + p.soldCount + p.reservedCount;
+}
+
+function share(p: PackageRow, part: number): string {
+  const whole = capacity(p);
+  return whole > 0 ? `${Math.min(100, (part / whole) * 100)}%` : '0%';
+}
+
+function slotsLeft(p: PackageRow): string {
+  if (p.availableSlots === 0) return 'Full';
+  return `${count(p.availableSlots)} left`;
+}
+
+function slotDetail(p: PackageRow): string {
+  const parts = [`of ${count(capacity(p))}`];
+  if (p.reservedCount > 0) parts.push(`${count(p.reservedCount)} reserved`);
+  return parts.join(' · ');
+}
+
+function tone(p: PackageRow): string {
+  if (p.status === 'Critical' || p.availableSlots === 0) return 'tone-danger';
+  if (p.status === 'Low') return 'tone-warning';
+  return '';
+}
+
+function placeLabel(p: PackageRow): string {
+  return p.duration ? `${p.destination} · ${p.duration}` : p.destination;
+}
+
+function badge(value: string): string {
+  return 'status-' + value.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+}
+
+// ----- The package panel -----
+
+const detailOpen = ref(false);
+const detailCode = ref<string | null>(null);
+const detailPackage = computed(() => packages.value.find((p) => p.id === detailCode.value) ?? null);
+// Set when the form was opened from a package's panel, so closing the form goes back to it.
+const returnToDetail = ref(false);
+
+function openDetail(p: PackageRow) {
+  detailCode.value = p.id;
+  detailOpen.value = true;
+  rememberRecent({ kind: 'package', code: p.id, label: p.packageName, detail: `${p.id} · ${p.destination}` });
+}
+
+function editFromDetail() {
+  const p = detailPackage.value;
+  if (!p) return;
+  detailOpen.value = false;
+  openEdit(p);
+  returnToDetail.value = true;
+}
+
+const prefillNotice = ref('');
+
+/** A suggested price only fills in the form; a person reviews it and saves, or closes without saving. */
+function usePrice(price: number) {
+  editFromDetail();
+  if (!showForm.value) return;
+  form.basePrice = price;
+  prefillNotice.value = 'The suggested price is filled in. Review it, then save; bookings already made keep their prices.';
+}
+
+// ----- The package form -----
+
+const FIELD_LABELS = {
+  packageName: 'Package name',
+  id: 'Package ID',
+  status: 'Status',
+  destination: 'Destination',
+  duration: 'Duration',
+  basePrice: 'Price per passenger',
+  availableSlots: 'Open slots',
+  soldCount: 'Sold slots',
+  reservedCount: 'Reserved slots',
+  inclusions: 'Inclusions',
+} as const;
+type PackageField = keyof typeof FIELD_LABELS;
+
+const MERGE_KEYS = [
+  'packageName', 'destination', 'duration', 'basePrice', 'inclusions',
+  'availableSlots', 'soldCount', 'reservedCount', 'status',
+] as const;
 
 const fileInput = ref<HTMLInputElement | null>(null);
 const imageBusy = ref(false);
 const imageError = ref('');
+
+const baseForm = ref<PackageInput | null>(null);
+const theirValues = ref<Partial<Record<PackageField, unknown>>>({});
+const mergeNotice = ref('');
+const openedSnapshot = ref('');
+
+function wholeNumber(value: unknown, label: string): string {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) return `Enter ${label}: a whole number, 0 or more.`;
+  return '';
+}
+
+const {
+  errors,
+  attempted,
+  problems,
+  touch,
+  recheck,
+  validateAll,
+  placeServerErrors,
+  reset: resetFieldErrors,
+  fieldId,
+  focusField,
+} = useFieldErrors<PackageField>('package', FIELD_LABELS, {
+  packageName: () => (form.packageName.trim() ? '' : 'Enter the package name.'),
+  id: () => {
+    const code = form.id.trim();
+    if (!code) return 'Enter a package ID, such as PKG-120.';
+    if (editingCode.value) return '';
+    const taken = packages.value.find((p) => p.id.toLowerCase() === code.toLowerCase());
+    return taken ? `${taken.id} is already used by ${taken.packageName}. Choose another ID.` : '';
+  },
+  destination: () => (form.destination.trim() ? '' : 'Enter the destination.'),
+  basePrice: () => (Number.isFinite(form.basePrice) && form.basePrice >= 0 ? '' : 'Enter a price of zero or more.'),
+  availableSlots: () => wholeNumber(form.availableSlots, 'the open slots'),
+  soldCount: () => wholeNumber(form.soldCount, 'the sold slots'),
+  reservedCount: () => wholeNumber(form.reservedCount, 'the reserved slots'),
+});
+
+watch(form, recheck);
 
 const editingImage = computed(
   () => packages.value.find((p) => p.id === editingCode.value)?.imageUrl ?? null,
@@ -427,6 +947,58 @@ const editingImage = computed(
 const editingPackage = computed(
   () => packages.value.find((p) => p.id === editingCode.value) ?? null,
 );
+
+const destinationNames = computed(() => suggestions(packages.value.map((p) => p.destination)));
+
+const slotTotal = computed(() =>
+  [form.availableSlots, form.soldCount, form.reservedCount].reduce<number>(
+    (sum, value) => sum + (typeof value === 'number' && Number.isFinite(value) ? value : 0),
+    0,
+  ),
+);
+
+/** A second package with the same name is allowed, but it is usually a slip. */
+const sameNameNote = computed(() => {
+  const name = form.packageName.trim().toLowerCase();
+  if (!name) return '';
+  const twin = packages.value.find((p) => p.packageName.toLowerCase() === name && p.id !== editingCode.value);
+  return twin ? `${twin.id} already has this name. Check this is not the same package.` : '';
+});
+
+function snapshotForm(): string {
+  const { revision: _revision, ...rest } = form;
+  return JSON.stringify(rest);
+}
+
+const formDirty = computed(() => showForm.value && snapshotForm() !== openedSnapshot.value);
+
+// A new package's unfinished form survives a reload or a closed tab.
+const {
+  restoredAt: draftRestoredAt,
+  restore: restoreDraft,
+  discard: discardDraft,
+  startedLabel: draftStartedLabel,
+} = useFormDraft<PackageInput>('package', {
+  active: () => showForm.value && !editingCode.value,
+  dirty: () => formDirty.value,
+  snapshot: () => ({ ...form }),
+});
+
+function packageToInput(p: PackageRow): PackageInput {
+  return {
+    id: p.id,
+    packageName: p.packageName,
+    destination: p.destination,
+    duration: p.duration ?? '',
+    basePrice: p.basePrice,
+    inclusions: p.inclusions ?? '',
+    availableSlots: p.availableSlots,
+    soldCount: p.soldCount,
+    reservedCount: p.reservedCount,
+    status: p.status,
+    revision: p.revision,
+  };
+}
 
 function replaceRow(updated: PackageRow) {
   const index = packages.value.findIndex((p) => p.id === updated.id);
@@ -437,6 +1009,7 @@ function replaceRowAndAdvanceDraft(updated: PackageRow, requestRevision: number)
   replaceRow(updated);
   if (editingCode.value === updated.id && form.revision === requestRevision) {
     form.revision = updated.revision;
+    if (baseForm.value) baseForm.value = { ...baseForm.value, revision: updated.revision };
   }
 }
 
@@ -446,6 +1019,39 @@ function conflictMessage(error: ApiError, noun: string): string {
     return `This ${noun} changed while you were working. Review the refreshed record before saving again.`;
   }
   return Object.values(error.fields)[0] ?? error.message;
+}
+
+/** A copy of the photo on screen, so replacing or removing it can be undone. */
+async function copyOfPhoto(url: string | null): Promise<File | null> {
+  if (!url) return null;
+  try {
+    const response = await fetch(url, { credentials: 'include' });
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    const type = blob.type || 'image/jpeg';
+    return new File([blob], `photo.${type.split('/')[1] ?? 'jpg'}`, { type });
+  } catch {
+    return null;
+  }
+}
+
+/** Puts back the photo a package had before a change, or none if it had none. */
+async function undoPhoto(code: string, previous: File | null) {
+  const current = packages.value.find((p) => p.id === code);
+  if (!current) return;
+  try {
+    const updated = previous
+      ? await api.uploadPackageImage(code, previous, current.revision)
+      : await api.removePackageImage(code, current.revision);
+    replaceRowAndAdvanceDraft(updated, current.revision);
+    historyVersion.value += 1;
+    toast.success(previous ? 'The earlier photo is back' : 'Photo taken off again');
+  } catch (error) {
+    await load(false);
+    toast.error(error instanceof ApiError && error.status === 409
+      ? 'The package changed after that, so the photo could not be put back. Open it to change the photo by hand.'
+      : 'Could not put the photo back. Check the connection, then change it by hand.');
+  }
 }
 
 async function pickImage(event: Event) {
@@ -458,12 +1064,18 @@ async function pickImage(event: Event) {
 
   imageError.value = '';
   imageBusy.value = true;
+  const hadPhoto = !!editingImage.value;
+  const previous = await copyOfPhoto(editingImage.value);
   try {
     replaceRowAndAdvanceDraft(await api.uploadPackageImage(code, file, revision), revision);
-    toast.success('Photo updated.');
+    historyVersion.value += 1;
+    // Undo puts the earlier photo back, or takes the new one off if there was none.
+    toast.success(hadPhoto ? 'Photo replaced' : 'Photo added', hadPhoto && !previous
+      ? undefined
+      : { action: undoAction(() => undoPhoto(code, previous)) });
   } catch (error) {
     if (error instanceof ApiError && error.status === 409) {
-      await refreshOpenPackageAfterConflict(conflictMessage(error, 'package'));
+      await mergeAfterConflict();
     }
     imageError.value =
       error instanceof ApiError
@@ -481,35 +1093,19 @@ async function dropImage() {
 
   imageError.value = '';
   imageBusy.value = true;
+  const previous = await copyOfPhoto(editingImage.value);
   try {
     replaceRowAndAdvanceDraft(await api.removePackageImage(code, revision), revision);
-    toast.success('Photo removed.');
+    historyVersion.value += 1;
+    toast.success('Photo removed', previous ? { action: undoAction(() => undoPhoto(code, previous)) } : undefined);
   } catch (error) {
     if (error instanceof ApiError && error.status === 409) {
-      await refreshOpenPackageAfterConflict(conflictMessage(error, 'package'));
+      await mergeAfterConflict();
     }
     imageError.value = error instanceof ApiError ? conflictMessage(error, 'package') : 'Could not remove that photo.';
   } finally {
     imageBusy.value = false;
   }
-}
-
-
-function badge(value: string): string {
-  return 'status-' + value.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-}
-
-function fillModifier(status: string): string {
-  const key = status.toLowerCase();
-  if (key === 'critical') return 'is-critical';
-  if (key === 'low') return 'is-low';
-  return '';
-}
-
-function slotsPercent(p: PackageRow): number {
-  const total = Math.max(p.availableSlots + p.soldCount + p.reservedCount, 1);
-  const ratio = p.availableSlots / total;
-  return Math.min(100, Math.max(0, Math.round(ratio * 100)));
 }
 
 function blank(): PackageInput {
@@ -528,39 +1124,60 @@ function blank(): PackageInput {
   };
 }
 
-function openForm() {
-  Object.assign(form, blank());
-  form.id = 'PKG-' + (100 + packages.value.length + 1);
-  editingCode.value = null;
+function clearFormState() {
   formError.value = '';
   imageError.value = '';
+  mergeNotice.value = '';
+  prefillNotice.value = '';
+  theirValues.value = {};
   pendingRecovery.value = null;
+  resetFieldErrors();
+}
+
+function openForm() {
+  resetNewForm();
+  editingCode.value = null;
+  baseForm.value = null;
+  clearFormState();
+  returnToDetail.value = false;
+  detailOpen.value = false;
+  openedSnapshot.value = snapshotForm();
+  // An unfinished package from earlier comes back; its ID is checked again before saving.
+  const kept = restoreDraft();
+  if (kept) Object.assign(form, kept, { revision: null });
   showForm.value = true;
 }
 
-function loadPackageIntoForm(p: PackageRow) {
-  Object.assign(form, {
-    id: p.id,
-    packageName: p.packageName,
-    destination: p.destination,
-    duration: p.duration,
-    basePrice: p.basePrice,
-    inclusions: p.inclusions,
-    availableSlots: p.availableSlots,
-    soldCount: p.soldCount,
-    reservedCount: p.reservedCount,
-    status: p.status,
-    revision: p.revision,
-  });
+function resetNewForm() {
+  Object.assign(form, blank());
+  form.id = nextCode('PKG', packages.value.map((p) => p.id), 101);
+}
+
+/** Drops a restored draft and starts the form afresh. */
+function startOver() {
+  discardDraft();
+  resetNewForm();
+  resetFieldErrors();
+  openedSnapshot.value = snapshotForm();
 }
 
 function openEdit(p: PackageRow) {
-  loadPackageIntoForm(p);
+  Object.assign(form, packageToInput(p));
   editingCode.value = p.id;
-  formError.value = '';
-  imageError.value = '';
-  pendingRecovery.value = null;
+  baseForm.value = packageToInput(p);
+  clearFormState();
+  openedSnapshot.value = snapshotForm();
   showForm.value = true;
+}
+
+function closeForm() {
+  if (lightboxUrl.value) return;
+  // Closing a new package's form on purpose lets its draft go.
+  if (!editingCode.value) discardDraft();
+  showForm.value = false;
+  prefillNotice.value = '';
+  if (returnToDetail.value && detailPackage.value) detailOpen.value = true;
+  returnToDetail.value = false;
 }
 
 function openLightbox(p: PackageRow) {
@@ -573,9 +1190,72 @@ function openPreviewLightbox() {
   lightboxName.value = form.packageName;
 }
 
-function onDrawerClose() {
-  if (lightboxUrl.value) return;
-  showForm.value = false;
+function describeValue(key: PackageField, value: unknown): string {
+  switch (key) {
+    case 'basePrice':
+      return peso(Number(value));
+    case 'availableSlots':
+    case 'soldCount':
+    case 'reservedCount':
+      return count(Number(value));
+    case 'status':
+      return stateLabel(String(value ?? ''));
+    default:
+      return value ? `“${String(value)}”` : 'blank';
+  }
+}
+
+function theirNote(key: PackageField): string {
+  if (!(key in theirValues.value)) return '';
+  return `Saved meanwhile as ${describeValue(key, theirValues.value[key])}.`;
+}
+
+function useTheirs(key: PackageField) {
+  if (!(key in theirValues.value)) return;
+  (form as unknown as Record<string, unknown>)[key] = theirValues.value[key];
+  const rest = { ...theirValues.value };
+  delete rest[key];
+  theirValues.value = rest;
+}
+
+function describeMerge(changed: readonly (keyof PackageInput)[], conflicts: readonly (keyof PackageInput)[]): string {
+  const named = (keys: readonly (keyof PackageInput)[]) =>
+    keys.filter((key): key is PackageField => key in FIELD_LABELS).map((key) => FIELD_LABELS[key as PackageField]);
+  const taken = named(changed.filter((key) => !conflicts.includes(key)));
+  const both = named(conflicts);
+  const parts = ['This package was saved elsewhere while it was open here, by someone or by a booking.'];
+  if (taken.length) parts.push(`The change to ${listNames(taken)} is now in this form.`);
+  if (both.length) parts.push(`You both changed ${listNames(both)}: your value is kept, with the saved one shown beside it.`);
+  parts.push('Your other changes are kept; save again when it looks right.');
+  return parts.join(' ');
+}
+
+/** After a conflict, the latest saved package is merged into the form instead of replacing it. */
+function applyMerge(): boolean {
+  const saved = editingPackage.value;
+  if (!saved || !baseForm.value) return false;
+  const theirs = packageToInput(saved);
+  const mine: PackageInput = { ...form };
+  const { merged, changedByOthers, conflicts } = mergeDraft(baseForm.value, mine, theirs, MERGE_KEYS);
+  Object.assign(form, merged, { revision: saved.revision });
+  const shown = conflicts.filter((key) => key in FIELD_LABELS) as PackageField[];
+  theirValues.value = Object.fromEntries(shown.map((key) => [key, (theirs as unknown as Record<string, unknown>)[key]]));
+  mergeNotice.value = describeMerge(changedByOthers, conflicts);
+  baseForm.value = theirs;
+  formError.value = '';
+  recheck();
+  return true;
+}
+
+async function mergeAfterConflict(): Promise<boolean> {
+  if (!await load(false)) {
+    pendingRecovery.value = { kind: 'stale-edit' };
+    formError.value = staleRecoveryError;
+    return true;
+  }
+  if (applyMerge()) return true;
+  formError.value = 'This package was not found after reloading. Refresh the page before making another change.';
+  return true;
 }
 
 function openImport() {
@@ -622,15 +1302,32 @@ async function commitImport() {
 }
 
 async function load(showErrorToast = true): Promise<boolean> {
-  loading.value = true;
   try {
     packages.value = await api.packages();
+    void loadOutlook();
     return true;
   } catch {
     if (showErrorToast) toast.error('We could not load the packages. Please refresh and try again.');
     return false;
   } finally {
     loading.value = false;
+  }
+}
+
+/** Puts a package back as it was before an edit, if nothing has changed it since. */
+async function undoEdit(before: PackageRow, after: PackageRow) {
+  try {
+    await api.updatePackage(before.id, { ...packageToInput(before), revision: after.revision });
+    await load(false);
+    historyVersion.value += 1;
+    toast.success(`${before.packageName} is back as it was`);
+  } catch (e) {
+    await load(false);
+    toast.error(
+      e instanceof ApiError && e.status === 409
+        ? `${before.packageName} has changed since, so the edit could not be undone. Open it to change it by hand.`
+        : 'Could not undo the edit. Check the connection, then change the package by hand.',
+    );
   }
 }
 
@@ -646,34 +1343,59 @@ async function save() {
     }
     return;
   }
+
   formError.value = '';
+  const found = validateAll();
+  if (found.length > 0) {
+    void focusField(found[0].key);
+    return;
+  }
+
   saving.value = true;
   const wasEditing = editingCode.value !== null;
+  const before = editingPackage.value ? { ...editingPackage.value } : null;
   const name = form.packageName || 'Package';
   const payload: PackageInput = { ...form };
   try {
-    if (editingCode.value) {
-      await api.updatePackage(editingCode.value, payload);
-    } else {
-      await api.createPackage(payload);
-    }
+    const saved = editingCode.value
+      ? await api.updatePackage(editingCode.value, payload)
+      : await api.createPackage(payload);
     await load();
     pendingRecovery.value = null;
+    historyVersion.value += 1;
     showForm.value = false;
-    toast.success(wasEditing ? `${name} updated` : `Package ${name} added`);
+    if (wasEditing && before) {
+      toast.success(`Package ${name} saved`, { action: undoAction(() => undoEdit(before, saved)) });
+      detailCode.value = saved.id;
+      if (returnToDetail.value) detailOpen.value = true;
+    } else {
+      discardDraft();
+      toast.success(`Package ${name} added`, {
+        action: {
+          label: 'Open',
+          run: () => {
+            detailCode.value = saved.id;
+            detailOpen.value = true;
+          },
+        },
+      });
+    }
+    returnToDetail.value = false;
   } catch (e) {
     if (!wasEditing && (!(e instanceof ApiError) || e.status >= 500 || e.status === 409)) {
-      if (await recoverCreatedPackage(payload, e)) return;
+      if (await recoverCreatedPackage(payload)) return;
     }
     if (e instanceof ApiError && e.status === 409) {
-      const message = conflictMessage(e, 'package');
-      if (editingCode.value && (e.code === 'stale_revision' || e.code === 'write_conflict')) {
-        if (await refreshOpenPackageAfterConflict(message)) return;
-      }
+      if (editingCode.value && (e.code === 'stale_revision' || e.code === 'write_conflict') && await mergeAfterConflict()) return;
       await load();
     }
-    const message = e instanceof ApiError ? conflictMessage(e, 'package') : 'Could not save the package.';
-    formError.value = message;
+    if (e instanceof ApiError) {
+      const unplaced = placeServerErrors(e.fields, {});
+      if (problems.value.length > 0) void focusField(problems.value[0].key);
+      formError.value = unplaced[0] ?? (problems.value.length > 0 ? '' : conflictMessage(e, 'package'));
+    } else {
+      formError.value = 'Could not reach the server, so nothing was saved. Your entries are still here; check the connection and save again.';
+    }
   } finally {
     saving.value = false;
   }
@@ -703,39 +1425,21 @@ function applyCreatedPackageRecovery(payload: PackageInput): boolean {
     return true;
   }
 
-  loadPackageIntoForm(saved);
+  Object.assign(form, packageToInput(saved));
   editingCode.value = saved.id;
-  const message = 'A package with this code is already saved with different details. Review the saved package before changing it.';
-  formError.value = message;
+  baseForm.value = packageToInput(saved);
+  openedSnapshot.value = snapshotForm();
+  formError.value = 'A package with this ID is already saved with different details. Review the saved package before changing it.';
   return true;
 }
 
-async function recoverCreatedPackage(payload: PackageInput, error: unknown): Promise<boolean> {
+async function recoverCreatedPackage(payload: PackageInput): Promise<boolean> {
   if (!await load(false)) {
     pendingRecovery.value = { kind: 'create', payload };
     formError.value = createRecoveryError;
     return true;
   }
   return applyCreatedPackageRecovery(payload);
-}
-
-function applyPackageConflictRefresh(message: string): boolean {
-  const saved = editingPackage.value;
-  if (!saved) return false;
-
-  loadPackageIntoForm(saved);
-  imageError.value = '';
-  formError.value = message;
-  return true;
-}
-
-async function refreshOpenPackageAfterConflict(message: string): Promise<boolean> {
-  if (!await load(false)) {
-    pendingRecovery.value = { kind: 'stale-edit', message };
-    formError.value = staleRecoveryError;
-    return true;
-  }
-  return applyPackageConflictRefresh(message);
 }
 
 async function continuePendingRecovery(): Promise<boolean> {
@@ -754,219 +1458,155 @@ async function continuePendingRecovery(): Promise<boolean> {
     return true;
   }
 
-  if (applyPackageConflictRefresh(pending.message)) return true;
+  if (applyMerge()) return true;
   formError.value = 'The package was not found after reloading. Refresh the page before making another change.';
   return true;
 }
 
-onMounted(load);
+const loadError = ref(false);
+
+/** The first load failed: say so, rather than showing an empty list as if there were no records. */
+async function retryLoad() {
+  loadError.value = false;
+  loading.value = true;
+  if (!(await load())) loadError.value = true;
+}
+
+/** A link such as /packages?open=PKG-104 (from search or another page) opens that package. */
+function openFromAddress() {
+  const code = typeof route.query.open === 'string' ? route.query.open : '';
+  if (!code) return;
+  const p = packages.value.find((item) => item.id.toLowerCase() === code.toLowerCase());
+  if (p) openDetail(p);
+  void router.replace({ query: { ...route.query, open: undefined } });
+}
+
+onMounted(async () => {
+  if (!(await load())) {
+    loadError.value = true;
+    return;
+  }
+  openFromAddress();
+  if (route.query.new === '1') {
+    openForm();
+    void router.replace({ query: { ...route.query, new: undefined } });
+  }
+});
+
+watch(() => route.query.open, (value) => {
+  if (value && !loading.value) openFromAddress();
+});
+
 </script>
 
 <style scoped>
-.drawer-form-error {
-  margin-bottom: var(--space-4);
-  color: var(--color-danger-ink);
-  font-size: 13px;
-}
-
-.catalog-toolbar {
+.package-cell {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--space-3) var(--space-4);
-}
-
-.catalog-toolbar-heading {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
+  align-items: center;
+  gap: 12px;
   min-width: 0;
 }
 
-.catalog-toolbar-title {
-  font-family: var(--font-display);
-  font-optical-sizing: auto;
-  font-size: 18px;
-  font-weight: 560;
-  letter-spacing: -0.005em;
-  color: var(--color-text-primary);
+.package-thumb,
+.package-thumb-space {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
 }
 
-.catalog-toolbar-count {
-  color: var(--color-text-muted);
-  font-size: 12.5px;
-  font-variant-numeric: lining-nums tabular-nums;
-  white-space: nowrap;
-}
-
-.package-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: var(--space-4);
-}
-
-.package-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  width: 100%;
-  text-align: left;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-4);
-  cursor: pointer;
-  font: inherit;
-  color: inherit;
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
-}
-
-.package-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-  border-color: var(--color-border-strong);
-}
-
-.package-card:focus-visible {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: var(--focus-ring);
-}
-
-.package-figure {
-  display: grid;
-  place-items: center;
-  height: 124px;
-  margin: calc(var(--space-4) * -1) calc(var(--space-4) * -1) var(--space-1);
-  border-bottom: 1px solid var(--color-ticket-border);
-  border-radius: calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0 0;
-  background: var(--color-ticket);
+.package-thumb {
+  padding: 0;
   overflow: hidden;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-sunken);
+  cursor: zoom-in;
 }
 
-.package-figure img {
+.package-thumb img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.package-figure-mark {
-  width: 30px;
-  height: 30px;
-  color: #C4AC7A;
-}
-
-.package-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.package-title {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.package-names {
+  display: grid;
   min-width: 0;
 }
 
-.package-name {
-  font-family: var(--font-display);
-  font-optical-sizing: auto;
-  font-size: 1.1rem;
-  font-weight: 560;
-  letter-spacing: -0.005em;
-  line-height: 1.25;
+.place-name {
+  display: block;
   color: var(--color-text-primary);
 }
 
-.package-code {
-  color: var(--color-text-muted);
-  font-size: 12px;
-  letter-spacing: 0.02em;
+/* How full each package is: sold in navy, reserved in amber, what is left stays open. */
+.slots-cell {
+  min-width: 200px;
+}
+
+.slot-text {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: var(--text-sm);
   font-variant-numeric: lining-nums tabular-nums;
 }
 
-.package-head .record-badge {
-  flex: none;
+.slots-left {
+  color: var(--color-text-primary);
+  font-weight: 600;
 }
 
-.package-meta {
+.slots-left.tone-warning {
+  color: var(--color-warning-ink);
+}
+
+.slots-left.tone-danger {
+  color: var(--color-danger-ink);
+}
+
+.slot-detail {
+  color: var(--color-text-muted);
+}
+
+/* The forecast's word on a package, in the model's teal with its mark, apart from the stock status dot. */
+.demand-flag {
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px 6px;
-  color: var(--color-text-secondary);
-  font-size: 13px;
-}
-
-.package-dest {
-  display: inline-flex;
   align-items: center;
   gap: 5px;
-  min-width: 0;
+  margin-top: 4px;
+  color: var(--color-model-ink);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
-.package-pin {
-  width: 14px;
-  height: 14px;
+.demand-flag :deep(svg) {
   flex: none;
-  color: var(--color-text-muted);
+  color: var(--color-model);
+  font-size: 14px;
 }
 
-.package-duration::before {
-  content: '·';
-  margin: 0 6px 0 0;
-  color: var(--color-text-faint);
+.record-item .demand-flag {
+  margin-top: 1px;
 }
 
-.package-price {
-  font-family: var(--font-display);
-  font-optical-sizing: auto;
-  font-size: 1.25rem;
-  font-weight: 560;
-  letter-spacing: -0.01em;
-  line-height: 1.2;
-  color: var(--color-text-primary);
-  font-variant-numeric: lining-nums tabular-nums;
-}
-
-.package-slots {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin-top: auto;
-}
-
-.slots-meter {
+.slot-line {
   display: block;
-  width: 100%;
-  height: 6px;
-  background: var(--color-surface-sunken);
-  border-radius: var(--radius-pill);
-  overflow: hidden;
+  padding: 4px 0 2px;
 }
 
-.slots-meter-fill {
-  display: block;
-  height: 100%;
-  min-width: 2px;
-  border-radius: var(--radius-pill);
-  background: var(--color-primary);
+.slot-line .slot-meter {
+  max-width: none;
+  height: 4px;
 }
 
-.slots-meter-fill.is-low {
-  background: var(--color-warning);
-}
-
-.slots-meter-fill.is-critical {
-  background: var(--color-danger);
-}
-
-.slots-caption {
+.slot-total {
+  margin-top: -6px;
   color: var(--color-text-muted);
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-variant-numeric: lining-nums tabular-nums;
 }
 
@@ -982,9 +1622,9 @@ onMounted(load);
   flex: none;
   width: 132px;
   height: 84px;
-  border: 1px solid var(--color-ticket-border);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: var(--color-ticket);
+  background: var(--color-surface-sunken);
   overflow: hidden;
 }
 
@@ -994,9 +1634,10 @@ onMounted(load);
   object-fit: cover;
 }
 
-.image-preview-empty {
-  color: var(--color-text-muted);
-  font-size: 12px;
+.image-preview-zoom {
+  font: inherit;
+  padding: 0;
+  cursor: zoom-in;
 }
 
 .image-actions {
@@ -1009,159 +1650,12 @@ onMounted(load);
 .image-hint {
   margin: 0;
   color: var(--color-text-muted);
-  font-size: 12.5px;
+  font-size: var(--text-sm);
 }
 
 .image-error {
   margin: 0;
   color: var(--color-danger-ink);
-  font-size: 12.5px;
-}
-
-@media (max-width: 640px) {
-  .catalog-toolbar {
-    align-items: stretch;
-  }
-
-  .catalog-toolbar :deep(.search-field) {
-    width: 100%;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .package-card {
-    transition: none;
-  }
-
-  .package-card:hover {
-    transform: none;
-  }
-}
-
-.import-hint {
-  margin: 0 0 var(--space-4);
-  color: var(--color-text-muted);
-  font-size: 12.5px;
-  line-height: 1.5;
-}
-
-.import-pick {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  margin-bottom: var(--space-4);
-}
-
-.import-filename {
-  color: var(--color-text-secondary);
-  font-size: 13px;
-  word-break: break-all;
-}
-
-.import-summary {
-  display: grid;
-  gap: 8px;
-  margin: 0 0 var(--space-4);
-  padding: var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-sunken);
-}
-
-.import-summary > div {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-4);
-}
-
-.import-summary dt {
-  color: var(--color-text-muted);
-  font-size: 12.5px;
-}
-
-.import-summary dd {
-  margin: 0;
-  color: var(--color-text-primary);
-  font-size: 13px;
-  font-weight: 600;
-  font-variant-numeric: lining-nums tabular-nums;
-  text-align: right;
-}
-
-.import-notes {
-  margin: 0 0 var(--space-4);
-  padding: 10px 12px;
-  border-radius: var(--radius-md);
-  font-size: 12.5px;
-  line-height: 1.5;
-}
-
-.import-notes p {
-  margin: 0;
-}
-
-.import-notes-title {
-  margin: 0 0 2px;
-  font-weight: 700;
-}
-
-.import-warnings {
-  border: 1px solid var(--tone-warning-border);
-  background: var(--tone-warning-surface);
-  color: var(--tone-warning-ink);
-}
-
-.import-problems {
-  border: 1px solid var(--tone-danger-border);
-  background: var(--tone-danger-surface);
-  color: var(--tone-danger-ink);
-}
-
-.package-figure-zoom {
-  border: none;
-  border-bottom: 1px solid var(--color-ticket-border);
-  padding: 0;
-  font: inherit;
-  cursor: zoom-in;
-}
-
-.package-figure-zoom img {
-  transition: transform var(--transition-normal);
-}
-
-.package-figure-zoom:hover img {
-  transform: scale(1.04);
-}
-
-.package-body {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  gap: var(--space-3);
-  margin: 0;
-  padding: 0;
-  border: none;
-  background: none;
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.image-preview-zoom {
-  font: inherit;
-  padding: 0;
-  cursor: zoom-in;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .package-figure-zoom img {
-    transition: none;
-  }
-
-  .package-figure-zoom:hover img {
-    transform: none;
-  }
+  font-size: var(--text-sm);
 }
 </style>

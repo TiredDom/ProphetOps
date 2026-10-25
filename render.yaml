@@ -4,54 +4,61 @@ services:
     runtime: docker
     dockerfilePath: ./dotnet/Dockerfile
     dockerContext: ./dotnet
-    plan: starter
+    plan: free
+    region: singapore
     autoDeploy: false
     numInstances: 1
-    healthCheckPath: /health/live
-    disk:
-      name: prophetops-data
-      mountPath: /app/storage
-      sizeGB: 1
+    healthCheckPath: /health/ready
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
         value: Production
+      - key: Demo__Enabled
+        value: "false"
       - key: Hosted__Enabled
         value: "true"
-      - key: Storage__Root
-        value: /app/storage
-      - key: Business__TimeZone
-        sync: false
+      - key: Hosted__AccessMode
+        value: ApplicationLogin
+      - key: Database__Provider
+        value: postgres
+      - key: Transport__PublicHttps
+        value: "true"
+      - key: CloudflareAccess__Enabled
+        value: "false"
       - key: Bootstrap__Owner__Enabled
         value: "false"
-      - key: CloudflareAccess__Enabled
-        value: "true"
-      - key: CloudflareAccess__Issuer
-        sync: false
-      - key: CloudflareAccess__Audience
-        sync: false
-      - key: CloudflareAccess__JwksUrl
-        sync: false
       - key: Backup__Scheduled__Enabled
-        value: "true"
-      - key: Backup__Storage
-        value: r2
-      - key: Backup__Keep
-        value: "7"
-      - key: Backup__IntervalHours
-        value: "24"
+        value: "false"
+      - key: Storage__Root
+        value: /tmp/prophetops
+      - key: Business__TimeZone
+        value: Asia/Manila
+      - key: Backup__Postgres__ClientToolsPath
+        value: /usr/lib/postgresql/18/bin
+      - key: ConnectionStrings__Default
+        sync: false
+      - key: DataProtection__CertificateBase64
+        sync: false
+      - key: DataProtection__CertificatePassword
+        sync: false
       - key: Backup__Encryption__Key
         sync: false
       - key: Backup__Encryption__KeyId
         sync: false
-      - key: Backup__S3__Endpoint
+      - key: ObjectStorage__Provider
+        value: supabase-s3
+      - key: ObjectStorage__S3__Endpoint
         sync: false
-      - key: Backup__S3__Bucket
+      - key: ObjectStorage__S3__Bucket
         sync: false
-      - key: Backup__S3__Region
-        value: auto
-      - key: Backup__S3__AccessKeyId
+      - key: ObjectStorage__S3__Region
         sync: false
-      - key: Backup__S3__SecretAccessKey
+      - key: ObjectStorage__S3__AccessKeyId
         sync: false
-      - key: Backup__S3__Prefix
-        value: prophetops/production/
+      - key: ObjectStorage__S3__SecretAccessKey
+        sync: false
+      - key: ObjectStorage__S3__Prefix
+        value: ""
+      - key: ObjectStorage__S3__ForcePathStyle
+        value: "true"
+      - key: ObjectStorage__S3__TimeoutSeconds
+        value: "30"

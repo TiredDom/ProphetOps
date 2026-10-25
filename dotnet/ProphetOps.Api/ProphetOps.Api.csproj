@@ -4,15 +4,21 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- Local development secrets, such as Gemini:ApiKey, live outside the repository. -->
+    <UserSecretsId>prophetops-api-9bd363cc-b84a-4097-819b-262642c093bd</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\ProphetOps.Data\ProphetOps.Data.csproj" />
     <ProjectReference Include="..\ProphetOps.Forecasting\ProphetOps.Forecasting.csproj" />
+    <ProjectReference Include="..\ProphetOps.PostgresMigrations\ProphetOps.PostgresMigrations.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="AWSSDK.S3" Version="4.0.102.5" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
     <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.22.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.12" />
   </ItemGroup>

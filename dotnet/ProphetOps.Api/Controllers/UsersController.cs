@@ -38,6 +38,7 @@ public class UsersController : ControllerBase
             Role = request.Role!,
             Status = Normalize(request.Status),
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password!),
+            SecurityStamp = Guid.NewGuid(),
         };
 
         _db.Users.Add(user);
@@ -80,7 +81,10 @@ public class UsersController : ControllerBase
         var passwordChanged = !string.IsNullOrWhiteSpace(request.Password);
         var before = (user.Name, user.Role, user.Status);
         if (request.Role != user.Role || nextStatus != user.Status || passwordChanged)
-            user.SessionVersion = checked(user.SessionVersion + 1);
+        {
+            user.SecurityStamp = Guid.NewGuid();
+            user.SessionVersion = user.SessionVersion == int.MaxValue ? 1 : user.SessionVersion + 1;
+        }
 
         user.Name = request.Name!.Trim();
         user.Role = request.Role!;

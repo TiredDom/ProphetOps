@@ -297,7 +297,7 @@ public class PackageCsvTests : IDisposable
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var package = db.TravelPackages.Single(p => p.Code == code);
-        Assert.Equal(DateOnly.FromDateTime(DateTime.UtcNow), package.LastUpdatedAt);
+        Assert.Equal(scope.ServiceProvider.GetRequiredService<IBusinessClock>().Today, package.LastUpdatedAt);
     }
 
     [Fact]

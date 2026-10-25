@@ -1,49 +1,22 @@
 <template>
-  <AppShell title="Bookings" description="Booking and transaction records.">
+  <AppShell title="Bookings">
     <template #actions>
-      <a class="secondary-button" href="/api/export/bookings.csv">Export CSV</a>
-      <button class="secondary-button" type="button" @click="openImport">Import from file</button>
-      <button class="primary-button" type="button" @click="openForm">Add booking</button>
+      <ActionMenu :items="menuItems" />
+      <button class="primary-button" type="button" aria-keyshortcuts="N" @click="openForm">
+        <UiIcon name="plus" />
+        Add booking
+      </button>
     </template>
 
     <section class="dss-page">
-      <section class="stat-band" aria-label="Booking totals">
-        <div class="stat-cell">
-          <span class="stat-label">Bookings</span>
-          <strong class="stat-value">{{ bookings.length }}</strong>
-          <span class="stat-note">Saved bookings</span>
-        </div>
-        <div class="stat-cell">
-          <span class="stat-label">Passengers</span>
-          <strong class="stat-value">{{ totalPassengers }}</strong>
-          <span class="stat-note">Across all bookings</span>
-        </div>
-        <div class="stat-cell">
-          <span class="stat-label">Booked revenue</span>
-          <strong class="stat-value">{{ peso(totalRevenue) }}</strong>
-          <span class="stat-note">Total revenue</span>
-        </div>
-      </section>
-
-      <Drawer :open="showForm" :title="drawerTitle" @close="showForm = false">
+      <Drawer :open="showForm" :title="drawerTitle" :dirty="formDirty" @close="closeForm">
         <p v-if="formError" class="drawer-form-error" role="alert">{{ formError }}</p>
-
-        <p v-if="unusualWarning" class="drawer-form-check" role="alert">{{ unusualWarning }}</p>
-
-        <div v-if="askVoid" class="void-panel" role="group" aria-label="Void this booking">
-          <p class="void-lead">Voiding keeps the record and its history, but takes it out of every total and out of the forecast. Any seats it holds go back to the package.</p>
-          <label class="account-field">
-            <span>Why is it being voided?</span>
-            <input v-model.trim="voidReason" maxlength="160" placeholder="Duplicate entry, client cancelled, recorded in error" />
-          </label>
-          <p v-if="voidError" class="drawer-form-error" role="alert">{{ voidError }}</p>
-          <div class="void-actions">
-            <button class="secondary-button" type="button" :disabled="voiding" @click="askVoid = false">Keep it</button>
-            <button class="danger-button" type="button" :disabled="voiding || !voidReason" @click="confirmVoid">
-              {{ voiding ? 'Voiding…' : 'Void booking' }}
-            </button>
-          </div>
-        </div>
+        <p v-if="mergeNotice" class="drawer-form-merge" role="status">{{ mergeNotice }}</p>
+        <p v-if="!editing && draftRestoredAt" class="drawer-form-merge" role="status">
+          Restored the booking you started {{ draftStartedLabel() }}; nothing was lost.
+          <button type="button" class="field-note-action" @click="startOver">Start over</button>
+        </p>
+        <FormProblems :problems="attempted ? problems : []" @focus="focusField" />
 
         <fieldset class="booking-mode">
           <legend class="section-label">Booking type</legend>
@@ -72,79 +45,233 @@
         </fieldset>
 
         <div class="form-grid">
-          <label v-if="editing" class="account-field field-wide">
-            <span>Booking ID</span>
-            <input v-model="form.id" type="text" readonly />
-          </label>
-          <label class="account-field">
-            <span>Booking date</span>
-            <input v-model="form.ds" type="date" />
-          </label>
-          <label class="account-field">
-            <span>Passengers</span>
-            <input v-model.number="form.y" type="number" min="1" @input="applyPackage" />
-          </label>
-          <label class="account-field field-wide">
-            <span>Client / agency partner</span>
-            <input v-model.trim="form.client" maxlength="120" />
-          </label>
+          <FormField v-if="editing" id="booking-code" label="Booking ID" wide v-slot="f">
+            <input :id="f.id" :value="form.id" type="text" readonly />
+          </FormField>
 
-          <label v-if="form.mode === 'package'" class="account-field field-wide">
-            <span>Package</span>
-            <select v-model="form.packageId" @change="applyPackage">
-              <option v-for="p in packages" :key="p.id" :value="p.id">{{ p.packageName }}</option>
+          <FormField
+            :id="fieldId('ds')"
+            label="Booking date"
+            :error="errors.ds"
+            :note="theirNote('ds') || dateNote"
+            :note-action="theirNote('ds') ? 'Use saved value' : undefined"
+            @note-action="useTheirs('ds')"
+            v-slot="f"
+          >
+            <input
+              :id="f.id"
+              v-model="form.ds"
+              type="date"
+              required
+              :aria-invalid="f.invalid ? 'true' : undefined"
+              :aria-describedby="f.describedBy"
+              @blur="touch('ds')"
+            />
+          </FormField>
+
+          <FormField
+            :id="fieldId('y')"
+            label="Passengers"
+            :error="errors.y"
+            :hint="slotHint"
+            :note="theirNote('y')"
+            :note-action="theirNote('y') ? 'Use saved value' : undefined"
+            @note-action="useTheirs('y')"
+            v-slot="f"
+          >
+            <input
+              :id="f.id"
+              v-model.number="form.y"
+              type="number"
+              min="1"
+              :max="slotLimit ?? undefined"
+              step="1"
+              inputmode="numeric"
+              required
+              :aria-invalid="f.invalid ? 'true' : undefined"
+              :aria-describedby="f.describedBy"
+              @input="applyPackage"
+              @blur="touch('y')"
+            />
+          </FormField>
+
+          <FormField
+            :id="fieldId('client')"
+            label="Client or agency partner"
+            wide
+            :error="errors.client"
+            :note="theirNote('client')"
+            :note-action="theirNote('client') ? 'Use saved value' : undefined"
+            @note-action="useTheirs('client')"
+            v-slot="f"
+          >
+            <input
+              :id="f.id"
+              v-model.trim="form.client"
+              maxlength="120"
+              list="booking-client-names"
+              autocomplete="off"
+              required
+              :aria-invalid="f.invalid ? 'true' : undefined"
+              :aria-describedby="f.describedBy"
+              @blur="touch('client')"
+            />
+            <datalist id="booking-client-names">
+              <option v-for="name in clientNames" :key="name" :value="name"></option>
+            </datalist>
+          </FormField>
+
+          <FormField
+            v-if="form.mode === 'package'"
+            :id="fieldId('packageId')"
+            label="Package"
+            wide
+            :error="errors.packageId"
+            :hint="packageHint"
+            :note="theirNote('packageId')"
+            :note-action="theirNote('packageId') ? 'Use saved value' : undefined"
+            @note-action="useTheirs('packageId')"
+            v-slot="f"
+          >
+            <select
+              :id="f.id"
+              v-model="form.packageId"
+              required
+              :aria-invalid="f.invalid ? 'true' : undefined"
+              :aria-describedby="f.describedBy"
+              @change="onPackageChange"
+            >
+              <option v-if="!form.packageId" :value="null" disabled>Choose a package</option>
+              <option v-for="choice in packageChoices" :key="choice.id" :value="choice.id" :disabled="choice.full">
+                {{ choice.label }}
+              </option>
             </select>
-          </label>
+          </FormField>
 
           <template v-else>
-            <label class="account-field field-wide">
-              <span>Trip / quotation name</span>
-              <input v-model.trim="form.package" maxlength="120" placeholder="e.g. Coron island-hopping getaway" />
-            </label>
-            <label class="account-field field-wide">
-              <span>Destination</span>
-              <input v-model.trim="form.destination" maxlength="120" placeholder="e.g. Coron, Palawan" />
-            </label>
+            <FormField
+              :id="fieldId('package')"
+              label="Trip or quotation name"
+              wide
+              :error="errors.package"
+              :note="theirNote('package')"
+              :note-action="theirNote('package') ? 'Use saved value' : undefined"
+              @note-action="useTheirs('package')"
+              v-slot="f"
+            >
+              <input
+                :id="f.id"
+                v-model.trim="form.package"
+                maxlength="120"
+                placeholder="e.g. Coron island-hopping getaway"
+                required
+                :aria-invalid="f.invalid ? 'true' : undefined"
+                :aria-describedby="f.describedBy"
+                @blur="touch('package')"
+              />
+            </FormField>
+            <FormField
+              :id="fieldId('destination')"
+              label="Destination"
+              wide
+              :error="errors.destination"
+              :note="theirNote('destination')"
+              :note-action="theirNote('destination') ? 'Use saved value' : undefined"
+              @note-action="useTheirs('destination')"
+              v-slot="f"
+            >
+              <input
+                :id="f.id"
+                v-model.trim="form.destination"
+                maxlength="120"
+                list="booking-destinations"
+                autocomplete="off"
+                placeholder="e.g. Coron, Palawan"
+                required
+                :aria-invalid="f.invalid ? 'true' : undefined"
+                :aria-describedby="f.describedBy"
+                @blur="touch('destination')"
+              />
+              <datalist id="booking-destinations">
+                <option v-for="place in destinationNames" :key="place" :value="place"></option>
+              </datalist>
+            </FormField>
           </template>
 
-          <label class="account-field">
-            <span>Price</span>
-            <MoneyField v-model="form.grossRevenue" />
-          </label>
-          <label class="account-field">
-            <span>Payment status</span>
-            <select v-model="form.paymentStatus">
-              <option>Paid</option>
-              <option>Partially Paid</option>
-              <option>Pending</option>
+          <FormField
+            :id="fieldId('grossRevenue')"
+            label="Price"
+            :error="errors.grossRevenue"
+            :hint="priceHint"
+            :note="theirNote('grossRevenue') || priceNote"
+            :note-action="theirNote('grossRevenue') ? 'Use saved value' : undefined"
+            @note-action="useTheirs('grossRevenue')"
+            v-slot="f"
+          >
+            <MoneyField
+              :id="f.id"
+              v-model="form.grossRevenue"
+              :invalid="f.invalid"
+              :described-by="f.describedBy"
+              @blur="touch('grossRevenue')"
+            />
+          </FormField>
+
+          <FormField
+            :id="fieldId('paymentStatus')"
+            label="Payment status"
+            :note="theirNote('paymentStatus')"
+            :note-action="theirNote('paymentStatus') ? 'Use saved value' : undefined"
+            @note-action="useTheirs('paymentStatus')"
+            v-slot="f"
+          >
+            <select :id="f.id" v-model="form.paymentStatus" :aria-describedby="f.describedBy">
+              <option value="Paid">Paid</option>
+              <option value="Partially Paid">Partially paid</option>
+              <option value="Pending">Pending</option>
             </select>
-          </label>
-          <label class="account-field field-wide">
-            <span>Booking status</span>
-            <select v-model="form.bookingStatus">
-              <option>Confirmed</option>
-              <option>Reserved</option>
-              <option>Pending</option>
+          </FormField>
+
+          <FormField
+            :id="fieldId('bookingStatus')"
+            label="Booking status"
+            wide
+            :note="theirNote('bookingStatus')"
+            :note-action="theirNote('bookingStatus') ? 'Use saved value' : undefined"
+            @note-action="useTheirs('bookingStatus')"
+            v-slot="f"
+          >
+            <select :id="f.id" v-model="form.bookingStatus" :aria-describedby="f.describedBy">
+              <option value="Confirmed">Confirmed</option>
+              <option value="Reserved">Reserved</option>
+              <option value="Pending">Pending</option>
             </select>
-          </label>
-          <label class="account-field field-wide">
-            <span>Notes (optional)</span>
-            <input v-model.trim="form.notes" maxlength="240" placeholder="Anything the team should know" />
-          </label>
+          </FormField>
+
+          <FormField
+            :id="fieldId('notes')"
+            label="Notes"
+            optional
+            wide
+            :note="theirNote('notes')"
+            :note-action="theirNote('notes') ? 'Use saved value' : undefined"
+            @note-action="useTheirs('notes')"
+            v-slot="f"
+          >
+            <input
+              :id="f.id"
+              v-model.trim="form.notes"
+              maxlength="240"
+              placeholder="Anything the team should know"
+              :aria-describedby="f.describedBy"
+            />
+          </FormField>
         </div>
 
-        <template #footer>
-          <button
-            v-if="editing && !editingVoided"
-            class="table-link danger-link"
-            type="button"
-            :disabled="saving"
-            @click="askVoid = true"
-          >Void this booking</button>
-          <span class="footer-spacer"></span>
-          <button class="secondary-button" type="button" :disabled="saving" @click="showForm = false">Cancel</button>
+        <template #footer="{ requestClose }">
+          <button class="secondary-button" type="button" :disabled="saving" @click="requestClose">Cancel</button>
           <button class="primary-button" type="button" :disabled="saving" @click="save">
-            {{ saving ? 'Saving…' : editing ? 'Save changes' : 'Save booking' }}
+            {{ saveLabel }}
           </button>
         </template>
       </Drawer>
@@ -244,15 +371,38 @@
         </template>
       </Drawer>
 
+      <BookingDetail
+        :open="detailOpen"
+        :booking="detailBooking"
+        :can-see-history="canSeeHistory"
+        :history-version="historyVersion"
+        :busy="detailBusy"
+        :void-error="detailVoidError"
+        :action-error="detailActionError"
+        @close="detailOpen = false"
+        @edit="editFromDetail"
+        @mark-paid="quickUpdate('paid')"
+        @confirm="quickUpdate('confirm')"
+        @void="voidFromDetail"
+        @restore="restoreFromDetail"
+      />
+
+      <MonthAgainstForecast
+        v-if="!loading && businessToday"
+        :recorded="monthToDate"
+        :recorded-bookings="bookingsThisMonth"
+        :today="businessToday"
+      />
+
       <div v-if="loading" class="content-panel">
-        <div class="panel-header">
-          <div class="panel-title-group">
-            <h2>All bookings</h2>
-          </div>
-        </div>
-        <Skeleton :rows="6" />
+        <Skeleton :rows="8" />
       </div>
 
+      <div v-else-if="loadError" class="content-panel load-error" role="alert">
+        <p class="load-error-title">The bookings could not be loaded</p>
+        <p class="load-error-text">Check the connection, then try again. Nothing has been changed.</p>
+        <button class="secondary-button" type="button" @click="retryLoad">Try again</button>
+      </div>
       <EmptyState
         v-else-if="!bookings.length"
         title="No bookings yet"
@@ -263,69 +413,162 @@
         </template>
       </EmptyState>
 
-      <div v-else class="content-panel bookings-panel">
-        <div class="panel-header bookings-toolbar-header">
-          <div class="panel-title-group">
-            <h2>All bookings</h2>
-            <span class="panel-meta">{{ visibleBookings.length }} of {{ bookings.length }} shown</span>
-          </div>
-          <SearchField v-model="query" placeholder="Search client, package, or ID" />
+      <section v-else class="content-panel records-panel" aria-label="Bookings">
+        <div class="records-tools">
+          <SearchField v-model="filters.q" placeholder="Search client, package, destination or ID" />
+          <PeriodSelect
+            v-model:period="periodKey"
+            v-model:from="filters.from"
+            v-model:to="filters.to"
+            :today="businessToday"
+          />
+          <label v-if="stacked" class="records-sort">
+            <span class="visually-hidden">Sort bookings</span>
+            <select v-model="filters.sort">
+              <option v-for="option in sortOptions" :key="option.key" :value="option.key">{{ option.label }}</option>
+            </select>
+          </label>
         </div>
 
-        <div class="filter-chips" role="group" aria-label="Filter by payment">
+        <div class="records-filters" role="group" aria-label="Filter by payment">
           <button
             v-for="option in paymentOptions"
-            :key="option"
+            :key="option.key"
             type="button"
             class="filter-chip"
-            :class="{ active: paymentFilter === option }"
-            :aria-pressed="paymentFilter === option"
-            @click="paymentFilter = option"
+            :aria-pressed="filters.payment === option.key"
+            @click="filters.payment = option.key"
           >
-            <span>{{ option }}</span>
-            <span class="chip-count">{{ paymentCounts[option] ?? 0 }}</span>
+            {{ option.label }}
+            <span class="chip-count">{{ count(paymentCounts[option.key] ?? 0) }}</span>
           </button>
+          <template v-if="voidedInScope > 0">
+            <span class="chip-divider" aria-hidden="true"></span>
+            <button
+              type="button"
+              class="filter-chip"
+              :aria-pressed="showVoided"
+              @click="filters.voided = showVoided ? '' : '1'"
+            >
+              Show voided
+              <span class="chip-count">{{ count(voidedInScope) }}</span>
+            </button>
+          </template>
         </div>
 
-        <template v-if="visibleBookings.length">
-          <div class="dss-table-frame">
-            <table class="dss-table">
+        <p class="records-summary" aria-live="polite">
+          <span class="summary-figure"><strong>{{ count(active.length) }}</strong> {{ active.length === 1 ? 'booking' : 'bookings' }}</span>
+          <span class="summary-figure"><strong>{{ count(activePassengers) }}</strong> {{ activePassengers === 1 ? 'passenger' : 'passengers' }}</span>
+          <span class="summary-figure"><strong>{{ peso(activeRevenue) }}</strong> revenue</span>
+          <span v-if="filters.payment === 'all' && unpaidInView.length" class="summary-figure tone-warning">
+            <strong>{{ peso(unpaidValue) }}</strong> in {{ count(unpaidInView.length) }} unpaid {{ unpaidInView.length === 1 ? 'booking' : 'bookings' }}
+          </span>
+          <span class="summary-scope">{{ scopeText }}</span>
+          <button v-if="isFiltered" class="table-link" type="button" @click="clearFilters">Clear filters</button>
+          <button v-if="stacked" class="table-link" type="button" @click="toggleSelecting">
+            {{ selecting ? 'Done' : 'Select' }}<span class="visually-hidden"> bookings</span>
+          </button>
+        </p>
+
+        <template v-if="matching.length">
+          <ul v-if="stacked" class="record-list">
+            <template v-for="section in sections" :key="section.key">
+              <li v-if="section.label && section.summary" class="record-list-month">
+                <span>{{ section.label }}</span>
+                <span>{{ count(section.summary.count) }} {{ section.summary.count === 1 ? 'booking' : 'bookings' }} · {{ peso(section.summary.revenue) }}</span>
+              </li>
+              <li v-for="b in section.items" :key="b.id">
+                <button
+                  class="record-item"
+                  :class="{ 'is-voided': b.voided, selectable: selecting, 'is-selected': selected.has(b.id) }"
+                  type="button"
+                  :aria-pressed="selecting ? selected.has(b.id) : undefined"
+                  :disabled="selecting && b.voided"
+                  @click="selecting ? toggle(b) : openDetail(b)"
+                >
+                  <span v-if="selecting" class="record-check" aria-hidden="true">
+                    <UiIcon v-if="selected.has(b.id)" name="check" :stroke-width="2.6" />
+                  </span>
+                  <span class="record-item-top">
+                    <span class="record-item-title">{{ b.client }}</span>
+                    <span class="record-item-figure">{{ peso(b.grossRevenue) }}</span>
+                  </span>
+                  <span class="record-item-sub">{{ tripLabel(b) }}</span>
+                  <span class="record-item-meta">
+                    <span>{{ dateLabel(b.ds) }} · {{ b.id }} · {{ b.y }} pax<template v-if="b.voided"> · Voided</template></span>
+                    <span class="record-badge" :class="badge(b.paymentStatus)">{{ stateLabel(b.paymentStatus) }}</span>
+                  </span>
+                </button>
+              </li>
+            </template>
+          </ul>
+
+          <div v-else class="dss-table-frame">
+            <table class="dss-table records-table">
               <thead>
                 <tr>
-                  <th>Booking ID</th>
-                  <th>Client / Partner</th>
-                  <th>Package</th>
-                  <th class="num">Passengers</th>
-                  <th class="num">Revenue</th>
-                  <th>Payment</th>
-                  <th>Status</th>
-                  <th></th>
+                  <th scope="col" class="select-cell">
+                    <input
+                      type="checkbox"
+                      :checked="allShownSelected"
+                      :indeterminate.prop="someShownSelected && !allShownSelected"
+                      :disabled="selectableShown.length === 0"
+                      :aria-label="`Select all ${selectableShown.length} bookings shown`"
+                      @change="toggleAllShown"
+                    />
+                  </th>
+                  <SortHeader label="Date" field="date" :sort="filters.sort" @sort="sortBy" />
+                  <SortHeader label="Client" field="client" :sort="filters.sort" @sort="sortBy" />
+                  <th scope="col">Trip</th>
+                  <SortHeader label="Passengers" field="pax" align="right" :sort="filters.sort" @sort="sortBy" />
+                  <SortHeader label="Revenue" field="revenue" align="right" :sort="filters.sort" @sort="sortBy" />
+                  <th scope="col">Payment</th>
+                  <th scope="col">Status</th>
                 </tr>
               </thead>
-              <tbody>
-                <tr v-for="b in visibleBookings" :key="b.id" :class="{ 'row-voided': b.voided }">
-                  <td>
-                    <strong>{{ b.id }}</strong>
-                    <span v-if="b.voided" class="row-subtext voided-tag" :title="b.voidReason ?? ''">Voided</span>
+              <tbody v-for="section in sections" :key="section.key">
+                <tr v-if="section.label && section.summary" class="month-row">
+                  <th scope="rowgroup" colspan="4">
+                    {{ section.label }}
+                    <span class="month-count">· {{ count(section.summary.count) }} {{ section.summary.count === 1 ? 'booking' : 'bookings' }}</span>
+                  </th>
+                  <td class="num">{{ count(section.summary.passengers) }}</td>
+                  <td class="num">{{ peso(section.summary.revenue) }}</td>
+                  <td colspan="2"></td>
+                </tr>
+                <tr
+                  v-for="b in section.items"
+                  :key="b.id"
+                  class="record-row"
+                  :class="{ 'is-voided': b.voided, 'is-selected': selected.has(b.id) }"
+                  @click="openDetail(b)"
+                >
+                  <td class="select-cell" @click.stop>
+                    <input
+                      type="checkbox"
+                      :checked="selected.has(b.id)"
+                      :disabled="b.voided"
+                      :aria-label="`Select booking ${b.id}, ${b.client}`"
+                      @click="onCheck(b, $event)"
+                    />
                   </td>
-                  <td>{{ b.client }}</td>
+                  <td class="cell-date">{{ dateLabel(b.ds) }}</td>
                   <td>
-                    <strong>{{ b.package }}</strong>
+                    <button class="row-open" type="button" @click.stop="openDetail(b)">{{ b.client }}</button>
                     <span class="row-subtext">
-                      {{ b.destination }}
-                      <span class="kind-tag" :class="{ 'kind-tailored': isTailored(b) }">
-                        {{ isTailored(b) ? 'Tailored' : 'Package' }}
-                      </span>
+                      {{ b.id }}<span v-if="b.voided" class="voided-tag" :title="b.voidReason ?? ''">Voided</span>
+                    </span>
+                  </td>
+                  <td>
+                    <span class="trip-name">{{ b.package }}</span>
+                    <span class="row-subtext">
+                      {{ b.destination }}<span v-if="isTailored(b)" class="kind-tag">Tailored</span>
                     </span>
                   </td>
                   <td class="num">{{ b.y }}</td>
                   <td class="num"><strong>{{ peso(b.grossRevenue) }}</strong></td>
-                  <td><span class="record-badge" :class="badge(b.paymentStatus)">{{ b.paymentStatus }}</span></td>
-                  <td><span class="record-badge" :class="badge(b.bookingStatus)">{{ b.bookingStatus }}</span></td>
-                  <td class="num">
-                    <button v-if="b.voided" class="table-link" type="button" @click="restore(b)">Restore</button>
-                    <button v-else class="table-link" type="button" @click="openEdit(b)">Edit</button>
-                  </td>
+                  <td><span class="record-badge" :class="badge(b.paymentStatus)">{{ stateLabel(b.paymentStatus) }}</span></td>
+                  <td><span class="record-badge" :class="badge(b.bookingStatus)">{{ stateLabel(b.bookingStatus) }}</span></td>
                 </tr>
               </tbody>
             </table>
@@ -334,42 +577,89 @@
           <ListFooter
             :shown="shown"
             :total="total"
+            :page-size="PAGE"
             noun="bookings"
             @more="loadMore"
             @all="showAll"
           />
+
+          <SelectionBar :count="selected.size" :detail="selectionDetail" @clear="clearSelection">
+            <button
+              class="primary-button compact-button"
+              type="button"
+              :disabled="bulkBusy !== '' || selectedUnpaid.length === 0"
+              @click="bulkUpdate('paid')"
+            >
+              <UiIcon name="wallet" />
+              {{ bulkBusy === 'paid' ? 'Saving…' : selectedUnpaid.length ? `Mark ${selectedUnpaid.length} as paid` : 'All paid' }}
+            </button>
+            <button
+              class="secondary-button compact-button"
+              type="button"
+              :disabled="bulkBusy !== '' || selectedUnconfirmed.length === 0"
+              @click="bulkUpdate('confirm')"
+            >
+              <UiIcon name="check" />
+              {{ bulkBusy === 'confirm' ? 'Saving…' : selectedUnconfirmed.length ? `Confirm ${selectedUnconfirmed.length}` : 'All confirmed' }}
+            </button>
+          </SelectionBar>
         </template>
 
-        <div v-else class="filter-empty">
-          <p>No bookings match your search.</p>
+        <div v-else class="records-empty">
+          <strong>No bookings match</strong>
+          <span>Try a different search, payment status or period.</span>
           <button class="table-link" type="button" @click="clearFilters">Clear filters</button>
         </div>
-      </div>
+      </section>
     </section>
   </AppShell>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import AppShell from '../components/AppShell.vue';
+import ActionMenu, { type ActionMenuItem } from '../components/ActionMenu.vue';
+import BookingDetail, { type BookingBusy } from '../components/BookingDetail.vue';
 import Drawer from '../components/Drawer.vue';
 import Skeleton from '../components/Skeleton.vue';
 import EmptyState from '../components/EmptyState.vue';
 import SearchField from '../components/SearchField.vue';
 import ListFooter from '../components/ListFooter.vue';
-import { usePaged } from '../composables/usePaged';
-import { useToast } from '../composables/useToast';
-import { api, ApiError, type Booking, type BookingInput, type ImportPreview, type PackageOption } from '../api';
-import { count, peso } from '../format';
+import SelectionBar from '../components/SelectionBar.vue';
+import PeriodSelect from '../components/PeriodSelect.vue';
+import SortHeader from '../components/SortHeader.vue';
+import UiIcon from '../components/UiIcon.vue';
 import MoneyField from '../components/MoneyField.vue';
+import FormField from '../components/FormField.vue';
+import FormProblems from '../components/FormProblems.vue';
+import MonthAgainstForecast from '../components/forecast/MonthAgainstForecast.vue';
+import { invalidateForecast } from '../composables/useForecast';
+import { usePaged } from '../composables/usePaged';
+import { undoAction, useToast } from '../composables/useToast';
+import { useMediaQuery } from '../composables/useMediaQuery';
+import { useQueryState } from '../composables/useQueryState';
+import { useFieldErrors } from '../composables/useFieldErrors';
+import { useFormDraft } from '../composables/useDraft';
+import { useAuth } from '../stores/auth';
+import { canAccess } from '../nav';
+import { api, ApiError, type Booking, type BookingInput, type ImportPreview, type PackageOption } from '../api';
+import { count, peso, stateLabel } from '../format';
+import { describeRange, formatDate, formatDay, inRange, isIsoDate, isPeriodKey, resolvePeriod, type PeriodKey } from '../periods';
+import { compareText, monthSections, nextSort, singleSection, sortParts, type SortDirection } from '../listing';
+import { isAfter, listNames, mergeDraft, nextCode, suggestions } from '../records';
+import { rememberRecent } from '../recents';
 
 type BookingMode = 'package' | 'custom';
 type BookingForm = BookingInput & { mode: BookingMode };
-type BookingRecovery =
-  | { kind: 'create'; payload: BookingInput }
-  | { kind: 'stale-edit'; message: string };
+type BookingRecovery = { kind: 'create'; payload: BookingInput } | { kind: 'stale-edit' };
+
+const PAGE = 50;
 
 const toast = useToast();
+const route = useRoute();
+const router = useRouter();
+const { state: auth } = useAuth();
 
 const bookings = ref<Booking[]>([]);
 const packages = ref<PackageOption[]>([]);
@@ -380,9 +670,13 @@ const formError = ref('');
 const editing = ref(false);
 const originalCode = ref('');
 const drawerTitle = ref('New booking');
+// Set when the form was opened from a booking's panel, so closing the form goes back to it.
+const returnToDetail = ref(false);
 
-const unusualWarning = ref('');
+// Set once someone has been told the price is far above the usual, so the next save confirms it.
 const confirmUnusual = ref(false);
+// The server's own wording, when it queried the price before the form did.
+const serverUnusual = ref('');
 
 const showImport = ref(false);
 const importFileInput = ref<HTMLInputElement | null>(null);
@@ -396,50 +690,218 @@ const importable = computed(() => {
   return p ? Math.max(0, p.valid - p.duplicates) : 0;
 });
 
-const askVoid = ref(false);
-const voiding = ref(false);
-const voidReason = ref('');
-const voidError = ref('');
 const pendingRecovery = ref<BookingRecovery | null>(null);
 const createRecoveryError = 'Could not confirm whether this booking was saved. Check your connection, then try again before changing this form.';
 const staleRecoveryError = 'Could not reload the latest booking after a conflict. Check your connection, then try again before saving.';
-const editingVoided = computed(
-  () => bookings.value.find((b) => b.id === originalCode.value)?.voided ?? false,
-);
-
-const query = ref('');
-const paymentOptions = ['All', 'Paid', 'Partially Paid', 'Pending'];
-const paymentFilter = ref('All');
 
 const businessToday = ref('');
 const businessDateError = 'Could not load the business date. Refresh and try again.';
 const form = reactive<BookingForm>(blank());
 
-const totalPassengers = computed(() => bookings.value.reduce((sum, b) => sum + b.y, 0));
-const totalRevenue = computed(() => bookings.value.reduce((sum, b) => sum + b.grossRevenue, 0));
+// The booking panel
+const detailOpen = ref(false);
+const detailCode = ref<string | null>(null);
+const detailBooking = computed(() => bookings.value.find((b) => b.id === detailCode.value) ?? null);
+const detailBusy = ref<BookingBusy>('');
+const detailVoidError = ref('');
+const detailActionError = ref('');
+const historyVersion = ref(0);
+// The change history comes from the activity log, which Owner and Admin can read.
+const canSeeHistory = computed(() => canAccess(auth.user?.role, '/reports'));
 
-const paymentCounts = computed(() => {
-  const counts: Record<string, number> = { All: bookings.value.length };
-  for (const b of bookings.value) counts[b.paymentStatus] = (counts[b.paymentStatus] ?? 0) + 1;
-  return counts;
+const menuItems: ActionMenuItem[] = [
+  {
+    label: 'Export bookings',
+    hint: 'Every booking as a CSV file, voided ones marked',
+    icon: 'download',
+    href: '/api/export/bookings.csv',
+  },
+  { label: 'Import from a file', hint: 'Add bookings from a CSV sheet', icon: 'upload', run: openImport },
+];
+
+// ----- Filters, kept in the address -----
+
+const paymentOptions = [
+  { key: 'all', label: 'All' },
+  // Unpaid matches what Home counts: every active booking that is not fully paid.
+  { key: 'unpaid', label: 'Unpaid' },
+  { key: 'paid', label: 'Paid' },
+  { key: 'partially-paid', label: 'Partially paid' },
+  { key: 'pending', label: 'Pending' },
+];
+
+const sortOptions = [
+  { key: 'date-desc', label: 'Newest first' },
+  { key: 'date-asc', label: 'Oldest first' },
+  { key: 'revenue-desc', label: 'Highest revenue' },
+  { key: 'revenue-asc', label: 'Lowest revenue' },
+  { key: 'pax-desc', label: 'Most passengers' },
+  { key: 'pax-asc', label: 'Fewest passengers' },
+  { key: 'client-asc', label: 'Client A to Z' },
+  { key: 'client-desc', label: 'Client Z to A' },
+];
+
+const firstDirection: Record<string, SortDirection> = { date: 'desc', client: 'asc', pax: 'desc', revenue: 'desc' };
+
+const filters = useQueryState(
+  { q: '', payment: 'all', period: 'all', from: '', to: '', voided: '', sort: 'date-desc' },
+  {
+    payment: (value) => paymentOptions.some((option) => option.key === value),
+    period: isPeriodKey,
+    from: isIsoDate,
+    to: isIsoDate,
+    voided: (value) => value === '1',
+    sort: (value) => sortOptions.some((option) => option.key === value),
+  },
+);
+
+const periodKey = computed<PeriodKey>({
+  get: () => (isPeriodKey(filters.period) ? filters.period : 'all'),
+  set: (value) => {
+    filters.period = value;
+    if (value !== 'custom') {
+      filters.from = '';
+      filters.to = '';
+    }
+  },
 });
 
-const matching = computed(() => {
-  const term = query.value.trim().toLowerCase();
+const showVoided = computed(() => filters.voided === '1');
+const stacked = useMediaQuery('(max-width: 860px)');
+
+const range = computed(() => resolvePeriod(periodKey.value, businessToday.value, filters.from, filters.to));
+
+const searched = computed(() => {
+  const term = filters.q.trim().toLowerCase();
   return bookings.value.filter((b) => {
-    if (paymentFilter.value !== 'All' && b.paymentStatus !== paymentFilter.value) return false;
+    if (!inRange(b.ds, range.value)) return false;
     if (!term) return true;
     return [b.client, b.package, b.destination, b.id].some((field) => (field ?? '').toLowerCase().includes(term));
   });
 });
 
-const { visible: visibleBookings, total, shown, loadMore, showAll } = usePaged(matching);
+const voidedInScope = computed(() => searched.value.filter((b) => b.voided).length);
+const pool = computed(() => (showVoided.value ? searched.value : searched.value.filter((b) => !b.voided)));
 
-function clearFilters() {
-  query.value = '';
-  paymentFilter.value = 'All';
+function isUnpaid(b: Booking): boolean {
+  return !b.voided && b.paymentStatus !== 'Paid';
 }
 
+function paymentMatches(b: Booking, key: string): boolean {
+  switch (key) {
+    case 'all':
+      return true;
+    case 'unpaid':
+      return isUnpaid(b);
+    case 'paid':
+      return b.paymentStatus === 'Paid';
+    case 'partially-paid':
+      return b.paymentStatus === 'Partially Paid';
+    case 'pending':
+      return b.paymentStatus === 'Pending';
+    default:
+      return true;
+  }
+}
+
+const paymentCounts = computed(() => {
+  const counts: Record<string, number> = {};
+  for (const option of paymentOptions) {
+    counts[option.key] = pool.value.filter((b) => paymentMatches(b, option.key)).length;
+  }
+  return counts;
+});
+
+const matching = computed(() => pool.value.filter((b) => paymentMatches(b, filters.payment)));
+
+// Revenue is gross booking revenue with voided bookings left out, the same figure Home and
+// Reports use. Voided bookings can be listed, but they never count.
+const active = computed(() => matching.value.filter((b) => !b.voided));
+const activePassengers = computed(() => active.value.reduce((sum, b) => sum + b.y, 0));
+const activeRevenue = computed(() => active.value.reduce((sum, b) => sum + b.grossRevenue, 0));
+// The booked value of bookings not yet fully paid. Part-payments are not recorded, so this is
+// the bookings' value, not the balance still owed.
+const unpaidInView = computed(() => active.value.filter(isUnpaid));
+const unpaidValue = computed(() => unpaidInView.value.reduce((sum, b) => sum + b.grossRevenue, 0));
+
+// This month's bookings so far, voided ones left out, for the forecast band.
+const activeThisMonth = computed(() => {
+  const month = businessToday.value.slice(0, 7);
+  return month ? bookings.value.filter((b) => !b.voided && b.ds.startsWith(month)) : [];
+});
+const monthToDate = computed(() => activeThisMonth.value.reduce((sum, b) => sum + b.grossRevenue, 0));
+const bookingsThisMonth = computed(() => activeThisMonth.value.length);
+
+const sorted = computed(() => {
+  const { field, direction } = sortParts(filters.sort);
+  const sign = direction === 'asc' ? 1 : -1;
+  return [...matching.value].sort((a, b) => {
+    let order = 0;
+    if (field === 'client') order = compareText(a.client, b.client);
+    else if (field === 'pax') order = a.y - b.y;
+    else if (field === 'revenue') order = a.grossRevenue - b.grossRevenue;
+    if (order === 0) order = a.ds < b.ds ? -1 : a.ds > b.ds ? 1 : a.backendId - b.backendId;
+    return order * sign;
+  });
+});
+
+const { visible, total, shown, loadMore, showAll } = usePaged(sorted, PAGE);
+
+const byDate = computed(() => sortParts(filters.sort).field === 'date');
+
+interface MonthTotals {
+  count: number;
+  passengers: number;
+  revenue: number;
+}
+
+function totalsOf(items: Booking[]): MonthTotals {
+  const counted = items.filter((b) => !b.voided);
+  return {
+    count: counted.length,
+    passengers: counted.reduce((sum, b) => sum + b.y, 0),
+    revenue: counted.reduce((sum, b) => sum + b.grossRevenue, 0),
+  };
+}
+
+const sections = computed(() =>
+  byDate.value
+    ? monthSections(visible.value, sorted.value, (b) => b.ds, totalsOf)
+    : singleSection<Booking, MonthTotals>(visible.value),
+);
+
+const isFiltered = computed(
+  () => filters.q.trim() !== '' || filters.payment !== 'all' || periodKey.value !== 'all' || showVoided.value,
+);
+
+const scopeText = computed(() => {
+  const parts = [range.value ? describeRange(range.value) : 'All dates'];
+  const term = filters.q.trim();
+  if (term) parts.push(`matching “${term}”`);
+  const listedVoided = matching.value.length - active.value.length;
+  if (listedVoided > 0) parts.push(`${listedVoided} voided listed, not counted`);
+  return parts.join(' · ');
+});
+
+function sortBy(field: string) {
+  filters.sort = nextSort(filters.sort, field, firstDirection[field] ?? 'asc');
+}
+
+function clearFilters() {
+  filters.q = '';
+  filters.payment = 'all';
+  periodKey.value = 'all';
+  filters.voided = '';
+}
+
+function dateLabel(ds: string): string {
+  // Inside a month heading the year is already on screen.
+  return byDate.value ? formatDay(ds) : formatDate(ds);
+}
+
+function tripLabel(b: Booking): string {
+  return b.destination ? `${b.package} · ${b.destination}` : b.package;
+}
 
 function badge(value: string): string {
   return 'status-' + value.toLowerCase().replace(/[^a-z0-9]+/g, '-');
@@ -448,6 +910,432 @@ function badge(value: string): string {
 function isTailored(b: Booking): boolean {
   return b.packageId == null;
 }
+
+// ----- Selecting several bookings -----
+
+const selected = reactive(new Set<string>());
+const selecting = ref(false);
+const bulkBusy = ref<'' | 'paid' | 'confirm'>('');
+let lastChecked: string | null = null;
+
+const selectableShown = computed(() => visible.value.filter((b) => !b.voided));
+const allShownSelected = computed(() => selectableShown.value.length > 0 && selectableShown.value.every((b) => selected.has(b.id)));
+const someShownSelected = computed(() => selectableShown.value.some((b) => selected.has(b.id)));
+const selectedBookings = computed(() => bookings.value.filter((b) => selected.has(b.id) && !b.voided));
+const selectedUnpaid = computed(() => selectedBookings.value.filter((b) => b.paymentStatus !== 'Paid'));
+const selectedUnconfirmed = computed(() => selectedBookings.value.filter((b) => b.bookingStatus !== 'Confirmed'));
+const selectionDetail = computed(() => {
+  const value = selectedBookings.value.reduce((sum, b) => sum + b.grossRevenue, 0);
+  return `${peso(value)} booked`;
+});
+
+function toggle(b: Booking) {
+  if (b.voided) return;
+  if (selected.has(b.id)) selected.delete(b.id);
+  else selected.add(b.id);
+  lastChecked = b.id;
+}
+
+/** Shift-click selects every booking between the last one ticked and this one. */
+function onCheck(b: Booking, event: MouseEvent) {
+  const order = visible.value;
+  const from = lastChecked ? order.findIndex((item) => item.id === lastChecked) : -1;
+  const to = order.findIndex((item) => item.id === b.id);
+  if (event.shiftKey && from >= 0 && to >= 0) {
+    const turnOn = !selected.has(b.id);
+    for (const item of order.slice(Math.min(from, to), Math.max(from, to) + 1)) {
+      if (item.voided) continue;
+      if (turnOn) selected.add(item.id);
+      else selected.delete(item.id);
+    }
+    lastChecked = b.id;
+    return;
+  }
+  toggle(b);
+}
+
+function toggleAllShown() {
+  if (allShownSelected.value) for (const b of selectableShown.value) selected.delete(b.id);
+  else for (const b of selectableShown.value) selected.add(b.id);
+}
+
+function clearSelection() {
+  selected.clear();
+  lastChecked = null;
+}
+
+function toggleSelecting() {
+  selecting.value = !selecting.value;
+  if (!selecting.value) clearSelection();
+}
+
+// A filter that hides a booking also lets go of it, so nothing unseen is changed.
+watch(matching, (list) => {
+  const still = new Set(list.map((b) => b.id));
+  for (const id of [...selected]) if (!still.has(id)) selected.delete(id);
+});
+
+async function bulkUpdate(action: 'paid' | 'confirm') {
+  if (bulkBusy.value) return;
+  const targets = action === 'paid' ? selectedUnpaid.value : selectedUnconfirmed.value;
+  if (targets.length === 0) return;
+  bulkBusy.value = action;
+  const before = targets.map((b) => ({ ...b }));
+  const revisions = Object.fromEntries(targets.map((b) => [b.id, b.revision]));
+  try {
+    const result = await api.bulkBookings(targets.map((b) => b.id), action, revisions);
+    await load(false);
+    historyVersion.value += 1;
+    clearSelection();
+    selecting.value = false;
+    const n = result.updated;
+    const noun = n === 1 ? 'booking' : 'bookings';
+    toast.success(action === 'paid' ? `${n} ${noun} marked as paid` : `${n} ${noun} confirmed`, {
+      action: undoAction(() => runUndo(
+        'One of these bookings',
+        () => restoreStates(before, result.bookings),
+        `${n} ${noun} put back as they were`,
+      )),
+    });
+  } catch (e) {
+    await load(false);
+    toast.error(e instanceof ApiError && e.status === 409
+      ? 'Some of these bookings changed or were voided while selected. The list is up to date now; check the selection and try again.'
+      : 'Could not update the bookings. Check the connection, then try again.');
+  } finally {
+    bulkBusy.value = '';
+  }
+}
+
+// ----- The booking panel -----
+
+function openDetail(b: Booking) {
+  detailCode.value = b.id;
+  detailVoidError.value = '';
+  detailActionError.value = '';
+  detailOpen.value = true;
+  rememberRecent({ kind: 'booking', code: b.id, label: b.client, detail: `${b.id} · ${b.package} · ${peso(b.grossRevenue)}` });
+}
+
+function editFromDetail() {
+  const b = detailBooking.value;
+  if (!b) return;
+  detailOpen.value = false;
+  openEdit(b);
+  returnToDetail.value = true;
+}
+
+function bookingInput(b: Booking, revision: number): BookingInput {
+  return {
+    id: b.id,
+    ds: b.ds,
+    y: b.y,
+    client: b.client,
+    package: b.package,
+    packageId: b.packageId,
+    entryType: b.entryType,
+    destination: b.destination,
+    grossRevenue: b.grossRevenue,
+    paymentStatus: b.paymentStatus,
+    bookingStatus: b.bookingStatus,
+    staffAssigned: b.staffAssigned,
+    source: b.source,
+    notes: b.notes,
+    revision,
+    // Putting back an amount that was already accepted is not a new question.
+    confirmUnusual: true,
+  };
+}
+
+/** Runs an undo; refused by the server when the booking has changed since, which is said plainly. */
+async function runUndo(subject: string, steps: () => Promise<unknown>, done: string) {
+  try {
+    await steps();
+    invalidateForecast();
+    await load(false);
+    historyVersion.value += 1;
+    toast.success(done);
+  } catch (e) {
+    await load(false);
+    const stale = e instanceof ApiError && e.status === 409 && (e.code === 'stale_revision' || e.code === 'write_conflict');
+    toast.error(stale
+      ? `${subject} changed after that, so the change could not be undone. Open it to change it by hand.`
+      : e instanceof ApiError ? Object.values(e.fields)[0] ?? e.message : 'Could not undo the change. Check the connection, then change the booking by hand.');
+  }
+}
+
+/** Puts each booking back as it was, in turn, against the revision the change left it at. */
+async function restoreStates(before: Booking[], after: Booking[]) {
+  for (const old of before) {
+    const now = after.find((b) => b.id === old.id);
+    if (now) await api.updateBooking(old.id, bookingInput(old, now.revision));
+  }
+}
+
+async function quickUpdate(action: 'paid' | 'confirm') {
+  const b = detailBooking.value;
+  if (!b || detailBusy.value) return;
+  detailBusy.value = action;
+  detailActionError.value = '';
+  const before = { ...b };
+  try {
+    const result = await api.bulkBookings([b.id], action, { [b.id]: b.revision });
+    await load(false);
+    historyVersion.value += 1;
+    const back = action === 'paid' ? `Booking ${b.id} is ${stateLabel(before.paymentStatus).toLowerCase()} again` : `Booking ${b.id} is ${stateLabel(before.bookingStatus).toLowerCase()} again`;
+    toast.success(action === 'paid' ? `Booking ${b.id} marked as paid` : `Booking ${b.id} confirmed`, {
+      action: undoAction(() => runUndo(`Booking ${b.id}`, () => restoreStates([before], result.bookings), back)),
+    });
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 409) {
+      await load(false);
+      detailActionError.value = 'This booking changed while it was open. The latest details are shown; try again if it still needs the update.';
+    } else {
+      detailActionError.value = e instanceof ApiError ? Object.values(e.fields)[0] ?? e.message : 'Could not update the booking.';
+    }
+  } finally {
+    detailBusy.value = '';
+  }
+}
+
+async function voidFromDetail(reason: string) {
+  const b = detailBooking.value;
+  if (!b || detailBusy.value || !reason) return;
+  detailBusy.value = 'void';
+  detailVoidError.value = '';
+  try {
+    const after = await api.voidBooking(b.id, reason, b.revision);
+    invalidateForecast();
+    await load(false);
+    historyVersion.value += 1;
+    toast.success('Booking ' + b.id + ' voided', {
+      action: undoAction(() => runUndo(`Booking ${b.id}`, () => api.restoreBooking(b.id, after.revision), `Booking ${b.id} restored`)),
+    });
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 409) await load(false);
+    detailVoidError.value = e instanceof ApiError ? conflictMessage(e, 'booking') : 'Could not void the booking.';
+  } finally {
+    detailBusy.value = '';
+  }
+}
+
+async function restoreFromDetail() {
+  const b = detailBooking.value;
+  if (!b || detailBusy.value) return;
+  detailBusy.value = 'restore';
+  detailActionError.value = '';
+  const reason = b.voidReason || 'Voided again after a restore';
+  try {
+    const after = await api.restoreBooking(b.id, b.revision);
+    invalidateForecast();
+    await load(false);
+    historyVersion.value += 1;
+    toast.success('Booking ' + b.id + ' restored', {
+      action: undoAction(() => runUndo(`Booking ${b.id}`, () => api.voidBooking(b.id, reason, after.revision), `Booking ${b.id} voided again`)),
+    });
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 409) await load(false);
+    detailActionError.value = e instanceof ApiError ? conflictMessage(e, 'booking') : 'Could not restore the booking.';
+  } finally {
+    detailBusy.value = '';
+  }
+}
+
+// ----- The booking form -----
+
+const FIELD_LABELS = {
+  ds: 'Booking date',
+  y: 'Passengers',
+  client: 'Client or agency partner',
+  packageId: 'Package',
+  package: 'Trip or quotation name',
+  destination: 'Destination',
+  grossRevenue: 'Price',
+  paymentStatus: 'Payment status',
+  bookingStatus: 'Booking status',
+  notes: 'Notes',
+} as const;
+type BookingField = keyof typeof FIELD_LABELS;
+
+// Every field a save sends, for merging in someone else's changes after a conflict.
+const MERGE_KEYS = [
+  'ds', 'y', 'client', 'package', 'packageId', 'entryType', 'destination', 'grossRevenue',
+  'paymentStatus', 'bookingStatus', 'staffAssigned', 'source', 'notes', 'mode',
+] as const;
+
+// The checks the server makes on a price, made here first so the question comes before the save.
+const UNUSUAL_MULTIPLE = 5;
+const UNUSUAL_SAMPLE = 8;
+
+// The booking as it was when the form opened, and as last read after a conflict.
+const original = ref<Booking | null>(null);
+const baseForm = ref<BookingForm | null>(null);
+// Values someone else saved for fields this form had also changed, shown beside those fields.
+const theirValues = ref<Partial<Record<BookingField, unknown>>>({});
+const mergeNotice = ref('');
+const openedSnapshot = ref('');
+
+const {
+  errors,
+  attempted,
+  problems,
+  touch,
+  recheck,
+  validateAll,
+  placeServerErrors,
+  reset: resetFieldErrors,
+  fieldId,
+  focusField,
+} = useFieldErrors<BookingField>('booking', FIELD_LABELS, {
+  ds: () => (form.ds ? '' : 'Choose the date the booking was made.'),
+  y: () => {
+    const y = form.y as unknown;
+    if (typeof y !== 'number' || !Number.isInteger(y) || y < 1) return 'Enter the number of passengers, at least 1.';
+    const limit = slotLimit.value;
+    if (limit != null && y > limit) {
+      return limit <= 0
+        ? 'This package has no slots left. Choose another package or a tailored trip.'
+        : `Only ${count(limit)} ${limit === 1 ? 'slot is' : 'slots are'} left on this package.`;
+    }
+    return '';
+  },
+  client: () => (form.client.trim() ? '' : 'Enter the client or agency partner.'),
+  packageId: () => (form.mode === 'package' && !form.packageId ? 'Choose a package, or switch to a tailored trip.' : ''),
+  package: () => (form.mode === 'custom' && !form.package.trim() ? 'Name the trip or quotation.' : ''),
+  destination: () => (form.mode === 'custom' && !form.destination.trim() ? 'Enter the destination.' : ''),
+  grossRevenue: () =>
+    Number.isFinite(form.grossRevenue) && form.grossRevenue >= 0 ? '' : 'Enter a price of zero or more.',
+});
+
+// A field already left is checked again as it changes, so its message goes once it is right.
+watch(form, recheck);
+// A different price is a different question.
+watch(
+  () => form.grossRevenue,
+  () => {
+    confirmUnusual.value = false;
+    serverUnusual.value = '';
+  },
+);
+
+const selectedPackage = computed(() =>
+  form.mode === 'package' ? packages.value.find((p) => p.id === form.packageId) ?? null : null,
+);
+
+/** Seats this booking already holds on a package; an edit can keep them. */
+function heldSeats(packageId: string | null): number {
+  const b = original.value;
+  return b && !b.voided && b.packageId === packageId ? b.y : 0;
+}
+
+/**
+ * Seats the booking can take on the chosen package: what is free plus what it already holds.
+ * A voided booking holds nothing and the server does not check its seats, so neither does this.
+ */
+const slotLimit = computed<number | null>(() => {
+  const p = selectedPackage.value;
+  if (!p || original.value?.voided) return null;
+  return p.availableSlots + heldSeats(p.id);
+});
+
+const packageChoices = computed(() =>
+  packages.value.map((p) => {
+    const free = p.availableSlots + heldSeats(p.id);
+    return {
+      id: p.id,
+      // A full package cannot be chosen, unless it is the one already on the booking.
+      full: free <= 0 && p.id !== form.packageId,
+      label: `${p.packageName} · ${free <= 0 ? 'full' : `${count(free)} ${free === 1 ? 'slot' : 'slots'} left`}`,
+    };
+  }),
+);
+
+const slotHint = computed(() => {
+  const limit = slotLimit.value;
+  if (limit == null || limit <= 0) return '';
+  return limit === 1 ? '1 slot left on this package' : `${count(limit)} slots left on this package`;
+});
+
+const packageHint = computed(() => {
+  const p = selectedPackage.value;
+  if (!p) return '';
+  return [p.destination, p.duration, `${peso(p.basePrice)} per passenger`].filter(Boolean).join(' · ');
+});
+
+const priceHint = computed(() => {
+  const p = selectedPackage.value;
+  if (!p) return '';
+  const passengers = typeof form.y === 'number' && form.y > 0 ? form.y : 0;
+  const listed = passengers * p.basePrice;
+  if (form.grossRevenue === listed) {
+    return `${count(passengers)} × ${peso(p.basePrice)}, the package price. Change it for a discount or extras.`;
+  }
+  return `The package price would be ${peso(listed)}.`;
+});
+
+const dateNote = computed(() =>
+  isAfter(form.ds, businessToday.value)
+    ? 'This is after today. Bookings count on the day they were made, so check the date.'
+    : '',
+);
+
+/** The middle booking amount, worked out the way the server does for its check. */
+const usualAmount = computed<number | null>(() => {
+  const others = bookings.value
+    .filter((b) => b.id !== originalCode.value)
+    .map((b) => b.grossRevenue)
+    .sort((a, b) => a - b);
+  if (others.length < UNUSUAL_SAMPLE) return null;
+  const middle = Math.floor(others.length / 2);
+  const median = others.length % 2 === 1 ? others[middle] : Math.trunc((others[middle - 1] + others[middle]) / 2);
+  return median > 0 ? median : null;
+});
+
+const unusualAmount = computed(() => {
+  const usual = usualAmount.value;
+  if (usual == null) return false;
+  if (original.value && original.value.grossRevenue === form.grossRevenue) return false;
+  return form.grossRevenue >= usual * UNUSUAL_MULTIPLE;
+});
+
+const priceNote = computed(() => {
+  if (serverUnusual.value) return serverUnusual.value;
+  const usual = usualAmount.value;
+  if (!unusualAmount.value || usual == null) return '';
+  const said = `${peso(form.grossRevenue)} is more than ${UNUSUAL_MULTIPLE} times the usual booking (about ${peso(usual)}). Check for a stray digit`;
+  return confirmUnusual.value ? `${said}, or save again to keep it.` : `${said}.`;
+});
+
+const saveLabel = computed(() => {
+  if (saving.value) return 'Saving…';
+  if (confirmUnusual.value && (unusualAmount.value || serverUnusual.value)) return 'Save with this price';
+  return editing.value ? 'Save changes' : 'Save booking';
+});
+
+// Names already used, offered as the field is typed, so one client is not spelled three ways.
+const clientNames = computed(() => suggestions(bookings.value.map((b) => b.client)));
+const destinationNames = computed(() =>
+  suggestions([...packages.value.map((p) => p.destination), ...bookings.value.map((b) => b.destination)]),
+);
+
+function snapshotForm(): string {
+  const { revision: _revision, ...rest } = form;
+  return JSON.stringify(rest);
+}
+
+const formDirty = computed(() => showForm.value && snapshotForm() !== openedSnapshot.value);
+
+// A new booking's unfinished form survives a reload or a closed tab.
+const {
+  restoredAt: draftRestoredAt,
+  restore: restoreDraft,
+  discard: discardDraft,
+  startedLabel: draftStartedLabel,
+} = useFormDraft<BookingForm>('booking', {
+  active: () => showForm.value && !editing.value,
+  dirty: () => formDirty.value,
+  snapshot: () => ({ ...form }),
+});
 
 function blank(): BookingForm {
   return {
@@ -470,57 +1358,8 @@ function blank(): BookingForm {
   };
 }
 
-function applyPackage() {
-  if (form.mode !== 'package') return;
-  const preset = packages.value.find((p) => p.id === form.packageId);
-  if (!preset) return;
-  form.package = preset.packageName;
-  form.destination = preset.destination;
-  form.grossRevenue = Number(form.y || 1) * preset.basePrice;
-  form.entryType = 'Package preset';
-  form.source = 'Package preset';
-}
-
-function setMode(next: BookingMode) {
-  if (form.mode === next) return;
-  form.mode = next;
-  if (next === 'custom') {
-    form.packageId = null;
-    form.entryType = 'Custom quotation';
-    form.source = 'Manual quotation';
-  } else {
-    form.entryType = 'Package preset';
-    form.source = 'Package preset';
-    if (!form.packageId) form.packageId = packages.value[0]?.id ?? null;
-    applyPackage();
-  }
-}
-
-function openForm() {
-  if (!businessToday.value) {
-    formError.value = businessDateError;
-    toast.error(businessDateError);
-    return;
-  }
-  Object.assign(form, blank());
-  form.id = 'BKG-' + (2400 + bookings.value.length + 1);
-  form.packageId = packages.value[0]?.id ?? null;
-  applyPackage();
-  editing.value = false;
-  originalCode.value = '';
-  drawerTitle.value = 'New booking';
-  formError.value = '';
-  unusualWarning.value = '';
-  confirmUnusual.value = false;
-  askVoid.value = false;
-  voidReason.value = '';
-  voidError.value = '';
-  pendingRecovery.value = null;
-  showForm.value = true;
-}
-
-function loadBookingIntoForm(b: Booking) {
-  Object.assign(form, {
+function bookingToForm(b: Booking): BookingForm {
+  return {
     id: b.id,
     ds: b.ds,
     y: b.y,
@@ -537,31 +1376,176 @@ function loadBookingIntoForm(b: Booking) {
     notes: b.notes ?? '',
     revision: b.revision,
     mode: b.packageId == null ? 'custom' : 'package',
-  } satisfies BookingForm);
+  };
 }
 
-function openEdit(b: Booking) {
-  loadBookingIntoForm(b);
-  editing.value = true;
-  originalCode.value = b.id;
-  drawerTitle.value = 'Edit booking';
+/** The first package with a seat free, so a new booking does not start on a full one. */
+function firstOpenPackage(): PackageOption | undefined {
+  return packages.value.find((p) => p.availableSlots > 0) ?? packages.value[0];
+}
+
+function applyPackage() {
+  if (form.mode !== 'package') return;
+  const preset = packages.value.find((p) => p.id === form.packageId);
+  if (!preset) return;
+  form.package = preset.packageName;
+  form.destination = preset.destination;
+  form.grossRevenue = Number(form.y || 1) * preset.basePrice;
+  form.entryType = 'Package preset';
+  form.source = 'Package preset';
+}
+
+function onPackageChange() {
+  applyPackage();
+  touch('packageId');
+  touch('y');
+}
+
+function setMode(next: BookingMode) {
+  if (form.mode === next) return;
+  form.mode = next;
+  if (next === 'custom') {
+    form.packageId = null;
+    form.entryType = 'Custom quotation';
+    form.source = 'Manual quotation';
+  } else {
+    form.entryType = 'Package preset';
+    form.source = 'Package preset';
+    if (!form.packageId) form.packageId = firstOpenPackage()?.id ?? null;
+    applyPackage();
+  }
+}
+
+function clearFormState() {
   formError.value = '';
-  unusualWarning.value = '';
+  mergeNotice.value = '';
+  theirValues.value = {};
   confirmUnusual.value = false;
-  askVoid.value = false;
-  voidReason.value = '';
-  voidError.value = '';
+  serverUnusual.value = '';
   pendingRecovery.value = null;
+  resetFieldErrors();
+}
+
+function openForm() {
+  if (!businessToday.value) {
+    formError.value = businessDateError;
+    toast.error(businessDateError);
+    return;
+  }
+  resetNewForm();
+  editing.value = false;
+  originalCode.value = '';
+  original.value = null;
+  baseForm.value = null;
+  drawerTitle.value = 'New booking';
+  clearFormState();
+  returnToDetail.value = false;
+  detailOpen.value = false;
+  openedSnapshot.value = snapshotForm();
+  // An unfinished booking from earlier comes back, under a new ID in case its ID was taken since.
+  const kept = restoreDraft();
+  if (kept) Object.assign(form, kept, { id: form.id, revision: null });
   showForm.value = true;
 }
 
-function validate(): string | null {
-  if (!form.client) return 'Please enter the client or agency partner.';
-  if (!form.destination) return 'Please enter a destination.';
-  if (!form.package) return form.mode === 'custom' ? 'Please name the trip or quotation.' : 'Please choose a package.';
-  if (!(form.y >= 1)) return 'There must be at least one passenger.';
-  if (!(form.grossRevenue >= 0)) return 'Price cannot be negative.';
-  return null;
+function resetNewForm() {
+  Object.assign(form, blank());
+  form.id = nextCode('BKG', bookings.value.map((b) => b.id), 2401);
+  form.packageId = firstOpenPackage()?.id ?? null;
+  applyPackage();
+}
+
+/** Drops a restored draft and starts the form afresh. */
+function startOver() {
+  discardDraft();
+  resetNewForm();
+  resetFieldErrors();
+  openedSnapshot.value = snapshotForm();
+}
+
+function closeForm() {
+  // Closing a new booking's form on purpose lets its draft go.
+  if (!editing.value) discardDraft();
+  showForm.value = false;
+  if (returnToDetail.value && detailBooking.value) detailOpen.value = true;
+  returnToDetail.value = false;
+}
+
+function openEdit(b: Booking) {
+  Object.assign(form, bookingToForm(b));
+  original.value = b;
+  baseForm.value = bookingToForm(b);
+  editing.value = true;
+  originalCode.value = b.id;
+  drawerTitle.value = 'Edit booking';
+  clearFormState();
+  openedSnapshot.value = snapshotForm();
+  showForm.value = true;
+}
+
+function describeValue(key: BookingField, value: unknown): string {
+  switch (key) {
+    case 'ds':
+      return value ? formatDate(String(value)) : 'blank';
+    case 'y':
+      return count(Number(value));
+    case 'grossRevenue':
+      return peso(Number(value));
+    case 'packageId':
+      return packages.value.find((p) => p.id === value)?.packageName ?? (value ? String(value) : 'no package');
+    case 'paymentStatus':
+    case 'bookingStatus':
+      return stateLabel(String(value ?? ''));
+    default:
+      return value ? `“${String(value)}”` : 'blank';
+  }
+}
+
+function theirNote(key: BookingField): string {
+  if (!(key in theirValues.value)) return '';
+  return `Saved meanwhile as ${describeValue(key, theirValues.value[key])}.`;
+}
+
+function useTheirs(key: BookingField) {
+  if (!(key in theirValues.value)) return;
+  (form as Record<string, unknown>)[key] = theirValues.value[key];
+  const rest = { ...theirValues.value };
+  delete rest[key];
+  theirValues.value = rest;
+}
+
+function describeMerge(changed: readonly (keyof BookingForm)[], conflicts: readonly (keyof BookingForm)[], voided: boolean): string {
+  const named = (keys: readonly (keyof BookingForm)[]) =>
+    keys.filter((key): key is BookingField => key in FIELD_LABELS).map((key) => FIELD_LABELS[key]);
+  const taken = named(changed.filter((key) => !conflicts.includes(key)));
+  const both = named(conflicts);
+  const parts = ['Someone saved this booking while it was open here.'];
+  if (voided) parts.push('It has also been voided.');
+  if (taken.length) parts.push(`Their ${taken.length === 1 ? 'change' : 'changes'} to ${listNames(taken)} ${taken.length === 1 ? 'is' : 'are'} now in this form.`);
+  if (both.length) parts.push(`You both changed ${listNames(both)}: your value is kept, with theirs shown beside it.`);
+  parts.push('Your other changes are kept; save again when it looks right.');
+  return parts.join(' ');
+}
+
+/**
+ * After a conflict, the latest saved booking is merged into the form rather than replacing it:
+ * nothing typed here is lost, and the next save goes through against the latest version.
+ */
+function applyMerge(): boolean {
+  const saved = bookings.value.find((b) => b.id === originalCode.value);
+  if (!saved || !baseForm.value) return false;
+  const theirs = bookingToForm(saved);
+  const mine: BookingForm = { ...form };
+  const { merged, changedByOthers, conflicts } = mergeDraft(baseForm.value, mine, theirs, MERGE_KEYS);
+  Object.assign(form, merged, { revision: saved.revision });
+  const shown = conflicts.filter((key): key is BookingField & keyof BookingForm => key in FIELD_LABELS);
+  theirValues.value = Object.fromEntries(shown.map((key) => [key, theirs[key]]));
+  mergeNotice.value = describeMerge(changedByOthers, conflicts, !!saved.voided && !original.value?.voided);
+  baseForm.value = theirs;
+  original.value = saved;
+  formError.value = '';
+  recheck();
+  return true;
 }
 
 async function load(showErrorToast = true): Promise<boolean> {
@@ -614,11 +1598,18 @@ async function commitImport() {
   if (!file || importBusy.value) return;
   importBusy.value = true;
   importError.value = '';
+  const known = new Set(bookings.value.map((b) => b.id));
   try {
     const result = await api.importBookingsCommit(file);
+    invalidateForecast();
     await load();
     showImport.value = false;
-    toast.success(result.imported + ' booking' + (result.imported === 1 ? '' : 's') + ' imported');
+    // What the import added, so it can be taken back as one step.
+    const added = bookings.value.filter((b) => !known.has(b.id));
+    const noun = result.imported === 1 ? 'booking' : 'bookings';
+    toast.success(`${result.imported} ${noun} imported`, added.length
+      ? { action: undoAction(() => undoImport(added.map((b) => b.id))) }
+      : undefined);
   } catch (e) {
     importError.value = e instanceof ApiError ? Object.values(e.fields)[0] ?? e.message : 'Could not import the file.';
   } finally {
@@ -626,37 +1617,31 @@ async function commitImport() {
   }
 }
 
-async function confirmVoid() {
-  if (voiding.value || !voidReason.value) return;
-  if (form.revision == null) {
-    voidError.value = 'Reload this booking before voiding it.';
-    return;
+/**
+ * Takes an import back by voiding what it added. Imported bookings hold no seats, so nothing
+ * else moves; they stay in the history, out of every total, like any voided booking.
+ */
+async function undoImport(codes: string[]) {
+  let undone = 0;
+  const failed: string[] = [];
+  for (const code of codes) {
+    const now = bookings.value.find((b) => b.id === code);
+    if (!now || now.voided) continue;
+    try {
+      await api.voidBooking(code, 'Import undone straight after it was made', now.revision);
+      undone += 1;
+    } catch {
+      failed.push(code);
+    }
   }
-  voiding.value = true;
-  voidError.value = '';
-  try {
-    await api.voidBooking(originalCode.value, voidReason.value, form.revision);
-    await load();
-    askVoid.value = false;
-    showForm.value = false;
-    toast.success('Booking ' + originalCode.value + ' voided');
-  } catch (e) {
-    if (e instanceof ApiError && e.status === 409) await load();
-    voidError.value = e instanceof ApiError ? conflictMessage(e, 'booking') : 'Could not void the booking.';
-  } finally {
-    voiding.value = false;
+  invalidateForecast();
+  await load(false);
+  historyVersion.value += 1;
+  if (undone > 0) {
+    toast.success(`Import undone: ${undone} ${undone === 1 ? 'booking' : 'bookings'} voided, kept in the history and out of every total`);
   }
-}
-
-async function restore(b: Booking) {
-  try {
-    await api.restoreBooking(b.id, b.revision);
-    await load();
-    toast.success('Booking ' + b.id + ' restored');
-  } catch (e) {
-    if (e instanceof ApiError && e.status === 409) await load();
-    const message = e instanceof ApiError ? conflictMessage(e, 'booking') : 'Could not restore the booking.';
-    toast.error(message);
+  if (failed.length > 0) {
+    toast.error(`${failed.length} imported ${failed.length === 1 ? 'booking' : 'bookings'} could not be voided (${failed.slice(0, 3).join(', ')}${failed.length > 3 ? '…' : ''}). Void them from the list.`);
   }
 }
 
@@ -690,27 +1675,26 @@ function applyCreatedBookingRecovery(payload: BookingInput): boolean {
   const saved = bookings.value.find((b) => b.id === payload.id);
   if (!saved) return false;
 
-  unusualWarning.value = '';
   confirmUnusual.value = false;
+  serverUnusual.value = '';
   if (sameBooking(saved, payload)) {
     showForm.value = false;
-    toast.success('Booking ' + saved.id + ' saved');
+    toast.success('Booking ' + saved.id + ' added');
     return true;
   }
 
-  loadBookingIntoForm(saved);
+  Object.assign(form, bookingToForm(saved));
+  original.value = saved;
+  baseForm.value = bookingToForm(saved);
   editing.value = true;
   originalCode.value = saved.id;
   drawerTitle.value = 'Edit booking';
-  askVoid.value = false;
-  voidReason.value = '';
-  voidError.value = '';
-  const message = 'A booking with this ID is already saved with different details. Review the saved booking before changing it.';
-  formError.value = message;
+  openedSnapshot.value = snapshotForm();
+  formError.value = 'A booking with this ID is already saved with different details. Review the saved booking before changing it.';
   return true;
 }
 
-async function recoverCreatedBooking(payload: BookingInput, error: unknown): Promise<boolean> {
+async function recoverCreatedBooking(payload: BookingInput): Promise<boolean> {
   if (!await load(false)) {
     pendingRecovery.value = { kind: 'create', payload };
     formError.value = createRecoveryError;
@@ -719,27 +1703,15 @@ async function recoverCreatedBooking(payload: BookingInput, error: unknown): Pro
   return applyCreatedBookingRecovery(payload);
 }
 
-function applyBookingConflictRefresh(message: string): boolean {
-  const saved = bookings.value.find((b) => b.id === originalCode.value);
-  if (!saved) return false;
-
-  loadBookingIntoForm(saved);
-  unusualWarning.value = '';
-  confirmUnusual.value = false;
-  askVoid.value = false;
-  voidReason.value = '';
-  voidError.value = '';
-  formError.value = message;
-  return true;
-}
-
-async function refreshOpenBookingAfterConflict(message: string): Promise<boolean> {
+async function mergeAfterConflict(): Promise<boolean> {
   if (!await load(false)) {
-    pendingRecovery.value = { kind: 'stale-edit', message };
+    pendingRecovery.value = { kind: 'stale-edit' };
     formError.value = staleRecoveryError;
     return true;
   }
-  return applyBookingConflictRefresh(message);
+  if (applyMerge()) return true;
+  formError.value = 'This booking was not found after reloading. Refresh the page before making another change.';
+  return true;
 }
 
 async function continuePendingRecovery(): Promise<boolean> {
@@ -758,31 +1730,21 @@ async function continuePendingRecovery(): Promise<boolean> {
     return true;
   }
 
-  if (applyBookingConflictRefresh(pending.message)) return true;
+  if (applyMerge()) return true;
   formError.value = 'The booking was not found after reloading. Refresh the page before making another change.';
   return true;
 }
 
-async function save() {
-  if (saving.value) return;
-  if (pendingRecovery.value) {
-    formError.value = '';
-    saving.value = true;
-    try {
-      await continuePendingRecovery();
-    } finally {
-      saving.value = false;
-    }
-    return;
-  }
-  const problem = validate();
-  if (problem) {
-    formError.value = problem;
-    return;
-  }
-  formError.value = '';
-  saving.value = true;
-  const payload: BookingInput = {
+/** Where the server's field names land on this form; the trip fields follow the booking type. */
+function serverFieldMap(): Record<string, BookingField> {
+  const tripFields: Record<string, BookingField> = form.mode === 'package'
+    ? { package: 'packageId', destination: 'packageId' }
+    : { package: 'package', destination: 'destination' };
+  return { ds: 'ds', y: 'y', client: 'client', grossRevenue: 'grossRevenue', packageId: 'packageId', ...tripFields };
+}
+
+function toPayload(): BookingInput {
+  return {
     id: form.id,
     ds: form.ds,
     y: form.y,
@@ -800,59 +1762,132 @@ async function save() {
     revision: form.revision,
     confirmUnusual: confirmUnusual.value,
   };
+}
+
+async function save() {
+  if (saving.value) return;
+  if (pendingRecovery.value) {
+    formError.value = '';
+    saving.value = true;
+    try {
+      await continuePendingRecovery();
+    } finally {
+      saving.value = false;
+    }
+    return;
+  }
+
+  formError.value = '';
+  const found = validateAll();
+  if (found.length > 0) {
+    void focusField(found[0].key);
+    return;
+  }
+  // Far above the usual price: ask once, beside the price, before anything is sent.
+  if (unusualAmount.value && !confirmUnusual.value) {
+    confirmUnusual.value = true;
+    void focusField('grossRevenue');
+    return;
+  }
+
+  saving.value = true;
+  const payload = toPayload();
+  const before = editing.value && original.value ? { ...original.value } : null;
   try {
-    if (editing.value) await api.updateBooking(originalCode.value, payload);
-    else await api.createBooking(payload);
+    const saved = editing.value
+      ? await api.updateBooking(originalCode.value, payload)
+      : await api.createBooking(payload);
+    invalidateForecast();
     await load();
     pendingRecovery.value = null;
-    showForm.value = false;
     confirmUnusual.value = false;
-    unusualWarning.value = '';
-    toast.success('Booking ' + payload.id + ' saved');
+    serverUnusual.value = '';
+    historyVersion.value += 1;
+    if (before) {
+      toast.success('Booking ' + saved.id + ' saved', {
+        action: undoAction(() => runUndo(`Booking ${saved.id}`, () => api.updateBooking(saved.id, bookingInput(before, saved.revision)), `Booking ${saved.id} is back as it was`)),
+      });
+    } else {
+      discardDraft();
+      toast.success('Booking ' + saved.id + ' added', {
+        action: { label: 'Open', run: () => openDetail(saved) },
+      });
+    }
+    // An edit goes back to the booking it came from, now showing the change.
+    if (editing.value) detailCode.value = payload.id;
+    showForm.value = false;
+    if (returnToDetail.value) detailOpen.value = true;
+    returnToDetail.value = false;
   } catch (e) {
     if (e instanceof ApiError && e.status === 409 && e.code === 'unusual_revenue') {
-      unusualWarning.value = e.message;
+      serverUnusual.value = e.message;
       confirmUnusual.value = true;
-      saving.value = false;
+      void focusField('grossRevenue');
       return;
     }
     if (!editing.value && (!(e instanceof ApiError) || e.status >= 500 || e.status === 409)) {
-      if (await recoverCreatedBooking(payload, e)) return;
+      if (await recoverCreatedBooking(payload)) return;
     }
     if (e instanceof ApiError && e.status === 409) {
-      const message = conflictMessage(e, 'booking');
-      if (editing.value && (e.code === 'stale_revision' || e.code === 'write_conflict')
-        && await refreshOpenBookingAfterConflict(message)) return;
+      if (editing.value && (e.code === 'stale_revision' || e.code === 'write_conflict') && await mergeAfterConflict()) return;
       await load();
     }
-    const message = e instanceof ApiError ? conflictMessage(e, 'booking') : 'Could not save the booking.';
-    formError.value = message;
+    if (e instanceof ApiError) {
+      // A problem with one field goes beside that field; anything else is said at the top.
+      const unplaced = placeServerErrors(e.fields, serverFieldMap());
+      if (problems.value.length > 0) void focusField(problems.value[0].key);
+      formError.value = unplaced[0] ?? (problems.value.length > 0 ? '' : conflictMessage(e, 'booking'));
+    } else {
+      formError.value = 'Could not reach the server, so nothing was saved. Your entries are still here; check the connection and save again.';
+    }
   } finally {
     saving.value = false;
   }
 }
 
-onMounted(load);
+const loadError = ref(false);
+
+/** The first load failed: say so, rather than showing an empty list as if there were no records. */
+async function retryLoad() {
+  loadError.value = false;
+  loading.value = true;
+  if (!(await load())) loadError.value = true;
+}
+
+/** A link such as /bookings?open=BKG-2401 (from search or another page) opens that booking. */
+function openFromAddress() {
+  const code = typeof route.query.open === 'string' ? route.query.open : '';
+  if (!code) return;
+  const found = bookings.value.find((b) => b.id.toLowerCase() === code.toLowerCase());
+  if (found) openDetail(found);
+  void router.replace({ query: { ...route.query, open: undefined } });
+}
+
+onMounted(async () => {
+  if (!(await load())) {
+    loadError.value = true;
+    return;
+  }
+  openFromAddress();
+  // "Record a booking" arrives with ?new=1, and a package's "Book this package" adds ?package=.
+  if (route.query.new === '1') {
+    openForm();
+    const chosen = typeof route.query.package === 'string' ? route.query.package : '';
+    if (chosen && packages.value.some((p) => p.id === chosen)) {
+      form.packageId = chosen;
+      applyPackage();
+      openedSnapshot.value = snapshotForm();
+    }
+    void router.replace({ query: { ...route.query, new: undefined, package: undefined } });
+  }
+});
+
+watch(() => route.query.open, (value) => {
+  if (value && !loading.value) openFromAddress();
+});
 </script>
 
 <style scoped>
-.drawer-form-check {
-  margin-bottom: var(--space-4);
-  padding: 10px 12px;
-  border: 1px solid var(--tone-warning-border);
-  border-radius: var(--radius-md);
-  background: var(--tone-warning-surface);
-  color: var(--tone-warning-ink);
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.drawer-form-error {
-  margin-bottom: var(--space-4);
-  color: var(--color-danger-ink);
-  font-size: 13px;
-}
-
 .booking-mode {
   border: none;
   padding: 0;
@@ -884,7 +1919,7 @@ onMounted(load);
   padding: 8px 10px;
   border-radius: var(--radius-sm);
   color: var(--color-text-muted);
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 500;
   cursor: pointer;
   transition: background var(--transition-fast), color var(--transition-fast);
@@ -913,212 +1948,19 @@ onMounted(load);
   outline-offset: 1px;
 }
 
-.bookings-toolbar-header {
-  align-items: center;
-  flex-wrap: wrap;
-  row-gap: var(--space-3);
-}
-
-.bookings-toolbar-header .search-field {
-  flex: 1 1 240px;
-  margin-left: auto;
-}
-
-.filter-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-bottom: var(--space-4);
-}
-
-.filter-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  border: 1px solid var(--color-border-strong);
-  background: var(--color-surface);
-  color: var(--color-text-secondary);
-  border-radius: var(--radius-pill);
-  padding: 5px 13px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
-}
-
-.filter-chip:hover {
-  border-color: var(--color-text-faint);
-  background: var(--color-surface-sunken);
-}
-
-.filter-chip.active {
-  background: var(--color-primary-soft);
-  border-color: var(--color-primary);
-  color: var(--color-primary-active);
-  font-weight: 600;
-}
-
-.chip-count {
-  font-variant-numeric: lining-nums tabular-nums;
-  font-size: 12px;
-  color: var(--color-text-muted);
-}
-
-.filter-chip.active .chip-count {
-  color: var(--color-primary);
-}
-
-.dss-table-frame {
-  overflow-x: auto;
-}
-
-.filter-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  padding: var(--space-8) var(--space-1);
-  color: var(--color-text-muted);
-  font-size: 13.5px;
+.trip-name {
+  display: block;
+  color: var(--color-text-primary);
 }
 
 .kind-tag {
   display: inline-block;
   margin-left: 6px;
-  padding: 1px 8px;
+  padding: 0 7px;
   border-radius: var(--radius-pill);
-  background: var(--tone-neutral-surface);
-  color: var(--color-text-muted);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.kind-tag.kind-tailored {
   background: var(--tone-primary-surface);
   color: var(--tone-primary-ink);
-}
-
-.row-voided td {
-  color: var(--color-text-faint);
-}
-
-.row-voided td strong,
-.row-voided .record-badge {
-  color: var(--color-text-muted);
-}
-
-.voided-tag {
-  color: var(--color-danger-ink);
+  font-size: var(--text-xs);
   font-weight: 600;
-}
-
-.void-panel {
-  margin-bottom: var(--space-4);
-  padding: var(--space-4);
-  border: 1px solid var(--tone-danger-border);
-  border-radius: var(--radius-md);
-  background: var(--tone-danger-surface);
-}
-
-.void-lead {
-  margin: 0 0 var(--space-3);
-  color: var(--tone-danger-ink);
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.void-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-3);
-  margin-top: var(--space-3);
-}
-
-.footer-spacer {
-  flex: 1;
-}
-
-.danger-link {
-  color: var(--color-danger-ink);
-}
-
-.import-hint {
-  margin: 0 0 var(--space-4);
-  color: var(--color-text-muted);
-  font-size: 12.5px;
-  line-height: 1.5;
-}
-
-.import-pick {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  margin-bottom: var(--space-4);
-}
-
-.import-filename {
-  color: var(--color-text-secondary);
-  font-size: 13px;
-  word-break: break-all;
-}
-
-.import-summary {
-  display: grid;
-  gap: 8px;
-  margin: 0 0 var(--space-4);
-  padding: var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-sunken);
-}
-
-.import-summary > div {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-4);
-}
-
-.import-summary dt {
-  color: var(--color-text-muted);
-  font-size: 12.5px;
-}
-
-.import-summary dd {
-  margin: 0;
-  color: var(--color-text-primary);
-  font-size: 13px;
-  font-weight: 600;
-  font-variant-numeric: lining-nums tabular-nums;
-  text-align: right;
-}
-
-.import-notes {
-  margin: 0 0 var(--space-4);
-  padding: 10px 12px;
-  border-radius: var(--radius-md);
-  font-size: 12.5px;
-  line-height: 1.5;
-}
-
-.import-notes p {
-  margin: 0;
-}
-
-.import-notes-title {
-  margin: 0 0 2px;
-  font-weight: 700;
-}
-
-.import-warnings {
-  border: 1px solid var(--tone-warning-border);
-  background: var(--tone-warning-surface);
-  color: var(--tone-warning-ink);
-}
-
-.import-problems {
-  border: 1px solid var(--tone-danger-border);
-  background: var(--tone-danger-surface);
-  color: var(--tone-danger-ink);
 }
 </style>

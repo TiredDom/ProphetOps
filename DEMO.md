@@ -12,6 +12,8 @@ npm run build
 cd ..
 $env:ASPNETCORE_ENVIRONMENT = "Development"
 $env:Demo__Enabled = "true"
+$env:Storage__Root = (New-Item -ItemType Directory -Force .local-state-demo).FullName
+$env:Business__TimeZone = "Asia/Manila"
 dotnet run --project ProphetOps.Api --urls http://localhost:5099
 ```
 
@@ -50,33 +52,32 @@ wrong@example.com / wrongpass
 1. Open `/login`.
 2. Show invalid login rejection.
 3. Log in as Owner.
-4. Open Dashboard.
-5. Open Bookings and show the records table.
-6. Add or edit one booking.
-7. Open Package Catalog.
-8. Add one package and show field validation.
-9. Open Expenses.
-10. Add or edit one expense.
-11. Open Analytics.
-12. Open Forecast and review the Demand Forecast outlook, chart, and accuracy.
-13. Open Reports.
-14. Open Users.
-15. Log out.
-16. Log in as Staff and show restricted access (only Bookings and Package Catalog).
-17. Run or show ZAP results.
+4. Open Home and review the forecast: the headline, the chart with its 80% range, and the suggestions.
+5. Open Monthly figures and model details: In plain words, the monthly breakdown, and accuracy on months it had not seen.
+6. Open Bookings and show the records table.
+7. Add or edit one booking.
+8. Open Packages: the demand outlook, May run short, and one package's expected demand.
+9. Add one package and show field validation.
+10. Open Expenses and show the cost scenario below the list.
+11. Add or edit one expense.
+12. Open Reports.
+13. Open Team & access.
+14. Log out.
+15. Log in as Staff and show restricted access (only Bookings and Packages).
+16. Run or show ZAP results.
 
 ## Test Case Inputs
 
 ### Booking Add
 
 ```text
-Client: Assurance Travel Group
-Package: PKG-105 / Bohol Countryside Tour
-Date: 2026-06-22
-Passenger count: 4
-Revenue: 48000
-Payment: Pending
-Status: Reserved
+Client or agency partner: Assurance Travel Group
+Package: PKG-104 / Cebu and Bohol Combo
+Booking date: 2026-06-22
+Passengers: 4
+Price: 48000
+Payment status: Pending
+Booking status: Reserved
 ```
 
 Expected result:
@@ -88,25 +89,25 @@ Booking is saved and appears in the bookings table.
 ### Package Add
 
 ```text
-Code: PKG-999
-Name: Demo Bohol Package
+Package ID: PKG-999
+Package name: Demo Bohol Package
 Destination: Bohol
 Duration: 2D1N
-Base price: 12000
-Available slots: 10
+Price per passenger: 12000
+Open slots: 10
 Status: Normal
 ```
 
 Expected result:
 
 ```text
-Package is saved and appears in the package catalog.
+Package is saved and appears in the packages list.
 ```
 
 ### Invalid Package
 
 ```text
-Name: (leave blank)
+Package name: (leave blank)
 Destination: (leave blank)
 ```
 
@@ -119,11 +120,10 @@ Validation rejects the package because the name and destination are required.
 ### Expense Add
 
 ```text
-Code: EXP-999
 Date: 2026-06-22
 Category: Tour operations
 Amount: 5000
-Related package: Bohol Countryside Tour
+Related package or operation: Cebu and Bohol Combo
 Payment status: Pending
 Notes: Demo expense for IAS test case.
 ```
@@ -131,22 +131,22 @@ Notes: Demo expense for IAS test case.
 Expected result:
 
 ```text
-Expense is saved and appears in the expenses table.
+Expense is saved with the next expense ID and appears in the expenses table.
 ```
 
 ### Demand Forecast
 
 ```text
-Open /forecast as Owner.
-Read the demand outlook summary.
-Review the forecast chart.
-Check the accuracy figure.
+Open Home as Owner (an old /forecast link opens the same page at the model details).
+Read the forecast headline and review the chart.
+Open Monthly figures and model details.
+Read In plain words and Accuracy on months it had not seen.
 ```
 
 Expected result:
 
 ```text
-The page shows the Holt-Winters demand forecast: an outlook summary, a forecast chart over the sample monthly-revenue history, and an accuracy figure (about 95% in-sample fit, MAPE about 4.8%).
+Home shows the Holt-Winters forecast of booking revenue: the headline, a chart with its 80% range, and suggestions. The model details show the monthly breakdown, the forecast in plain words, the Average miss (its fit on the months it learned from) and the rolling-origin test on months it had not seen. With the demonstration records, repeating the same month last year misses less than Holt-Winters on that test; say so plainly, since these records are demonstration data, not agency evidence.
 ```
 
 ## Role Restriction Check
@@ -158,7 +158,7 @@ Log in as Staff (staff@prophetops.local / staff123).
 Expected result:
 
 ```text
-The sidebar shows only Bookings and Package Catalog. Directly requesting a restricted API (for example /api/expenses) returns HTTP 403 Forbidden.
+The sidebar shows only Bookings and Packages. Directly requesting a restricted API (for example /api/expenses) returns HTTP 403 Forbidden.
 ```
 
 ## ZAP Scan Notes

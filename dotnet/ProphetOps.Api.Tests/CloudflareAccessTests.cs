@@ -24,15 +24,18 @@ public class CloudflareAccessTests : IDisposable
     private readonly AccessTokenFactory _tokens = new();
 
     [Fact]
-    public async Task Health_live_is_the_only_data_free_bypass()
+    public async Task Health_endpoints_are_data_free_bypasses()
     {
         using var factory = HostedFactory();
-        using var client = factory.CreateClient();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost") });
 
-        var response = await client.GetAsync("/health/live");
+        var live = await client.GetAsync("/health/live");
+        var ready = await client.GetAsync("/health/ready");
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("ok", await response.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(HttpStatusCode.OK, live.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, ready.StatusCode);
+        Assert.Contains("ok", await live.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("ready", await ready.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]
@@ -47,7 +50,7 @@ public class CloudflareAccessTests : IDisposable
     public async Task Hosted_gate_rejects_everything_else_without_access_assertion(string path)
     {
         using var factory = HostedFactory();
-        using var client = factory.CreateClient();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost") });
 
         var response = path == "/api/auth/login"
             ? await client.PostAsJsonAsync(path, new { email = "owner@prophetops.local", password = "owner123" })
@@ -265,6 +268,70 @@ public class CloudflareAccessTests : IDisposable
         Assert.ThrowsAny<Exception>(() => factory.CreateClient());
     }
 
+    [Fact]
+    public void Hosted_application_login_does_not_require_cloudflare_access_configuration()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Hosted:Enabled"] = "true",
+                ["Hosted:AccessMode"] = "ApplicationLogin",
+                ["CloudflareAccess:Enabled"] = "false",
+            })
+            .Build();
+
+        var options = CloudflareAccessOptions.FromConfiguration(config);
+
+        Assert.False(options.Enabled);
+    }
+
+    [Fact]
+    public async Task Hosted_application_login_does_not_require_access_assertion()
+    {
+        using var factory = HostedFactory(overrides: new Dictionary<string, string?>
+        {
+            ["Hosted:AccessMode"] = "ApplicationLogin",
+            ["CloudflareAccess:Enabled"] = "false",
+        });
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/auth/me");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Hosted_application_login_permits_normal_login_without_access_assertion()
+    {
+        using var factory = HostedFactory(overrides: new Dictionary<string, string?>
+        {
+            ["Hosted:AccessMode"] = "ApplicationLogin",
+            ["CloudflareAccess:Enabled"] = "false",
+        });
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/api/auth/login", new { email = "owner@prophetops.local", password = "owner123" });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Hosted_application_login_authenticated_session_does_not_require_access_identity()
+    {
+        using var factory = HostedFactory(overrides: new Dictionary<string, string?>
+        {
+            ["Hosted:AccessMode"] = "ApplicationLogin",
+            ["CloudflareAccess:Enabled"] = "false",
+        });
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost") });
+        var login = await client.PostAsJsonAsync("/api/auth/login", new { email = "owner@prophetops.local", password = "owner123" });
+        login.EnsureSuccessStatusCode();
+
+        var response = await client.GetAsync("/api/auth/me");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
     private static Dictionary<string, string?> AccessConfigurationValues(Dictionary<string, string?>? overrides = null)
     {
         var values = new Dictionary<string, string?>
@@ -349,7 +416,9 @@ public class CloudflareAccessTests : IDisposable
                 _connection.Open();
                 foreach (var descriptor in services.Where(d => d.ServiceType == typeof(DbContextOptions<AppDbContext>)
                     || d.ServiceType == typeof(DbContextOptions)
+                    || d.ServiceType == typeof(DatabaseRuntimeOptions)
                     || d.ServiceType == typeof(ICloudflareAccessJwksTransport)).ToList()) services.Remove(descriptor);
+                services.AddSingleton(new DatabaseRuntimeOptions(DatabaseProviderKind.Sqlite, "Data Source=:memory:", null));
                 services.AddDbContext<AppDbContext>(options => options.UseSqlite(_connection));
                 services.AddSingleton<ICloudflareAccessJwksTransport>(transport);
             });
