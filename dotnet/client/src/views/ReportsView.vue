@@ -115,21 +115,42 @@
               :viewBox="`0 0 ${chartWidth} ${chartHeight}`"
               role="img"
               :aria-label="chartLabel"
+              tabindex="0"
+              @pointerdown="pointAt"
+              @pointermove="pointAt"
+              @pointerleave="leaveChart"
+              @focus="focusChart"
+              @blur="active = null"
+              @keydown="stepMonth"
             >
+              <rect
+                v-if="activeBar"
+                class="month-band"
+                :x="activeBar.center - activeBar.band / 2"
+                :y="plotTop"
+                :width="activeBar.band"
+                :height="plotBottom - plotTop"
+              />
               <g v-for="line in gridLines" :key="line.value">
                 <line class="grid-line" :class="{ base: line.value === 0 }" :x1="plotLeft" :x2="plotRight" :y1="line.y" :y2="line.y" />
                 <text class="axis-label" :x="plotLeft - 8" :y="line.y" text-anchor="end" dominant-baseline="middle">{{ line.label }}</text>
               </g>
               <g v-for="bar in bars" :key="bar.month">
-                <rect class="bar-revenue" :x="bar.x" :y="bar.revenueY" :width="bar.width" :height="bar.revenueHeight" rx="2">
-                  <title>{{ bar.label }} revenue {{ peso(bar.revenue) }}</title>
-                </rect>
-                <rect class="bar-costs" :x="bar.x + bar.width + 2" :y="bar.costsY" :width="bar.width" :height="bar.costsHeight" rx="2">
-                  <title>{{ bar.label }} costs {{ peso(bar.costs) }}</title>
-                </rect>
+                <path class="bar-revenue" :d="column(bar.x, bar.revenueY, bar.width)" />
+                <path class="bar-costs" :d="column(bar.x + bar.width + 2, bar.costsY, bar.width)" />
                 <text v-if="bar.showLabel" class="axis-label" :x="bar.center" :y="plotBottom + 18" text-anchor="middle">{{ bar.short }}</text>
               </g>
             </svg>
+
+            <!-- The month being read, beside its columns. The table below holds the same figures. -->
+            <div v-if="activeMonth" ref="tip" class="month-tip" :style="tipPosition" aria-hidden="true">
+              <p class="month-tip-title">{{ activeMonth.name }}</p>
+              <p class="month-tip-row"><i class="tip-key key-revenue"></i><strong>{{ peso(activeMonth.revenue) }}</strong>Revenue</p>
+              <p class="month-tip-row"><i class="tip-key key-costs"></i><strong>{{ peso(activeMonth.costs) }}</strong>Costs</p>
+              <p class="month-tip-row month-tip-net" :class="{ 'is-loss': activeMonth.afterCosts < 0 }">
+                <i class="tip-key"></i><strong>{{ peso(activeMonth.afterCosts) }}</strong>After costs
+              </p>
+            </div>
           </div>
 
           <div v-if="data.monthly.length" class="table-scroll">
@@ -239,7 +260,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import AppShell from '../components/AppShell.vue';
 import PeriodSelect from '../components/PeriodSelect.vue';
 import Skeleton from '../components/Skeleton.vue';
@@ -484,21 +505,25 @@ const bars = computed(() => {
     const short = new Date(Date.UTC(Number(year), Number(month) - 1, 1)).toLocaleString('en-US', { month: 'short', timeZone: 'UTC' });
     return {
       month: m.month,
-      label: m.label,
       short: month === '01' || i === 0 ? `${short} ${year.slice(2)}` : short,
-      revenue: m.revenue,
-      costs: m.costs,
       center,
+      band,
       x: center - width - 1,
       width,
-      revenueHeight: height(m.revenue),
       revenueY: plotBottom - height(m.revenue),
-      costsHeight: height(m.costs),
       costsY: plotBottom - height(m.costs),
       showLabel: i % stride === 0,
     };
   });
 });
+
+/** A column with a 4px rounded top, square where it stands on the baseline. */
+function column(x: number, y: number, width: number): string {
+  const height = plotBottom - y;
+  if (height <= 0) return '';
+  const r = Math.min(4, width / 2, height);
+  return `M${x},${plotBottom}V${y + r}A${r},${r} 0 0 1 ${x + r},${y}H${x + width - r}A${r},${r} 0 0 1 ${x + width},${y + r}V${plotBottom}Z`;
+}
 
 const chartLabel = computed(() => {
   const months = data.value?.monthly ?? [];
@@ -507,11 +532,84 @@ const chartLabel = computed(() => {
     + months.map((m) => `${m.label} revenue ${peso(m.revenue)}, costs ${peso(m.costs)}`).join('; ');
 });
 
+// The month being read: under the pointer, under a finger (a tap, or a slide across the chart),
+// or stepped to with the arrow keys. Null while no month is being read.
+const active = ref<number | null>(null);
+const tip = ref<HTMLElement | null>(null);
+const tipWidth = ref(180);
+
+const activeBar = computed(() => (active.value === null ? null : bars.value[active.value] ?? null));
+
+const activeMonth = computed(() => {
+  const m = active.value === null ? null : data.value?.monthly[active.value];
+  return m ? { ...m, name: longMonth(m.month) } : null;
+});
+
+/** Beside the month's columns, on whichever side has room, so the columns themselves stay in view. */
+const tipPosition = computed(() => {
+  const bar = activeBar.value;
+  if (!bar) return {};
+  const width = tipWidth.value;
+  const right = bar.center + bar.band / 2 + 8;
+  const left = bar.center - bar.band / 2 - 8 - width;
+  // On a narrow phone neither side may have room: the readout then sits against the far edge,
+  // away from the month, so as little of its columns as possible is covered.
+  const x = right + width <= chartWidth.value ? right
+    : left >= 0 ? left
+    : bar.center > chartWidth.value / 2 ? 0 : Math.max(0, chartWidth.value - width);
+  return { left: `${x}px`, top: `${plotTop}px` };
+});
+
+watch(active, async () => {
+  await nextTick();
+  if (tip.value) tipWidth.value = tip.value.offsetWidth;
+});
+
+watch(data, () => {
+  active.value = null;
+});
+
+function pointAt(event: PointerEvent) {
+  const box = (event.currentTarget as SVGSVGElement).getBoundingClientRect();
+  const months = bars.value.length;
+  if (!months || !box.width) return;
+  const x = ((event.clientX - box.left) / box.width) * chartWidth.value;
+  const band = (plotRight.value - plotLeft) / months;
+  active.value = Math.max(0, Math.min(months - 1, Math.floor((x - plotLeft) / band)));
+}
+
+function leaveChart(event: PointerEvent) {
+  // A lifted finger also "leaves"; a tapped month stays open until a tap somewhere else.
+  if (event.pointerType === 'mouse') active.value = null;
+}
+
+function focusChart() {
+  if (active.value === null) active.value = 0;
+}
+
+function stepMonth(event: KeyboardEvent) {
+  const last = bars.value.length - 1;
+  const current = active.value ?? 0;
+  const moves: Record<string, number> = { ArrowRight: current + 1, ArrowLeft: current - 1, Home: 0, End: last };
+  if (event.key === 'Escape') active.value = null;
+  else if (event.key in moves) active.value = Math.max(0, Math.min(last, moves[event.key]));
+  else return;
+  event.preventDefault();
+}
+
+function closeOnTapElsewhere(event: PointerEvent) {
+  if (active.value !== null && !chartBox.value?.contains(event.target as Node)) active.value = null;
+}
+
+onMounted(() => document.addEventListener('pointerdown', closeOnTapElsewhere));
+onBeforeUnmount(() => document.removeEventListener('pointerdown', closeOnTapElsewhere));
+
 // ----- Breakdowns -----
 
-function widths(rows: ReportLine[], pick: (row: ReportLine) => number) {
-  const max = Math.max(1, ...rows.map(pick));
-  return (row: ReportLine) => `${Math.max(1.5, Math.min(100, (pick(row) / max) * 100))}%`;
+/** A bar fills its share of the whole, so a line marked 26% fills a quarter of its track. */
+function shareWidth(value: number, total: number): string {
+  if (value <= 0 || total <= 0) return '0%';
+  return `${Math.max(1.5, Math.min(100, (value / total) * 100))}%`;
 }
 
 /** A line's share of its total, as a whole percentage. */
@@ -523,12 +621,12 @@ function share(value: number, total: number): string {
 
 function barRows(
   lines: ReportLine[],
+  total: number,
   value: (line: ReportLine) => string,
   detail: (line: ReportLine) => string,
   label: (line: ReportLine) => string = (line) => line.label,
 ) {
-  const width = widths(lines, (line) => line.value);
-  return lines.map((line) => ({ label: label(line), value: value(line), detail: detail(line), width: width(line) }));
+  return lines.map((line) => ({ label: label(line), value: value(line), detail: detail(line), width: shareWidth(line.value, total) }));
 }
 
 // Each list shows its top five; the rest are a click away on screen, and always printed.
@@ -560,7 +658,7 @@ const breakdownPanels = computed(() => {
         heading: '',
         tone: 'tone-primary',
         empty: noBookings,
-        rows: barRows(byPackage ? d.revenueByPackage : d.revenueByDestination, (line) => peso(line.value),
+        rows: barRows(byPackage ? d.revenueByPackage : d.revenueByDestination, d.revenue, (line) => peso(line.value),
           (line) => shareOf(line, d.revenue, 'booking')),
       }],
     },
@@ -573,7 +671,7 @@ const breakdownPanels = computed(() => {
         heading: '',
         tone: 'tone-data',
         empty: 'No expenses in this period.',
-        rows: barRows(d.expensesByCategory, (line) => peso(line.value),
+        rows: barRows(d.expensesByCategory, d.costs, (line) => peso(line.value),
           (line) => shareOf(line, d.costs, 'expense')),
       }],
     },
@@ -584,9 +682,11 @@ const breakdownPanels = computed(() => {
       groups: d.counts.bookings
         ? [
             { key: 'payment', heading: 'Payment status', tone: 'tone-data', empty: noBookings,
-              rows: barRows(d.bookingsByPayment, (line) => count(line.value), (line) => peso(line.revenue ?? 0), (line) => stateLabel(line.label)) },
+              rows: barRows(d.bookingsByPayment, d.counts.bookings, (line) => count(line.value),
+                (line) => `${share(line.value, d.counts.bookings)} · worth ${peso(line.revenue ?? 0)}`, (line) => stateLabel(line.label)) },
             { key: 'stage', heading: 'Booking status', tone: 'tone-data', empty: noBookings,
-              rows: barRows(d.bookingsByStatus, (line) => count(line.value), () => '', (line) => stateLabel(line.label)) },
+              rows: barRows(d.bookingsByStatus, d.counts.bookings, (line) => count(line.value),
+                (line) => share(line.value, d.counts.bookings), (line) => stateLabel(line.label)) },
           ]
         : [{ key: 'payment', heading: '', tone: 'tone-data', empty: noBookings, rows: [] }],
     },
@@ -782,13 +882,86 @@ onMounted(load);
 }
 
 .month-chart-box {
+  position: relative;
   margin: 4px 0 16px;
 }
 
+/* A finger sliding sideways reads month after month; sliding up and down still scrolls the page. */
 .month-chart {
   display: block;
   width: 100%;
   height: auto;
+  border-radius: var(--radius-sm);
+  touch-action: pan-y;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.month-chart:focus {
+  outline: none;
+}
+
+.month-chart:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 4px;
+}
+
+.month-band {
+  fill: var(--color-primary-soft);
+}
+
+/* One set of columns for every line, so the figures line up under each other. */
+.month-tip {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: 12px auto auto;
+  gap: 4px 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lg);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.month-tip-title {
+  grid-column: 1 / -1;
+  margin-bottom: 2px;
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.month-tip-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  color: var(--color-text-muted);
+}
+
+.month-tip-row strong {
+  color: var(--color-text-primary);
+  font-weight: 650;
+  text-align: right;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+/* Series keys are short strokes in the series colour; the text keeps its own ink. */
+.tip-key {
+  height: 3px;
+  border-radius: 2px;
+}
+
+.month-tip-net {
+  margin-top: 2px;
+  padding-top: 6px;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.month-tip-net.is-loss strong {
+  color: var(--color-danger-ink);
 }
 
 .grid-line {
@@ -1075,6 +1248,12 @@ onMounted(load);
     justify-content: center;
     min-height: 40px;
   }
+
+  .month-tip {
+    gap: 3px 6px;
+    padding: 8px 10px;
+    font-size: var(--text-xs);
+  }
 }
 
 .change-inline,
@@ -1136,9 +1315,14 @@ onMounted(load);
     font-size: 12px;
   }
 
-  .month-chart rect {
+  .month-chart path {
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
+  }
+
+  .month-band,
+  .month-tip {
+    display: none;
   }
 
   /* An A4 page is narrower than the screen breakpoint; the breakdowns keep their two columns

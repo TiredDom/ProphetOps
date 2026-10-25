@@ -221,15 +221,21 @@ test('Reports', async (t) => {
 
     const bookings = page.getByRole('region', { name: 'Bookings', exact: true });
     assert.deepEqual((await bookings.locator('h3').allInnerTexts()).map(squash), ['Payment status', 'Booking status']);
-    assert.deepEqual((await bookings.locator('.report-bar-row').allInnerTexts()).map(squash), ['Paid 3 ₱4,300', 'Pending 1 ₱800', 'Confirmed 4']);
+    assert.deepEqual(
+      (await bookings.locator('.report-bar-row').allInnerTexts()).map(squash),
+      ['Paid 3 75% · worth ₱4,300', 'Pending 1 25% · worth ₱800', 'Confirmed 4 100%'],
+    );
+    // A bar fills its share of the whole: three of four bookings paid fills three quarters.
+    const fills = await bookings.locator('#breakdown-payment .report-bar-track i').evaluateAll((bars) => bars.map((bar) => bar.style.width));
+    assert.deepEqual(fills, ['75%', '25%']);
     // Every bar in a list is drawn on the same full length, whatever the width of its figures.
     const tracks = await bookings.locator('#breakdown-payment .report-bar-track').evaluateAll((bars) => bars.map((bar) => Math.round(bar.getBoundingClientRect().width)));
     assert.equal(new Set(tracks).size, 1, `Bars of different lengths: ${tracks.join(', ')}`);
     await page.close();
   });
 
-  await t.test('7. On a phone each name sits whole on its own line, above a bar that keeps its width', async () => {
-    const page = await browser.newPage({ viewport: { width: 320, height: 568 } });
+  await t.test('7. On a phone each name sits whole on its own line, and a tap reads a month out', async () => {
+    const page = await browser.newPage({ viewport: { width: 320, height: 568 }, hasTouch: true });
     await route(page);
     await page.goto(`${BASE_URL}/reports`);
     const row = page.getByRole('region', { name: 'Where revenue came from' }).locator('.report-bar-row').first();
@@ -241,8 +247,49 @@ test('Reports', async (t) => {
       return { cut: label.scrollWidth - label.clientWidth, gap: track.top - label.getBoundingClientRect().bottom, bar: Math.round(track.width) };
     });
     assert.ok(layout.cut <= 0 && layout.gap >= 0 && layout.bar >= 100, JSON.stringify(layout));
+
+    // A tap on the chart reads out the month under the finger, on screen; a tap elsewhere puts it away.
+    const chart = page.locator('.month-chart');
+    const size = await chart.boundingBox();
+    await chart.tap({ position: { x: size.width - 20, y: size.height / 2 } });
+    assert.equal(await page.locator('.month-tip-title').innerText(), 'March 2026');
+    const tip = await page.locator('.month-tip').boundingBox();
+    assert.ok(tip.x >= 0 && tip.x + tip.width <= 320, JSON.stringify(tip));
+    await page.locator('#months-title').tap();
+    assert.equal(await page.locator('.month-tip').count(), 0);
+
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     assert.ok(overflow <= 0, `Scrolls sideways by ${overflow}px`);
+    await page.close();
+  });
+
+  await t.test('8. The month chart reads out the month under the pointer, or stepped to with the arrow keys', async () => {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    await route(page);
+    await page.goto(`${BASE_URL}/reports`);
+    const chart = page.locator('.month-chart');
+    await chart.waitFor();
+    const title = page.locator('.month-tip-title');
+    const figures = () => page.locator('.month-tip-row strong').allInnerTexts();
+
+    // The last of the three months fills the right-hand end of the chart.
+    await chart.scrollIntoViewIfNeeded();
+    const box = await chart.boundingBox();
+    await page.mouse.move(box.x + box.width - 30, box.y + box.height / 2);
+    assert.equal(await title.innerText(), 'March 2026');
+    assert.deepEqual(await figures(), ['₱3,600', '₱100', '₱3,500']);
+    await page.mouse.move(box.x + box.width / 2, box.y - 60);
+    assert.equal(await page.locator('.month-tip').count(), 0);
+
+    // From the keyboard the chart starts on its first month; the arrows step and Escape closes.
+    await chart.focus();
+    assert.equal(await title.innerText(), 'January 2026');
+    await page.keyboard.press('ArrowRight');
+    assert.equal(await title.innerText(), 'February 2026');
+    assert.deepEqual(await figures(), ['₱0', '₱600', '−₱600']);
+    assert.equal(await page.locator('.month-tip-net.is-loss').count(), 1);
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('.month-tip').count(), 0);
     await page.close();
   });
 });
